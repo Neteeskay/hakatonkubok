@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
@@ -16,10 +16,17 @@ from app.models.enums import (
     ApplicationStatus,
     HelpCategory,
     ParticipationFormat,
+    TaskStatus,
     TaskType,
     UserRole,
 )
-from app.services.achievement_service import AchievementStats, build_achievement_states
+from app.services.achievement_service import (
+    AchievementStats,
+    _calculate_long_term_progress,
+    _is_active_application,
+    _longest_weekly_streak,
+    build_achievement_states,
+)
 
 
 def make_volunteer() -> SimpleNamespace:
@@ -77,6 +84,50 @@ def test_build_achievement_states_marks_completed_medals() -> None:
     assert AchievementCode.PRO_BONO_EXPERT in completed_codes
     assert AchievementCode.ECO_HERO in completed_codes
     assert AchievementCode.GOOD_MARATHON not in completed_codes
+
+
+def test_active_participant_counts_only_active_accepted_tasks() -> None:
+    accepted_application = SimpleNamespace(status=ApplicationStatus.ACCEPTED)
+    completed_application = SimpleNamespace(status=ApplicationStatus.HOURS_AWARDED)
+    published_task = SimpleNamespace(status=TaskStatus.PUBLISHED)
+    closed_task = SimpleNamespace(status=TaskStatus.CLOSED)
+
+    assert _is_active_application(accepted_application, published_task) is True
+    assert _is_active_application(accepted_application, closed_task) is False
+    assert _is_active_application(completed_application, published_task) is False
+
+
+def test_regular_helper_uses_four_week_award_streak() -> None:
+    streak = _longest_weekly_streak(
+        [
+            date(2026, 1, 5),
+            date(2026, 1, 12),
+            date(2026, 1, 19),
+            date(2026, 1, 26),
+        ]
+    )
+
+    assert streak == 4
+
+
+def test_prosto_legend_requires_reliability_and_regular_streak() -> None:
+    full_progress = _calculate_long_term_progress(
+        total_hours=Decimal("100"),
+        completed_tasks_count=10,
+        completed_dates=[date(2026, 1, 1), date(2026, 3, 31)],
+        reliable_success_ratio_percent=Decimal("90"),
+        weekly_streak_weeks=4,
+    )
+    unreliable_progress = _calculate_long_term_progress(
+        total_hours=Decimal("100"),
+        completed_tasks_count=10,
+        completed_dates=[date(2026, 1, 1), date(2026, 3, 31)],
+        reliable_success_ratio_percent=Decimal("80"),
+        weekly_streak_weeks=4,
+    )
+
+    assert full_progress == Decimal("100.00")
+    assert unreliable_progress < Decimal("100.00")
 
 
 @pytest.mark.asyncio

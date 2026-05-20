@@ -9,13 +9,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain import TaskApplication, UserAchievement, VolunteerHourLedger, VolunteerTask
-from app.models.enums import AchievementCode, ApplicationStatus, HelpCategory, ParticipationFormat, TaskType
+from app.models.enums import (
+    AchievementCode,
+    ApplicationStatus,
+    HelpCategory,
+    ParticipationFormat,
+    TaskStatus,
+    TaskType,
+)
 
 COMPLETED_APPLICATION_STATUSES = {
     ApplicationStatus.COMPLETION_CONFIRMED,
     ApplicationStatus.HOURS_AWARDED,
 }
 ACTIVE_APPLICATION_STATUSES = {ApplicationStatus.ACCEPTED}
+ACTIVE_TASK_STATUSES = {TaskStatus.PUBLISHED}
 PROGRESS_QUANT = Decimal("0.01")
 
 
@@ -262,7 +270,13 @@ def build_achievement_states(stats: AchievementStats) -> list[AchievementState]:
             AchievementCode.PROSTO_LEGEND,
             stats.long_term_progress_percent,
             100,
-            {"hours_target": 100, "completed_tasks_target": 10, "activity_days_target": 90},
+            {
+                "hours_target": 100,
+                "completed_tasks_target": 10,
+                "activity_days_target": 90,
+                "reliable_percent_target": 90,
+                "weekly_streak_target": 4,
+            },
         ),
     ]
 
@@ -284,6 +298,7 @@ async def collect_volunteer_achievement_stats(
     active_applications_count = 0
     category_counter: Counter[str] = Counter()
     completed_dates: list[date] = []
+    awarded_dates: list[date] = []
     activity_dates: list[date] = []
     completed_task_ids: set[UUID] = set()
     online_completed_count = 0
@@ -301,7 +316,7 @@ async def collect_volunteer_achievement_stats(
         if _is_fast_response(application, task):
             fast_response_count += 1
 
-        if application.status in ACTIVE_APPLICATION_STATUSES:
+        if _is_active_application(application, task):
             active_applications_count += 1
 
         if application.status == ApplicationStatus.CANCELED:
@@ -322,16 +337,22 @@ async def collect_volunteer_achievement_stats(
 
         if ledger is not None:
             total_hours += Decimal(ledger.hours)
+            _append_date(awarded_dates, ledger.awarded_at)
             _append_date(activity_dates, ledger.awarded_at)
             if application.completion_confirmed_at is None:
                 _append_date(completed_dates, ledger.awarded_at)
 
     team_completed_count = await _count_team_completed_tasks(session, completed_task_ids)
     reliable_ratio = _calculate_reliable_ratio(completed_tasks_count, canceled_count)
+    weekly_streak_weeks = _longest_weekly_streak(awarded_dates)
     long_term_progress = _calculate_long_term_progress(
         total_hours=total_hours,
         completed_tasks_count=completed_tasks_count,
         completed_dates=completed_dates,
+        reliable_success_ratio_percent=(
+            reliable_ratio if completed_tasks_count >= 5 else Decimal("0")
+        ),
+        weekly_streak_weeks=weekly_streak_weeks,
     )
 
     return AchievementStats(
@@ -350,7 +371,7 @@ async def collect_volunteer_achievement_stats(
             + category_counter[HelpCategory.DISABILITY.value]
         ),
         team_completed_count=team_completed_count,
-        weekly_streak_weeks=_longest_weekly_streak(completed_dates),
+        weekly_streak_weeks=weekly_streak_weeks,
         daily_activity_streak_days=_longest_daily_streak(activity_dates),
         reliable_success_ratio_percent=reliable_ratio if completed_tasks_count >= 5 else Decimal("0"),
         long_term_progress_percent=long_term_progress,
@@ -422,6 +443,13 @@ def _is_fast_response(application: TaskApplication, task: VolunteerTask) -> bool
     return timedelta(0) <= response_delay <= timedelta(hours=1)
 
 
+def _is_active_application(application: TaskApplication, task: VolunteerTask) -> bool:
+    return (
+        application.status in ACTIVE_APPLICATION_STATUSES
+        and task.status in ACTIVE_TASK_STATUSES
+    )
+
+
 def _append_date(target: list[date], value: object | None) -> None:
     if value is not None and hasattr(value, "date"):
         target.append(value.date())
@@ -477,6 +505,8 @@ def _calculate_long_term_progress(
     total_hours: Decimal,
     completed_tasks_count: int,
     completed_dates: list[date],
+    reliable_success_ratio_percent: Decimal,
+    weekly_streak_weeks: int,
 ) -> Decimal:
     activity_days = 0
     if completed_dates:
@@ -486,6 +516,8 @@ def _calculate_long_term_progress(
         min(total_hours / Decimal("100"), Decimal("1")),
         min(Decimal(completed_tasks_count) / Decimal("10"), Decimal("1")),
         min(Decimal(activity_days) / Decimal("90"), Decimal("1")),
+        min(reliable_success_ratio_percent / Decimal("90"), Decimal("1")),
+        min(Decimal(weekly_streak_weeks) / Decimal("4"), Decimal("1")),
     ]
     return (min(progress_parts) * Decimal("100")).quantize(PROGRESS_QUANT)
 
