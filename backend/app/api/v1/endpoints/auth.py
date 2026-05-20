@@ -1,21 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import get_current_user
 from app.db.session import get_session
+from app.models.domain import User
 from app.schemas.auth import (
+    AdminRegisterRequest,
+    AdminRegisterResponse,
     FundRegisterRequest,
     FundRegisterResponse,
     LoginRequest,
     TokenResponse,
+    UserResponse,
     VolunteerRegisterRequest,
     VolunteerRegisterResponse,
 )
 from app.services.auth_service import (
     DuplicateEmployeeIdError,
     DuplicateEmailError,
+    EmployeeVerificationError,
     InvalidCredentialsError,
+    InvalidInviteCodeError,
     authenticate_user,
     issue_user_token,
+    register_admin,
     register_fund,
     register_volunteer,
 )
@@ -46,6 +54,11 @@ async def create_volunteer(
             status_code=status.HTTP_409_CONFLICT,
             detail="employee_id already exists",
         ) from exc
+    except EmployeeVerificationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="employee not found or inactive",
+        ) from exc
     return VolunteerRegisterResponse(user=user)
 
 
@@ -65,6 +78,24 @@ async def create_fund(
     return FundRegisterResponse(user=user, fund=fund)
 
 
+@router.post(
+    "/register/admin",
+    response_model=AdminRegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_admin(
+    payload: AdminRegisterRequest,
+    session: AsyncSession = Depends(get_session),
+) -> AdminRegisterResponse:
+    try:
+        user = await register_admin(session, payload)
+    except DuplicateEmailError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already exists") from exc
+    except InvalidInviteCodeError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid invite code") from exc
+    return AdminRegisterResponse(user=user)
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
@@ -78,3 +109,8 @@ async def login(
             detail="invalid email or password",
         ) from exc
     return TokenResponse(access_token=issue_user_token(user), user=user)
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user

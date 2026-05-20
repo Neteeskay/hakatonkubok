@@ -1,10 +1,11 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.domain import Fund, User
+from app.models.domain import Fund, MockEmployee, User
 from app.models.enums import FundStatus, UserRole
-from app.schemas.auth import FundRegisterRequest, VolunteerRegisterRequest
+from app.schemas.auth import AdminRegisterRequest, FundRegisterRequest, VolunteerRegisterRequest
 
 
 class AuthError(Exception):
@@ -16,6 +17,14 @@ class DuplicateEmailError(AuthError):
 
 
 class DuplicateEmployeeIdError(AuthError):
+    pass
+
+
+class EmployeeVerificationError(AuthError):
+    pass
+
+
+class InvalidInviteCodeError(AuthError):
     pass
 
 
@@ -33,22 +42,51 @@ async def get_user_by_employee_id(session: AsyncSession, employee_id: str) -> Us
     return result.scalar_one_or_none()
 
 
+async def get_mock_employee(
+    session: AsyncSession,
+    *,
+    email: str,
+    employee_id: str | None,
+) -> MockEmployee | None:
+    if employee_id:
+        result = await session.execute(
+            select(MockEmployee).where(MockEmployee.employee_id == employee_id)
+        )
+        employee = result.scalar_one_or_none()
+        if employee and employee.email != email:
+            raise EmployeeVerificationError
+        return employee
+
+    result = await session.execute(select(MockEmployee).where(MockEmployee.email == email))
+    return result.scalar_one_or_none()
+
+
 async def register_volunteer(session: AsyncSession, payload: VolunteerRegisterRequest) -> User:
     if await get_user_by_email(session, payload.email):
         raise DuplicateEmailError
-    if payload.employee_id and await get_user_by_employee_id(session, payload.employee_id):
+
+    employee = await get_mock_employee(
+        session,
+        email=payload.email,
+        employee_id=payload.employee_id,
+    )
+    if not employee or not employee.is_active:
+        raise EmployeeVerificationError
+
+    employee_id = payload.employee_id or employee.employee_id
+    if await get_user_by_employee_id(session, employee_id):
         raise DuplicateEmployeeIdError
 
     user = User(
         role=UserRole.VOLUNTEER,
         email=payload.email,
         password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        city=payload.city,
+        full_name=payload.full_name or employee.full_name,
+        city=payload.city or employee.city,
         phone=payload.phone,
-        employee_id=payload.employee_id,
-        department=payload.department,
-        position=payload.position,
+        employee_id=employee_id,
+        department=payload.department or employee.department,
+        position=payload.position or employee.position,
         interests=payload.interests,
         skills=payload.skills,
     )
@@ -93,6 +131,24 @@ async def register_fund(session: AsyncSession, payload: FundRegisterRequest) -> 
     await session.refresh(user)
     await session.refresh(fund)
     return user, fund
+
+
+async def register_admin(session: AsyncSession, payload: AdminRegisterRequest) -> User:
+    if payload.invite_code != settings.admin_registration_code:
+        raise InvalidInviteCodeError
+    if await get_user_by_email(session, payload.email):
+        raise DuplicateEmailError
+
+    user = User(
+        role=UserRole.ADMIN,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
 
 
 async def authenticate_user(session: AsyncSession, email: str, password: str) -> User:

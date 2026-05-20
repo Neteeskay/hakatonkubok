@@ -10,14 +10,14 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-for-demo"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 120
+    admin_registration_code: str = "admin-dev-code"
     uploads_dir: str = "./uploads"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def sync_database_url(self) -> str:
-        return self.database_url.replace("+asyncpg", "")
+        return self.database_url.replace("+asyncpg", "+psycopg")
 
 
 settings = Settings()
-

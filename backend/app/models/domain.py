@@ -2,8 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID as PyUUID, uuid4
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, func, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -39,6 +39,7 @@ class TimestampMixin:
 
 class User(Base, TimestampMixin):
     __tablename__ = "app_user"
+    __table_args__ = (Index("app_user_role_idx", "role"),)
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     role: Mapped[UserRole] = mapped_column(
@@ -59,15 +60,32 @@ class User(Base, TimestampMixin):
 
     fund: Mapped["Fund | None"] = relationship(back_populates="representative")
     applications: Mapped[list["TaskApplication"]] = relationship(back_populates="volunteer")
+    notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
+    report_exports: Mapped[list["ReportExport"]] = relationship(back_populates="requester")
+
+
+class MockEmployee(Base, TimestampMixin):
+    __tablename__ = "mock_employee"
+
+    id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    employee_id: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    city: Mapped[str | None] = mapped_column(String(120))
+    department: Mapped[str | None] = mapped_column(String(160))
+    position: Mapped[str | None] = mapped_column(String(160))
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 
 class Fund(Base, TimestampMixin):
     __tablename__ = "fund"
+    __table_args__ = (Index("fund_status_idx", "status"),)
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     representative_user_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("app_user.id"),
+        unique=True,
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -108,6 +126,22 @@ class FundDocument(Base, TimestampMixin):
 
 class VolunteerTask(Base, TimestampMixin):
     __tablename__ = "volunteer_task"
+    __table_args__ = (
+        CheckConstraint("participant_limit IS NULL OR participant_limit > 0", name="task_participant_limit_positive"),
+        CheckConstraint(
+            "participation_format = 'online' OR city IS NOT NULL",
+            name="task_offline_city_required",
+        ),
+        Index(
+            "volunteer_task_feed_idx",
+            "status",
+            "city",
+            "category",
+            "participation_format",
+            "duration_type",
+            "task_type",
+        ),
+    )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     fund_id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("fund.id"), nullable=False)
@@ -156,6 +190,16 @@ class VolunteerTask(Base, TimestampMixin):
 
 class TaskApplication(Base, TimestampMixin):
     __tablename__ = "task_application"
+    __table_args__ = (
+        Index(
+            "task_application_active_unique",
+            "task_id",
+            "volunteer_id",
+            unique=True,
+            postgresql_where=text("status <> 'canceled'"),
+        ),
+        Index("task_application_status_idx", "status"),
+    )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     task_id: Mapped[PyUUID] = mapped_column(
@@ -187,6 +231,7 @@ class TaskApplication(Base, TimestampMixin):
 
 class VolunteerHourLedger(Base, TimestampMixin):
     __tablename__ = "volunteer_hour_ledger"
+    __table_args__ = (Index("hour_ledger_volunteer_idx", "volunteer_id"),)
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     application_id: Mapped[PyUUID] = mapped_column(
@@ -203,3 +248,49 @@ class VolunteerHourLedger(Base, TimestampMixin):
     admin_comment: Mapped[str | None] = mapped_column(Text)
 
     application: Mapped[TaskApplication] = relationship(back_populates="hour_ledger")
+
+
+class Notification(Base):
+    __tablename__ = "notification"
+
+    id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped[User] = relationship(back_populates="notifications")
+
+
+class ReportExport(Base):
+    __tablename__ = "report_export"
+
+    id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    requested_by: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("app_user.id"),
+        nullable=False,
+    )
+    report_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    filters: Mapped[dict[str, object]] = mapped_column(
+        JSONB,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
+    file_url: Mapped[str | None] = mapped_column(String(700))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    requester: Mapped[User] = relationship(back_populates="report_exports")
