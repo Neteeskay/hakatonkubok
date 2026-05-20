@@ -1,12 +1,6 @@
 import csv
 import io
 import re
-from email_validator import EmailNotValidError, validate_email
-
-ALLOWED_EMAIL_DOMAINS = {
-    "mail.ru", "gmail.com"
-}
-
 
 EMAIL_REGEX = re.compile(
     r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
@@ -16,20 +10,14 @@ EMAIL_REGEX = re.compile(
 def normalize_email(raw_email: str) -> str | None:
     value = raw_email.strip().lower()
 
-    if not value:
+    if not value or EMAIL_REGEX.fullmatch(value) is None:
         return None
 
-    try:
-        result = validate_email(value, check_deliverability=False)
-    except EmailNotValidError:
-        return None
-
-    return result.normalized.lower()
+    return value
 
 
 def is_allowed_employee_email(email: str) -> bool:
-    domain = email.split("@")[-1].lower()
-    return domain in ALLOWED_EMAIL_DOMAINS
+    return normalize_email(email) is not None
 
 
 def extract_emails_from_txt(content: str) -> list[str]:

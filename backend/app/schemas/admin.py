@@ -40,8 +40,8 @@ class AdminFundListItem(AdminOrmModel):
     contact_person: str | None = None
     contact_email: str | None = None
     moderation_comment: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     approved_at: datetime | None = None
 
 
@@ -119,6 +119,25 @@ class AdminTaskDetail(AdminTaskListItem):
 class TaskModerationRequest(BaseModel):
     target_status: TaskStatus
     comment: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def support_legacy_fields(cls, data: object) -> object:
+        if isinstance(data, dict):
+            if "target_status" not in data and "status" in data:
+                data = {**data, "target_status": data["status"]}
+            if "comment" not in data and "moderation_comment" in data:
+                data = {**data, "comment": data["moderation_comment"]}
+        return data
+
+    @model_validator(mode="after")
+    def require_comment_for_revision(self) -> "TaskModerationRequest":
+        if self.target_status in {TaskStatus.NEEDS_CHANGES, TaskStatus.REJECTED}:
+            if not self.comment or not self.comment.strip():
+                raise ValueError("comment is required for rejected or needs_changes")
+        if self.comment is not None:
+            self.comment = self.comment.strip()
+        return self
 
 
 class AdminApplicationListItem(AdminOrmModel):

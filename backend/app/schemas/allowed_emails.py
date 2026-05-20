@@ -1,15 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AllowedEmailCreate(BaseModel):
-    email: EmailStr
+    email: str = Field(max_length=320)
 
 
 class AllowedEmailsBulkCreate(BaseModel):
-    emails: list[EmailStr] = Field(min_length=1, max_length=1000)
+    emails: list[str] = Field(min_length=1, max_length=1000)
 
 
 class AllowedEmailRead(BaseModel):
@@ -17,8 +17,12 @@ class AllowedEmailRead(BaseModel):
 
     id: UUID
     email: str
-    source: str
-    added_by: UUID | None
+    employee_id: str
+    full_name: str
+    city: str | None = None
+    department: str | None = None
+    position: str | None = None
+    is_active: bool
     created_at: datetime
 
 

@@ -330,6 +330,9 @@ async def moderate_task(
     moderation_comment: str | None,
 ) -> VolunteerTask:
     task = await get_task_by_id(session, task_id)
+    if target_status == TaskStatus.PUBLISHED and task.fund.status != FundStatus.APPROVED:
+        raise FundNotApprovedError
+
     if target_status in {TaskStatus.NEEDS_CHANGES, TaskStatus.REJECTED}:
         if not moderation_comment or not moderation_comment.strip():
             raise TaskModerationCommentRequiredError

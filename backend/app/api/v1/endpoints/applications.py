@@ -73,6 +73,11 @@ async def apply_to_task(
             status_code=status.HTTP_409_CONFLICT,
             detail="task is not published",
         ) from exc
+    except TaskNotOpenForApplicationsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task is not open for applications",
+        ) from exc
     except AlreadyAppliedError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

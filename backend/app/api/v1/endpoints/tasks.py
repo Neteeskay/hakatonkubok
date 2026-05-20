@@ -84,22 +84,6 @@ async def list_task_feed(
     return [TaskResponse.model_validate(task) for task in tasks]
 
 
-@router.get("/{task_id}", response_model=TaskResponse)
-async def get_task_card(
-    task_id: UUID,
-    session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_roles(UserRole.VOLUNTEER)),
-) -> TaskResponse:
-    try:
-        task = await get_published_task_for_volunteer(session, task_id)
-    except TaskNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="task not found",
-        ) from exc
-    return TaskResponse.model_validate(task)
-
-
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_my_task(
     payload: TaskCreateRequest,
@@ -219,5 +203,21 @@ async def close_my_task(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="invalid task status transition",
+        ) from exc
+    return TaskResponse.model_validate(task)
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task_card(
+    task_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.VOLUNTEER)),
+) -> TaskResponse:
+    try:
+        task = await get_published_task_for_volunteer(session, task_id)
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
         ) from exc
     return TaskResponse.model_validate(task)

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+import hashlib
 from typing import Annotated
 from uuid import UUID
 
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.core.deps import require_roles
 from app.db.session import get_session
-from app.models.domain import Fund, TaskApplication, User, VolunteerHourLedger, VolunteerTask, AllowedEmployeeEmail
+from app.models.domain import Fund, StolotoEmployee, TaskApplication, User, VolunteerHourLedger, VolunteerTask
 from app.models.enums import ApplicationStatus, FundStatus, TaskStatus, UserRole
 from app.schemas.admin import (
     AdminApplicationListItem,
@@ -49,7 +50,15 @@ from app.services.fund_service import (
     list_funds,
     moderate_fund,
 )
-from app.services.status_transitions import FUND_TRANSITIONS, TASK_TRANSITIONS, can_transition
+from app.services.task_service import (
+    FundNotApprovedError,
+    InvalidTaskStatusTransitionError,
+    TaskModerationCommentRequiredError,
+    TaskNotFoundError,
+    get_task_by_id,
+    list_tasks_for_admin,
+    moderate_task,
+)
 
 
 router = APIRouter()
@@ -68,9 +77,7 @@ def _paginate(stmt: Select, limit: int, offset: int) -> Select:
 
 async def _save_allowed_emails(
     raw_emails: list[str],
-    source: str,
     session: AsyncSession,
-    admin: User,
 ) -> AllowedEmailsImportResult:
     normalized_unique_emails: list[str] = []
     invalid_values: list[str] = []
@@ -103,8 +110,8 @@ async def _save_allowed_emails(
         )
 
     existing_emails_result = await session.scalars(
-        select(AllowedEmployeeEmail.email).where(
-            AllowedEmployeeEmail.email.in_(normalized_unique_emails)
+        select(StolotoEmployee.email).where(
+            StolotoEmployee.email.in_(normalized_unique_emails)
         )
     )
 
@@ -114,16 +121,16 @@ async def _save_allowed_emails(
         email for email in normalized_unique_emails if email not in existing_emails
     ]
 
-    allowed_email_models = [
-        AllowedEmployeeEmail(
+    employee_models = [
+        StolotoEmployee(
             email=email,
-            added_by=admin.id,
-            source=source,
+            employee_id=_employee_id_for_email(email),
+            full_name=email,
         )
         for email in emails_to_add
     ]
 
-    session.add_all(allowed_email_models)
+    session.add_all(employee_models)
     await session.commit()
 
     return AllowedEmailsImportResult(
@@ -136,6 +143,11 @@ async def _save_allowed_emails(
         invalid_values=invalid_values,
         forbidden_domain_emails=forbidden_domain_emails,
     )
+
+
+def _employee_id_for_email(email: str) -> str:
+    email_hash = hashlib.sha256(email.encode("utf-8")).hexdigest()[:16].upper()
+    return f"EMAIL-{email_hash}"
 
 
 @router.get("/ping")
@@ -231,7 +243,7 @@ async def moderate_fund_for_admin(
 
 
 @router.get("/tasks", response_model=list[AdminTaskListItem])
-async def list_tasks_for_admin(
+async def list_tasks_for_admin_endpoint(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_roles(UserRole.ADMIN)),
     status_filter: TaskStatus | None = Query(default=None, alias="status"),
@@ -240,19 +252,13 @@ async def list_tasks_for_admin(
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[VolunteerTask]:
-    stmt = select(VolunteerTask).order_by(VolunteerTask.created_at.desc())
-
-    if status_filter is not None:
-        stmt = stmt.where(VolunteerTask.status == status_filter)
-
+    tasks = await list_tasks_for_admin(session, status=status_filter)
     if fund_id is not None:
-        stmt = stmt.where(VolunteerTask.fund_id == fund_id)
-
+        tasks = [task for task in tasks if task.fund_id == fund_id]
     if search:
-        stmt = stmt.where(VolunteerTask.title.ilike(f"%{search}%"))
-
-    result = await session.scalars(_paginate(stmt, limit, offset))
-    return list(result)
+        search_value = search.strip().lower()
+        tasks = [task for task in tasks if search_value in task.title.lower()]
+    return tasks[offset : offset + limit]
 
 
 @router.get("/tasks/pending", response_model=list[AdminTaskListItem])
@@ -262,14 +268,8 @@ async def list_pending_tasks(
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[VolunteerTask]:
-    stmt = (
-        select(VolunteerTask)
-        .where(VolunteerTask.status == TaskStatus.PENDING_REVIEW)
-        .order_by(VolunteerTask.created_at.asc())
-    )
-
-    result = await session.scalars(_paginate(stmt, limit, offset))
-    return list(result)
+    tasks = await list_tasks_for_admin(session, status=TaskStatus.PENDING_REVIEW)
+    return tasks[offset : offset + limit]
 
 
 @router.get("/tasks/{task_id}", response_model=AdminTaskDetail)
@@ -278,23 +278,17 @@ async def get_task_for_admin(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> VolunteerTask:
-    task = await session.scalar(
-        select(VolunteerTask)
-        .where(VolunteerTask.id == task_id)
-        .options(selectinload(VolunteerTask.fund))
-    )
-
-    if task is None:
+    try:
+        return await get_task_by_id(session, task_id)
+    except TaskNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
-        )
-
-    return task
+        ) from exc
 
 
 @router.patch("/tasks/{task_id}/moderation", response_model=AdminTaskDetail)
-async def moderate_task(
+async def moderate_task_for_admin(
     task_id: UUID,
     payload: TaskModerationRequest,
     session: AsyncSession = Depends(get_session),
@@ -312,38 +306,33 @@ async def moderate_task(
             detail="Admin can set task only to published, rejected or needs_changes",
         )
 
-    task = await session.scalar(
-        select(VolunteerTask)
-        .where(VolunteerTask.id == task_id)
-        .options(selectinload(VolunteerTask.fund))
-    )
-
-    if task is None:
+    try:
+        return await moderate_task(
+            session,
+            task_id=task_id,
+            target_status=payload.target_status,
+            moderation_comment=payload.comment,
+        )
+    except TaskNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
-        )
-
-    if task.fund.status != FundStatus.APPROVED:
+        ) from exc
+    except FundNotApprovedError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Only tasks of approved funds can be published",
-        )
-
-    if not can_transition(task.status, payload.target_status, TASK_TRANSITIONS):
+        ) from exc
+    except TaskModerationCommentRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="comment is required for rejected or needs_changes",
+        ) from exc
+    except InvalidTaskStatusTransitionError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Invalid task status transition: {task.status} -> {payload.target_status}",
-        )
-
-    task.status = payload.target_status
-    task.moderation_comment = payload.comment
-    task.published_at = _now() if payload.target_status == TaskStatus.PUBLISHED else None
-
-    await session.commit()
-    await session.refresh(task)
-
-    return task
+            detail="invalid task status transition",
+        ) from exc
 
 
 @router.get("/applications", response_model=list[AdminApplicationListItem])
@@ -560,13 +549,13 @@ async def list_allowed_employee_emails(
     search: str | None = Query(default=None, min_length=2),
     limit: PageLimit = 100,
     offset: PageOffset = 0,
-) -> list[AllowedEmployeeEmail]:
-    stmt = select(AllowedEmployeeEmail).order_by(
-        AllowedEmployeeEmail.created_at.desc()
+) -> list[StolotoEmployee]:
+    stmt = select(StolotoEmployee).order_by(
+        StolotoEmployee.created_at.desc()
     )
 
     if search:
-        stmt = stmt.where(AllowedEmployeeEmail.email.ilike(f"%{search.lower()}%"))
+        stmt = stmt.where(StolotoEmployee.email.ilike(f"%{search.lower()}%"))
 
     result = await session.scalars(_paginate(stmt, limit, offset))
     return list(result)
@@ -580,8 +569,8 @@ async def list_allowed_employee_emails(
 async def add_allowed_employee_email(
     payload: AllowedEmailCreate,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_roles(UserRole.ADMIN)),
-) -> AllowedEmployeeEmail:
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+) -> StolotoEmployee:
     normalized_email = normalize_email(payload.email)
 
     if normalized_email is None:
@@ -597,9 +586,7 @@ async def add_allowed_employee_email(
         )
 
     existing_email = await session.scalar(
-        select(AllowedEmployeeEmail).where(
-            AllowedEmployeeEmail.email == normalized_email
-        )
+        select(StolotoEmployee).where(StolotoEmployee.email == normalized_email)
     )
 
     if existing_email is not None:
@@ -608,17 +595,17 @@ async def add_allowed_employee_email(
             detail="Email already exists",
         )
 
-    allowed_email = AllowedEmployeeEmail(
+    employee = StolotoEmployee(
         email=normalized_email,
-        added_by=admin.id,
-        source="manual",
+        employee_id=_employee_id_for_email(normalized_email),
+        full_name=normalized_email,
     )
 
-    session.add(allowed_email)
+    session.add(employee)
     await session.commit()
-    await session.refresh(allowed_email)
+    await session.refresh(employee)
 
-    return allowed_email
+    return employee
 
 
 @router.post(
@@ -628,13 +615,11 @@ async def add_allowed_employee_email(
 async def add_allowed_employee_emails_bulk(
     payload: AllowedEmailsBulkCreate,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AllowedEmailsImportResult:
     return await _save_allowed_emails(
         raw_emails=[str(email) for email in payload.emails],
-        source="manual_bulk",
         session=session,
-        admin=admin,
     )
 
 
@@ -645,7 +630,7 @@ async def add_allowed_employee_emails_bulk(
 async def import_allowed_employee_emails_from_file(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AllowedEmailsImportResult:
     if not file.filename:
         raise HTTPException(
@@ -668,9 +653,7 @@ async def import_allowed_employee_emails_from_file(
 
     return await _save_allowed_emails(
         raw_emails=raw_emails,
-        source="file_import",
         session=session,
-        admin=admin,
     )
 
 
@@ -681,7 +664,7 @@ async def delete_allowed_employee_email(
     _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> None:
     allowed_email = await session.scalar(
-        select(AllowedEmployeeEmail).where(AllowedEmployeeEmail.id == email_id)
+        select(StolotoEmployee).where(StolotoEmployee.id == email_id)
     )
 
     if allowed_email is None:
