@@ -12,4 +12,5 @@ default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
+printpdf = "0.7"
 pyo3 = "0.22"
