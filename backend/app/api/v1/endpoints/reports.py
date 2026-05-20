@@ -1,8 +1,7 @@
-from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_roles
@@ -11,10 +10,11 @@ from app.models.domain import User
 from app.models.enums import UserRole
 from app.schemas.reports import ParticipantReportRow, PlatformAnalyticsReport
 from app.services.report_service import (
+    build_analytics_csv,
+    build_analytics_xlsx_bytes,
+    build_full_report_xlsx_bytes,
     build_participants_csv,
-    create_report_file_path,
-    export_analytics_summary_pdf,
-    export_participants_pdf,
+    build_participants_xlsx_bytes,
     fetch_participant_report_rows,
     fetch_platform_analytics,
 )
@@ -23,6 +23,10 @@ router = APIRouter()
 
 PageLimit = Annotated[int, Query(ge=1, le=10_000)]
 PageOffset = Annotated[int, Query(ge=0)]
+
+XLSX_MEDIA_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 
 @router.get("/ping")
@@ -46,10 +50,9 @@ async def export_participants_report_csv(
     _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Response:
     rows = await fetch_participant_report_rows(session, limit=None, offset=0)
-    csv_content = build_participants_csv(rows)
 
     return Response(
-        content=csv_content,
+        content=build_participants_csv(rows),
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": 'attachment; filename="participants_report.csv"',
@@ -57,26 +60,19 @@ async def export_participants_report_csv(
     )
 
 
-@router.get("/participants.pdf")
-async def export_participants_report_pdf(
+@router.get("/participants.xlsx")
+async def export_participants_report_xlsx(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_roles(UserRole.ADMIN)),
-) -> FileResponse:
+) -> Response:
     rows = await fetch_participant_report_rows(session, limit=None, offset=0)
 
-    try:
-        output_path = create_report_file_path("participants_report", "pdf")
-        export_participants_pdf(rows, output_path)
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-
-    return FileResponse(
-        path=output_path,
-        media_type="application/pdf",
-        filename=output_path.name,
+    return Response(
+        content=build_participants_xlsx_bytes(rows),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": 'attachment; filename="participants_report.xlsx"',
+        },
     )
 
 
@@ -88,24 +84,50 @@ async def get_platform_analytics_report(
     return await fetch_platform_analytics(session)
 
 
-@router.get("/analytics.pdf")
-async def export_platform_analytics_pdf(
+@router.get("/analytics.csv")
+async def export_platform_analytics_csv(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_roles(UserRole.ADMIN)),
-) -> FileResponse:
+) -> Response:
     report = await fetch_platform_analytics(session)
 
-    try:
-        output_path = create_report_file_path("platform_analytics", "pdf")
-        export_analytics_summary_pdf(report, output_path)
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
+    return Response(
+        content=build_analytics_csv(report),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="platform_analytics.csv"',
+        },
+    )
 
-    return FileResponse(
-        path=output_path,
-        media_type="application/pdf",
-        filename=output_path.name,
+
+@router.get("/analytics.xlsx")
+async def export_platform_analytics_xlsx(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+) -> Response:
+    report = await fetch_platform_analytics(session)
+
+    return Response(
+        content=build_analytics_xlsx_bytes(report),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": 'attachment; filename="platform_analytics.xlsx"',
+        },
+    )
+
+
+@router.get("/export.xlsx")
+async def export_full_platform_report_xlsx(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+) -> Response:
+    participants = await fetch_participant_report_rows(session, limit=None, offset=0)
+    analytics = await fetch_platform_analytics(session)
+
+    return Response(
+        content=build_full_report_xlsx_bytes(participants, analytics),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": 'attachment; filename="platform_report.xlsx"',
+        },
     )

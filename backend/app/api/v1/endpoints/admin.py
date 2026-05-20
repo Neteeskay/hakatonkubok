@@ -27,6 +27,7 @@ from app.schemas.admin import (
 from app.schemas.reports import ParticipantReportRow
 from app.services.report_service import (
     build_participants_csv,
+    build_participants_xlsx_bytes,
     fetch_participant_report_rows,
 )
 from app.schemas.allowed_emails import (
@@ -534,6 +535,23 @@ async def export_participants_report_csv(
             "Content-Disposition": 'attachment; filename="participants_report.csv"'
         },
     )
+
+
+@router.get("/reports/participants.xlsx")
+async def export_participants_report_xlsx(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+) -> Response:
+    rows = await fetch_participant_report_rows(session, limit=None, offset=0)
+
+    return Response(
+        content=build_participants_xlsx_bytes(rows),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="participants_report.xlsx"'
+        },
+    )
+
 
 @router.get("/allowed-emails", response_model=list[AllowedEmailRead])
 async def list_allowed_employee_emails(
