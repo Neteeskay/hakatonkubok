@@ -46,6 +46,7 @@ class User(Base, TimestampMixin):
         Enum(UserRole, name="user_role", values_callable=enum_values),
         nullable=False,
     )
+    username: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))

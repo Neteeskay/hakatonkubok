@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 from app.models.enums import FundStatus, UserRole
 
@@ -59,30 +59,26 @@ class FundRegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(max_length=320)
+    login: str = Field(min_length=1, max_length=320)
     password: str = Field(min_length=1, max_length=128)
 
-    @field_validator("email")
+    @model_validator(mode="before")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        return normalize_email(value)
+    def support_legacy_email_field(cls, data: object) -> object:
+        if isinstance(data, dict) and "login" not in data and "email" in data:
+            data = {**data, "login": data["email"]}
+        return data
 
-
-class AdminRegisterRequest(BaseModel):
-    email: str = Field(max_length=320)
-    password: str = Field(min_length=8, max_length=128)
-    full_name: str = Field(min_length=2, max_length=255)
-    invite_code: str = Field(min_length=1, max_length=128)
-
-    @field_validator("email")
+    @field_validator("login")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        return normalize_email(value)
+    def normalize_login(cls, value: str) -> str:
+        return value.strip().lower()
 
 
 class UserResponse(BaseModel):
     id: UUID
     role: UserRole
+    username: str | None
     email: str
     full_name: str | None
     city: str | None
@@ -111,10 +107,6 @@ class VolunteerRegisterResponse(BaseModel):
 class FundRegisterResponse(BaseModel):
     user: UserResponse
     fund: FundResponse
-
-
-class AdminRegisterResponse(BaseModel):
-    user: UserResponse
 
 
 class TokenResponse(BaseModel):

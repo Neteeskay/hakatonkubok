@@ -1,11 +1,10 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.domain import Fund, MockEmployee, User
 from app.models.enums import FundStatus, UserRole
-from app.schemas.auth import AdminRegisterRequest, FundRegisterRequest, VolunteerRegisterRequest
+from app.schemas.auth import FundRegisterRequest, VolunteerRegisterRequest
 
 
 class AuthError(Exception):
@@ -24,16 +23,19 @@ class EmployeeVerificationError(AuthError):
     pass
 
 
-class InvalidInviteCodeError(AuthError):
-    pass
-
-
 class InvalidCredentialsError(AuthError):
     pass
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     result = await session.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_login(session: AsyncSession, login: str) -> User | None:
+    result = await session.execute(
+        select(User).where(or_(User.email == login, User.username == login))
+    )
     return result.scalar_one_or_none()
 
 
@@ -133,26 +135,8 @@ async def register_fund(session: AsyncSession, payload: FundRegisterRequest) -> 
     return user, fund
 
 
-async def register_admin(session: AsyncSession, payload: AdminRegisterRequest) -> User:
-    if payload.invite_code != settings.admin_registration_code:
-        raise InvalidInviteCodeError
-    if await get_user_by_email(session, payload.email):
-        raise DuplicateEmailError
-
-    user = User(
-        role=UserRole.ADMIN,
-        email=payload.email,
-        password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
-
-
-async def authenticate_user(session: AsyncSession, email: str, password: str) -> User:
-    user = await get_user_by_email(session, email)
+async def authenticate_user(session: AsyncSession, login: str, password: str) -> User:
+    user = await get_user_by_login(session, login)
     if not user or not user.is_active or not verify_password(password, user.password_hash):
         raise InvalidCredentialsError
     return user

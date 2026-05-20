@@ -15,7 +15,6 @@ from app.services.auth_service import (
     DuplicateEmailError,
     DuplicateEmployeeIdError,
     EmployeeVerificationError,
-    InvalidInviteCodeError,
 )
 
 
@@ -23,6 +22,7 @@ def make_user(role: UserRole = UserRole.VOLUNTEER) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         role=role,
+        username="admin" if role == UserRole.ADMIN else None,
         email="user@example.com",
         full_name="Test User",
         city="Nizhny Novgorod",
@@ -124,39 +124,12 @@ async def test_register_fund_creates_pending_review_fund(
 
 
 @pytest.mark.asyncio
-async def test_register_admin(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_register_admin(session: object, payload: object) -> SimpleNamespace:
-        assert payload.email == "admin@example.com"
-        assert payload.invite_code == "admin-dev-code"
-        user = make_user(UserRole.ADMIN)
-        user.email = payload.email
-        return user
-
-    monkeypatch.setattr(auth_endpoint, "register_admin", fake_register_admin)
-
-    response = await client.post(
-        "/api/v1/auth/register/admin",
-        json={
-            "email": "Admin@Example.com",
-            "password": "password123",
-            "full_name": "Admin User",
-            "invite_code": "admin-dev-code",
-        },
-    )
-
-    assert response.status_code == 201
-    body = response.json()
-    assert body["user"]["role"] == "admin"
-    assert body["user"]["email"] == "admin@example.com"
-
-
-@pytest.mark.asyncio
 async def test_login_returns_token(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_authenticate_user(session: object, email: str, password: str) -> SimpleNamespace:
-        assert email == "volunteer@example.com"
+    async def fake_authenticate_user(session: object, login: str, password: str) -> SimpleNamespace:
+        assert login == "volunteer@example.com"
         assert password == "password123"
         user = make_user(UserRole.VOLUNTEER)
-        user.email = email
+        user.email = login
         return user
 
     monkeypatch.setattr(auth_endpoint, "authenticate_user", fake_authenticate_user)
@@ -172,6 +145,33 @@ async def test_login_returns_token(client: AsyncClient, monkeypatch: pytest.Monk
     assert body["access_token"] == "test-token"
     assert body["token_type"] == "bearer"
     assert body["user"]["email"] == "volunteer@example.com"
+
+
+@pytest.mark.asyncio
+async def test_login_accepts_default_admin_username(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_authenticate_user(session: object, login: str, password: str) -> SimpleNamespace:
+        assert login == "admin"
+        assert password == "admin"
+        user = make_user(UserRole.ADMIN)
+        user.email = "admin@stoloto.local"
+        return user
+
+    monkeypatch.setattr(auth_endpoint, "authenticate_user", fake_authenticate_user)
+    monkeypatch.setattr(auth_endpoint, "issue_user_token", lambda user: "admin-token")
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "admin", "password": "admin"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "admin-token"
+    assert body["user"]["role"] == "admin"
+    assert body["user"]["username"] == "admin"
 
 
 @pytest.mark.asyncio
@@ -257,26 +257,3 @@ async def test_register_volunteer_rejects_unknown_employee(
     assert response.status_code == 403
     assert response.json()["detail"] == "employee not found or inactive"
 
-
-@pytest.mark.asyncio
-async def test_register_admin_rejects_bad_invite(
-    client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_register_admin(session: object, payload: object) -> SimpleNamespace:
-        raise InvalidInviteCodeError
-
-    monkeypatch.setattr(auth_endpoint, "register_admin", fake_register_admin)
-
-    response = await client.post(
-        "/api/v1/auth/register/admin",
-        json={
-            "email": "admin@example.com",
-            "password": "password123",
-            "full_name": "Admin User",
-            "invite_code": "bad-code",
-        },
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "invalid invite code"

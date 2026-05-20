@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS mock_employee (
 CREATE TABLE IF NOT EXISTS app_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role user_role NOT NULL,
+    username VARCHAR(80) UNIQUE,
     email VARCHAR(320) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS report_export (
 );
 
 CREATE INDEX IF NOT EXISTS app_user_role_idx ON app_user (role);
+CREATE INDEX IF NOT EXISTS ix_app_user_username ON app_user (username);
 CREATE INDEX IF NOT EXISTS fund_status_idx ON fund (status);
 CREATE INDEX IF NOT EXISTS volunteer_task_feed_idx
     ON volunteer_task (status, city, category, participation_format, duration_type, task_type);

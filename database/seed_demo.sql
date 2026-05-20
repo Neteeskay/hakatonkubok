@@ -22,13 +22,14 @@ INSERT INTO mock_employee (
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO app_user (
-    id, role, email, password_hash, full_name, city, employee_id, department, position, interests, skills
+    id, role, username, email, password_hash, full_name, city, employee_id, department, position, interests, skills
 ) VALUES
     (
         '00000000-0000-0000-0000-000000000001',
         'admin',
+        'admin',
         'admin@stoloto.local',
-        'pbkdf2_sha256$260000$cG9tb2dhdC1kZW1vLXNhbHQ=$uidkBgxprh+Rzsh/5yLGgdALWIsfy8atRs2QnvmHJdQ=',
+        'pbkdf2_sha256$260000$cG9tb2dhdC1hZG1pbi1zYWx0$zN/12tkCRC0fPo//rFG9GLk1xGJH6yeTon9HE+fQDNc=',
         'Администратор платформы',
         'Нижний Новгород',
         NULL,
@@ -40,6 +41,7 @@ INSERT INTO app_user (
     (
         '00000000-0000-0000-0000-000000000002',
         'volunteer',
+        NULL,
         'volunteer@stoloto.local',
         'pbkdf2_sha256$260000$cG9tb2dhdC1kZW1vLXNhbHQ=$uidkBgxprh+Rzsh/5yLGgdALWIsfy8atRs2QnvmHJdQ=',
         'Иван Петров',
@@ -53,6 +55,7 @@ INSERT INTO app_user (
     (
         '00000000-0000-0000-0000-000000000003',
         'fund',
+        NULL,
         'fund@example.org',
         'pbkdf2_sha256$260000$cG9tb2dhdC1kZW1vLXNhbHQ=$uidkBgxprh+Rzsh/5yLGgdALWIsfy8atRs2QnvmHJdQ=',
         'Мария Иванова',
