@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.fonts import addMapping
@@ -393,8 +393,19 @@ def _export_value(value: object) -> object:
 
 BRAND_YELLOW = colors.HexColor("#FFE300")
 BRAND_BLACK = colors.HexColor("#000000")
+PDF_SOFT_YELLOW = colors.HexColor("#FFF9CC")
+PDF_LIGHT_GRAY = colors.HexColor("#F5F5F5")
+PDF_MID_GRAY = colors.HexColor("#DADADA")
+PDF_TEXT_GRAY = colors.HexColor("#555555")
 
-FONT_DIR = Path("app/static/fonts")
+CATEGORY_LABELS = {
+    "children": "Дети",
+    "elderly": "Пожилые",
+    "disability": "Люди с ОВЗ",
+    "ecology": "Экология",
+}
+
+FONT_DIR = Path(__file__).resolve().parents[1] / "static" / "fonts"
 MONTSERRAT_REGULAR_PATH = FONT_DIR / "Montserrat-Regular.ttf"
 MONTSERRAT_BOLD_PATH = FONT_DIR / "Montserrat-Bold.ttf"
 
@@ -412,7 +423,7 @@ def register_montserrat_fonts() -> None:
     addMapping("Montserrat", 1, 0, "Montserrat-Bold")
 
 
-async def build_volunteer_year_statistics_pdf(
+async def _build_volunteer_year_statistics_pdf_legacy(
     session: AsyncSession,
     *,
     volunteer: User,
@@ -578,7 +589,365 @@ def _pdf_table_style() -> TableStyle:
     )
 
 
-def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
+async def build_volunteer_year_statistics_pdf(
+    session: AsyncSession,
+    *,
+    volunteer: User,
+    year: int,
+) -> bytes:
+    register_montserrat_fonts()
+
+    result = await session.execute(
+        select(
+            VolunteerTask.title,
+            Fund.name.label("fund_name"),
+            VolunteerTask.category,
+            VolunteerTask.participation_format,
+            VolunteerTask.task_type,
+            VolunteerHourLedger.hours,
+            VolunteerHourLedger.awarded_at,
+        )
+        .join(TaskApplication, TaskApplication.id == VolunteerHourLedger.application_id)
+        .join(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
+        .join(Fund, Fund.id == VolunteerTask.fund_id)
+        .where(VolunteerHourLedger.volunteer_id == volunteer.id)
+        .where(func.extract("year", VolunteerHourLedger.awarded_at) == year)
+        .order_by(VolunteerHourLedger.awarded_at.asc())
+    )
+
+    rows = result.all()
+    total_hours = sum(Decimal(row.hours) for row in rows)
+    completed_tasks_count = len(rows)
+
+    months_hours: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    category_counter: Counter[str] = Counter()
+
+    for row in rows:
+        months_hours[row.awarded_at.month] += Decimal(row.hours)
+        category_counter[str(row.category.value)] += 1
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=16 * mm,
+        leftMargin=16 * mm,
+        topMargin=18 * mm,
+        bottomMargin=16 * mm,
+        title=f"volunteer_statistics_{year}",
+    )
+
+    styles = _pdf_styles()
+    volunteer_name = volunteer.full_name or volunteer.email
+    best_month_hours = max(months_hours.values(), default=Decimal("0"))
+
+    story = [
+        _build_pdf_hero(
+            styles,
+            volunteer_name=volunteer_name,
+            year=year,
+            total_hours=total_hours,
+        ),
+        Spacer(1, 10),
+        _build_pdf_kpi_cards(
+            completed_tasks_count=completed_tasks_count,
+            total_hours=total_hours,
+            best_month_hours=best_month_hours,
+        ),
+        Spacer(1, 10),
+        _section_title("Профиль волонтера", styles),
+        _build_profile_table(volunteer, styles),
+    ]
+
+    if rows:
+        story.extend(
+            [
+                _section_title("Динамика часов", styles),
+                _build_month_hours_chart(months_hours),
+                _section_title("Категории помощи", styles),
+                _build_category_table(category_counter),
+                _section_title("Выполненные задания", styles),
+                _build_task_table(rows, styles),
+            ]
+        )
+    else:
+        story.append(
+            _build_empty_state(
+                "За выбранный год подтвержденных выполнений и начисленных часов пока нет.",
+                styles,
+            )
+        )
+
+    doc.build(story, onFirstPage=_draw_pdf_page, onLaterPages=_draw_pdf_page)
+    return buffer.getvalue()
+
+
+def _pdf_styles():
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="MontserratHeroTitle",
+            fontName="Montserrat-Bold",
+            fontSize=22,
+            leading=26,
+            textColor=BRAND_BLACK,
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratHeroMeta",
+            fontName="Montserrat",
+            fontSize=9,
+            leading=12,
+            textColor=PDF_TEXT_GRAY,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratSection",
+            fontName="Montserrat-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=BRAND_BLACK,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratText",
+            fontName="Montserrat",
+            fontSize=9,
+            leading=12,
+            textColor=BRAND_BLACK,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratMuted",
+            fontName="Montserrat",
+            fontSize=8,
+            leading=11,
+            textColor=PDF_TEXT_GRAY,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratTableCell",
+            fontName="Montserrat",
+            fontSize=8,
+            leading=10,
+            textColor=BRAND_BLACK,
+        )
+    )
+    return styles
+
+
+def _draw_pdf_page(canvas, doc) -> None:
+    width, height = A4
+    canvas.saveState()
+    canvas.setFillColor(BRAND_YELLOW)
+    canvas.rect(0, height - 7 * mm, width, 7 * mm, stroke=0, fill=1)
+    canvas.setFillColor(BRAND_BLACK)
+    canvas.roundRect(16 * mm, height - 14 * mm, 42 * mm, 7 * mm, 3 * mm, stroke=0, fill=1)
+    canvas.setFillColor(BRAND_YELLOW)
+    canvas.setFont("Montserrat-Bold", 7)
+    canvas.drawString(20 * mm, height - 11.6 * mm, "ПОМОГАТЬ ПРОСТО")
+    canvas.setFillColor(PDF_TEXT_GRAY)
+    canvas.setFont("Montserrat", 7)
+    canvas.drawRightString(width - 16 * mm, 9 * mm, f"Страница {doc.page}")
+    canvas.restoreState()
+
+
+def _build_pdf_hero(
+    styles,
+    *,
+    volunteer_name: str,
+    year: int,
+    total_hours: Decimal,
+) -> Table:
+    left = [
+        Paragraph("Личная статистика волонтера", styles["MontserratHeroTitle"]),
+        Paragraph(f"{volunteer_name} · отчетный год {year}", styles["MontserratHeroMeta"]),
+    ]
+    right = [
+        Paragraph("Всего часов", styles["MontserratMuted"]),
+        Paragraph(f"{total_hours}", styles["MontserratHeroTitle"]),
+    ]
+    table = Table([[left, right]], colWidths=[112 * mm, 48 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PDF_LIGHT_GRAY),
+                ("BACKGROUND", (1, 0), (1, 0), BRAND_YELLOW),
+                ("BOX", (0, 0), (-1, -1), 0.8, BRAND_BLACK),
+                ("LINEBEFORE", (1, 0), (1, 0), 0.8, BRAND_BLACK),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 14),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+            ]
+        )
+    )
+    return table
+
+
+def _build_pdf_kpi_cards(
+    *,
+    completed_tasks_count: int,
+    total_hours: Decimal,
+    best_month_hours: Decimal,
+) -> Table:
+    data = [
+        ["Выполнено задач", "Начислено часов", "Лучший месяц"],
+        [str(completed_tasks_count), str(total_hours), str(best_month_hours)],
+    ]
+    table = Table(data, colWidths=[52 * mm, 52 * mm, 52 * mm], rowHeights=[11 * mm, 17 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PDF_LIGHT_GRAY),
+                ("BACKGROUND", (0, 1), (-1, 1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.7, PDF_MID_GRAY),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, PDF_MID_GRAY),
+                ("FONTNAME", (0, 0), (-1, 0), "Montserrat"),
+                ("FONTNAME", (0, 1), (-1, 1), "Montserrat-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 7),
+                ("FONTSIZE", (0, 1), (-1, 1), 18),
+                ("TEXTCOLOR", (0, 0), (-1, 0), PDF_TEXT_GRAY),
+                ("TEXTCOLOR", (0, 1), (-1, 1), BRAND_BLACK),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    return table
+
+
+def _section_title(title: str, styles) -> Table:
+    table = Table(
+        [[Paragraph(title, styles["MontserratSection"])]],
+        colWidths=[160 * mm],
+        rowHeights=[10 * mm],
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), PDF_SOFT_YELLOW),
+                ("LINEBEFORE", (0, 0), (0, 0), 4, BRAND_YELLOW),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 5),
+                ("TOPPADDING", (0, 0), (0, 0), 5),
+                ("LEFTPADDING", (0, 0), (0, 0), 10),
+            ]
+        )
+    )
+    return table
+
+
+def _build_profile_table(volunteer: User, styles) -> Table:
+    data = [
+        ["Email", volunteer.email],
+        ["Город", volunteer.city or "Не указан"],
+        ["Подразделение", volunteer.department or "Не указано"],
+        ["Должность", volunteer.position or "Не указана"],
+    ]
+    table = Table(data, colWidths=[45 * mm, 115 * mm])
+    table.setStyle(_pdf_profile_table_style())
+    return table
+
+
+def _build_category_table(category_counter: Counter[str]) -> Table:
+    data = [["Категория", "Выполнено задач"]]
+    for category, count in category_counter.most_common():
+        data.append([CATEGORY_LABELS.get(category, category), str(count)])
+
+    table = Table(data, colWidths=[100 * mm, 60 * mm])
+    table.setStyle(_pdf_modern_table_style())
+    return table
+
+
+def _build_task_table(rows, styles) -> Table:
+    task_table_data = [["Дата", "Задание", "Фонд", "Часы"]]
+    for row in rows:
+        task_table_data.append(
+            [
+                row.awarded_at.strftime("%d.%m.%Y"),
+                Paragraph(str(row.title), styles["MontserratTableCell"]),
+                Paragraph(str(row.fund_name), styles["MontserratTableCell"]),
+                str(row.hours),
+            ]
+        )
+
+    table = Table(
+        task_table_data,
+        colWidths=[24 * mm, 67 * mm, 50 * mm, 19 * mm],
+        repeatRows=1,
+    )
+    table.setStyle(_pdf_modern_table_style())
+    return table
+
+
+def _build_empty_state(message: str, styles) -> Table:
+    table = Table([[Paragraph(message, styles["MontserratText"])]], colWidths=[160 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), PDF_LIGHT_GRAY),
+                ("BOX", (0, 0), (0, 0), 0.7, PDF_MID_GRAY),
+                ("LEFTPADDING", (0, 0), (0, 0), 12),
+                ("RIGHTPADDING", (0, 0), (0, 0), 12),
+                ("TOPPADDING", (0, 0), (0, 0), 12),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 12),
+            ]
+        )
+    )
+    return table
+
+
+def _pdf_profile_table_style() -> TableStyle:
+    return TableStyle(
+        [
+            ("FONTNAME", (0, 0), (-1, -1), "Montserrat"),
+            ("FONTNAME", (0, 0), (0, -1), "Montserrat-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("TEXTCOLOR", (0, 0), (0, -1), PDF_TEXT_GRAY),
+            ("TEXTCOLOR", (1, 0), (1, -1), BRAND_BLACK),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.4, PDF_MID_GRAY),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]
+    )
+
+
+def _pdf_modern_table_style() -> TableStyle:
+    return TableStyle(
+        [
+            ("FONTNAME", (0, 0), (-1, -1), "Montserrat"),
+            ("FONTNAME", (0, 0), (-1, 0), "Montserrat-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), BRAND_BLACK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_YELLOW),
+            ("TEXTCOLOR", (0, 1), (-1, -1), BRAND_BLACK),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PDF_LIGHT_GRAY]),
+            ("GRID", (0, 0), (-1, -1), 0.35, PDF_MID_GRAY),
+            ("BOX", (0, 0), (-1, -1), 0.8, BRAND_BLACK),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("ALIGN", (-1, 1), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]
+    )
+
+
+def _build_month_hours_chart_legacy(months_hours: dict[int, Decimal]) -> Drawing:
     month_labels = [
         "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
         "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
@@ -617,4 +986,63 @@ def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
         )
     )
 
+    return drawing
+
+
+def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
+    month_labels = [
+        "Янв",
+        "Фев",
+        "Мар",
+        "Апр",
+        "Май",
+        "Июн",
+        "Июл",
+        "Авг",
+        "Сен",
+        "Окт",
+        "Ноя",
+        "Дек",
+    ]
+    values = [float(months_hours.get(month, Decimal("0"))) for month in range(1, 13)]
+    max_value = max(values) if values else 0
+
+    drawing = Drawing(460, 210)
+    drawing.add(Rect(0, 0, 460, 210, fillColor=PDF_LIGHT_GRAY, strokeColor=PDF_MID_GRAY))
+    drawing.add(Rect(0, 0, 460, 8, fillColor=BRAND_YELLOW, strokeColor=BRAND_YELLOW))
+    drawing.add(
+        String(
+            22,
+            184,
+            "Начисленные часы по месяцам",
+            fontName="Montserrat-Bold",
+            fontSize=11,
+            fillColor=BRAND_BLACK,
+        )
+    )
+
+    chart = VerticalBarChart()
+    chart.x = 34
+    chart.y = 32
+    chart.height = 130
+    chart.width = 390
+    chart.data = [values]
+    chart.categoryAxis.categoryNames = month_labels
+    chart.valueAxis.valueMin = 0
+    chart.valueAxis.valueMax = max_value + 2 if max_value > 0 else 1
+    chart.valueAxis.valueStep = max(1, int(chart.valueAxis.valueMax / 4))
+    chart.bars[0].fillColor = BRAND_YELLOW
+    chart.bars[0].strokeColor = BRAND_BLACK
+    chart.barSpacing = 3
+    chart.groupSpacing = 8
+    chart.categoryAxis.strokeColor = PDF_TEXT_GRAY
+    chart.valueAxis.strokeColor = PDF_TEXT_GRAY
+    chart.categoryAxis.labels.fontName = "Montserrat"
+    chart.categoryAxis.labels.fontSize = 7
+    chart.categoryAxis.labels.fillColor = BRAND_BLACK
+    chart.valueAxis.labels.fontName = "Montserrat"
+    chart.valueAxis.labels.fontSize = 7
+    chart.valueAxis.labels.fillColor = PDF_TEXT_GRAY
+
+    drawing.add(chart)
     return drawing

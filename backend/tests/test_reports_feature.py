@@ -1,12 +1,16 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
+from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from openpyxl import load_workbook
 
+from app.models.enums import HelpCategory, ParticipationFormat, TaskType, UserRole
 from app.schemas.reports import ParticipantReportRow, PlatformAnalyticsReport
 from app.services.report_service import (
+    build_volunteer_year_statistics_pdf,
     build_analytics_csv,
     build_full_report_xlsx_bytes,
     build_participants_csv,
@@ -76,3 +80,43 @@ def test_full_report_export_contains_workbook_bytes() -> None:
     assert "Аналитика" in workbook.sheetnames
     assert workbook["Аналитика"]["A2"].value == "Сводная аналитика платформы"
     assert workbook["Аналитика"]["A4"].value == "Всего волонтеров"
+
+
+@pytest.mark.asyncio
+async def test_volunteer_year_statistics_pdf_exports_pdf_bytes() -> None:
+    class FakeResult:
+        def all(self) -> list[SimpleNamespace]:
+            return [
+                SimpleNamespace(
+                    title="Помощь на мероприятии",
+                    fund_name="Фонд добрых дел",
+                    category=HelpCategory.CHILDREN,
+                    participation_format=ParticipationFormat.OFFLINE,
+                    task_type=TaskType.REGULAR,
+                    hours=Decimal("4.50"),
+                    awarded_at=datetime(2026, 2, 12, 15, 30, tzinfo=UTC),
+                )
+            ]
+
+    class FakeSession:
+        async def execute(self, statement: object) -> FakeResult:
+            return FakeResult()
+
+    volunteer = SimpleNamespace(
+        id=uuid4(),
+        role=UserRole.VOLUNTEER,
+        email="ivan.petrov@stoloto.local",
+        full_name="Иван Петров",
+        city="Нижний Новгород",
+        department="IT",
+        position="Backend developer",
+    )
+
+    pdf_content = await build_volunteer_year_statistics_pdf(
+        FakeSession(),
+        volunteer=volunteer,
+        year=2026,
+    )
+
+    assert pdf_content.startswith(b"%PDF")
+    assert len(pdf_content) > 10_000
