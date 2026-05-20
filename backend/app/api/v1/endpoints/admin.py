@@ -42,6 +42,7 @@ from app.services.email_parser import (
     is_allowed_employee_email,
     normalize_email,
 )
+from app.services.achievement_service import sync_volunteer_achievements
 from app.services.fund_service import (
     FundModerationCommentRequiredError,
     FundNotFoundError,
@@ -442,6 +443,7 @@ async def award_volunteer_hours(
 
     await session.commit()
     await session.refresh(ledger)
+    await sync_volunteer_achievements(session, application.volunteer_id)
 
     return ledger
 

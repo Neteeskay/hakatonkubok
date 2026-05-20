@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.domain import TaskApplication, User, VolunteerTask
 from app.models.enums import ApplicationStatus, TaskStatus
+from app.services.achievement_service import sync_volunteer_achievements
 from app.services.fund_service import get_fund_by_representative
 from app.services.status_transitions import APPLICATION_TRANSITIONS, can_transition
 
@@ -102,6 +103,7 @@ async def create_application(
     )
     session.add(application)
     await session.commit()
+    await sync_volunteer_achievements(session, current_user.id)
     return await _get_application_by_id(session, application.id)
 
 
@@ -209,6 +211,7 @@ async def accept_application(
     application.fund_comment = fund_comment
     application.decided_at = datetime.now(UTC)
     await session.commit()
+    await sync_volunteer_achievements(session, application.volunteer_id)
     return await _get_application_by_id(session, application.id)
 
 
@@ -271,6 +274,8 @@ async def confirm_all_accepted_completions_for_task(
         application.completion_comment = completion_comment
 
     await session.commit()
+    for volunteer_id in {application.volunteer_id for application in applications}:
+        await sync_volunteer_achievements(session, volunteer_id)
     return [
         await _get_application_by_id(session, application.id)
         for application in applications
@@ -302,6 +307,7 @@ async def confirm_application_completion(
     application.completion_confirmed_at = datetime.now(UTC)
     application.completion_comment = completion_comment
     await session.commit()
+    await sync_volunteer_achievements(session, application.volunteer_id)
     return await _get_application_by_id(session, application.id)
 
 

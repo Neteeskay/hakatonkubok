@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -73,6 +74,7 @@ class User(Base, TimestampMixin):
 
     fund: Mapped["Fund | None"] = relationship(back_populates="representative")
     applications: Mapped[list["TaskApplication"]] = relationship(back_populates="volunteer")
+    achievements: Mapped[list["UserAchievement"]] = relationship(back_populates="user")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
     report_exports: Mapped[list["ReportExport"]] = relationship(back_populates="requester")
 
@@ -262,6 +264,34 @@ class VolunteerHourLedger(Base, TimestampMixin):
     admin_comment: Mapped[str | None] = mapped_column(Text)
 
     application: Mapped[TaskApplication] = relationship(back_populates="hour_ledger")
+
+
+class UserAchievement(Base, TimestampMixin):
+    __tablename__ = "user_achievement"
+    __table_args__ = (
+        UniqueConstraint("user_id", "achievement_code", name="user_achievement_user_code_key"),
+        Index("user_achievement_user_idx", "user_id"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    achievement_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    progress_current: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    progress_target: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=1, nullable=False)
+    achievement_metadata: Mapped[dict] = mapped_column(
+        "metadata",
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
+    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship(back_populates="achievements")
 
 
 class Notification(Base):

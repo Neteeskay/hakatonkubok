@@ -6,6 +6,7 @@ from app.models.domain import (
     StolotoEmployee,
     TaskApplication,
     User,
+    UserAchievement,
     VolunteerHourLedger,
     VolunteerTask,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "StolotoEmployee",
     "TaskApplication",
     "User",
+    "UserAchievement",
     "VolunteerHourLedger",
     "VolunteerTask",
 ]

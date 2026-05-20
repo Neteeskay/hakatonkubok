@@ -8,7 +8,13 @@ from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import User
 from app.models.enums import UserRole
+from app.schemas.volunteers import VolunteerAchievementResponse, VolunteerHistoryItemResponse
+from app.services.achievement_service import (
+    list_volunteer_achievement_statuses,
+    sync_volunteer_achievements,
+)
 from app.services.report_service import build_volunteer_year_statistics_pdf
+from app.services.volunteer_history_service import list_volunteer_history
 
 router = APIRouter()
 
@@ -16,6 +22,33 @@ router = APIRouter()
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "volunteers"}
+
+
+@router.get("/me/history", response_model=list[VolunteerHistoryItemResponse])
+async def get_my_history(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[VolunteerHistoryItemResponse]:
+    await sync_volunteer_achievements(session, current_user.id)
+    history = await list_volunteer_history(
+        session,
+        current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+    return [VolunteerHistoryItemResponse.model_validate(item) for item in history]
+
+
+@router.get("/me/achievements", response_model=list[VolunteerAchievementResponse])
+async def get_my_achievements(
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[VolunteerAchievementResponse]:
+    await sync_volunteer_achievements(session, current_user.id)
+    achievements = await list_volunteer_achievement_statuses(session, current_user.id)
+    return [VolunteerAchievementResponse.model_validate(item) for item in achievements]
 
 
 @router.get("/me/statistics.pdf")
