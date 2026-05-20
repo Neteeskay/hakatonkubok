@@ -630,10 +630,10 @@ async def build_volunteer_year_statistics_pdf(
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=16 * mm,
-        leftMargin=16 * mm,
-        topMargin=18 * mm,
-        bottomMargin=16 * mm,
+        rightMargin=13 * mm,
+        leftMargin=13 * mm,
+        topMargin=13 * mm,
+        bottomMargin=10 * mm,
         title=f"volunteer_statistics_{year}",
     )
 
@@ -648,13 +648,13 @@ async def build_volunteer_year_statistics_pdf(
             year=year,
             total_hours=total_hours,
         ),
-        Spacer(1, 10),
+        Spacer(1, 5),
         _build_pdf_kpi_cards(
             completed_tasks_count=completed_tasks_count,
             total_hours=total_hours,
             best_month_hours=best_month_hours,
         ),
-        Spacer(1, 10),
+        Spacer(1, 5),
         _section_title("Профиль волонтера", styles),
         _build_profile_table(volunteer, styles),
     ]
@@ -688,8 +688,8 @@ def _pdf_styles():
         ParagraphStyle(
             name="MontserratHeroTitle",
             fontName="Montserrat-Bold",
-            fontSize=22,
-            leading=26,
+            fontSize=18,
+            leading=21,
             textColor=BRAND_BLACK,
             spaceAfter=8,
         )
@@ -707,8 +707,8 @@ def _pdf_styles():
         ParagraphStyle(
             name="MontserratSection",
             fontName="Montserrat-Bold",
-            fontSize=12,
-            leading=15,
+            fontSize=10,
+            leading=12,
             textColor=BRAND_BLACK,
         )
     )
@@ -716,8 +716,8 @@ def _pdf_styles():
         ParagraphStyle(
             name="MontserratText",
             fontName="Montserrat",
-            fontSize=9,
-            leading=12,
+            fontSize=8,
+            leading=10,
             textColor=BRAND_BLACK,
         )
     )
@@ -725,8 +725,8 @@ def _pdf_styles():
         ParagraphStyle(
             name="MontserratMuted",
             fontName="Montserrat",
-            fontSize=8,
-            leading=11,
+            fontSize=7,
+            leading=9,
             textColor=PDF_TEXT_GRAY,
         )
     )
@@ -734,8 +734,8 @@ def _pdf_styles():
         ParagraphStyle(
             name="MontserratTableCell",
             fontName="Montserrat",
-            fontSize=8,
-            leading=10,
+            fontSize=7,
+            leading=8.5,
             textColor=BRAND_BLACK,
         )
     )
@@ -746,15 +746,15 @@ def _draw_pdf_page(canvas, doc) -> None:
     width, height = A4
     canvas.saveState()
     canvas.setFillColor(BRAND_YELLOW)
-    canvas.rect(0, height - 7 * mm, width, 7 * mm, stroke=0, fill=1)
+    canvas.rect(0, height - 5 * mm, width, 5 * mm, stroke=0, fill=1)
     canvas.setFillColor(BRAND_BLACK)
-    canvas.roundRect(16 * mm, height - 14 * mm, 42 * mm, 7 * mm, 3 * mm, stroke=0, fill=1)
+    canvas.roundRect(13 * mm, height - 11 * mm, 38 * mm, 6 * mm, 2.5 * mm, stroke=0, fill=1)
     canvas.setFillColor(BRAND_YELLOW)
     canvas.setFont("Montserrat-Bold", 7)
-    canvas.drawString(20 * mm, height - 11.6 * mm, "ПОМОГАТЬ ПРОСТО")
+    canvas.drawString(16 * mm, height - 9 * mm, "ПОМОГАТЬ ПРОСТО")
     canvas.setFillColor(PDF_TEXT_GRAY)
     canvas.setFont("Montserrat", 7)
-    canvas.drawRightString(width - 16 * mm, 9 * mm, f"Страница {doc.page}")
+    canvas.drawRightString(width - 13 * mm, 7 * mm, f"Страница {doc.page}")
     canvas.restoreState()
 
 
@@ -773,7 +773,7 @@ def _build_pdf_hero(
         Paragraph("Всего часов", styles["MontserratMuted"]),
         Paragraph(f"{total_hours}", styles["MontserratHeroTitle"]),
     ]
-    table = Table([[left, right]], colWidths=[112 * mm, 48 * mm])
+    table = Table([[left, right]], colWidths=[125 * mm, 44 * mm])
     table.setStyle(
         TableStyle(
             [
@@ -784,8 +784,8 @@ def _build_pdf_hero(
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 12),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-                ("TOPPADDING", (0, 0), (-1, -1), 14),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
             ]
         )
     )
@@ -802,7 +802,7 @@ def _build_pdf_kpi_cards(
         ["Выполнено задач", "Начислено часов", "Лучший месяц"],
         [str(completed_tasks_count), str(total_hours), str(best_month_hours)],
     ]
-    table = Table(data, colWidths=[52 * mm, 52 * mm, 52 * mm], rowHeights=[11 * mm, 17 * mm])
+    table = Table(data, colWidths=[55 * mm, 55 * mm, 55 * mm], rowHeights=[8 * mm, 12 * mm])
     table.setStyle(
         TableStyle(
             [
@@ -813,7 +813,7 @@ def _build_pdf_kpi_cards(
                 ("FONTNAME", (0, 0), (-1, 0), "Montserrat"),
                 ("FONTNAME", (0, 1), (-1, 1), "Montserrat-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 7),
-                ("FONTSIZE", (0, 1), (-1, 1), 18),
+                ("FONTSIZE", (0, 1), (-1, 1), 15),
                 ("TEXTCOLOR", (0, 0), (-1, 0), PDF_TEXT_GRAY),
                 ("TEXTCOLOR", (0, 1), (-1, 1), BRAND_BLACK),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
@@ -827,17 +827,17 @@ def _build_pdf_kpi_cards(
 def _section_title(title: str, styles) -> Table:
     table = Table(
         [[Paragraph(title, styles["MontserratSection"])]],
-        colWidths=[160 * mm],
-        rowHeights=[10 * mm],
+        colWidths=[169 * mm],
+        rowHeights=[7 * mm],
     )
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (0, 0), PDF_SOFT_YELLOW),
                 ("LINEBEFORE", (0, 0), (0, 0), 4, BRAND_YELLOW),
-                ("BOTTOMPADDING", (0, 0), (0, 0), 5),
-                ("TOPPADDING", (0, 0), (0, 0), 5),
-                ("LEFTPADDING", (0, 0), (0, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 3),
+                ("TOPPADDING", (0, 0), (0, 0), 3),
+                ("LEFTPADDING", (0, 0), (0, 0), 8),
             ]
         )
     )
@@ -846,12 +846,15 @@ def _section_title(title: str, styles) -> Table:
 
 def _build_profile_table(volunteer: User, styles) -> Table:
     data = [
-        ["Email", volunteer.email],
-        ["Город", volunteer.city or "Не указан"],
-        ["Подразделение", volunteer.department or "Не указано"],
-        ["Должность", volunteer.position or "Не указана"],
+        ["Email", volunteer.email, "Город", volunteer.city or "Не указан"],
+        [
+            "Подразделение",
+            volunteer.department or "Не указано",
+            "Должность",
+            volunteer.position or "Не указана",
+        ],
     ]
-    table = Table(data, colWidths=[45 * mm, 115 * mm])
+    table = Table(data, colWidths=[30 * mm, 55 * mm, 30 * mm, 54 * mm])
     table.setStyle(_pdf_profile_table_style())
     return table
 
@@ -861,7 +864,7 @@ def _build_category_table(category_counter: Counter[str]) -> Table:
     for category, count in category_counter.most_common():
         data.append([CATEGORY_LABELS.get(category, category), str(count)])
 
-    table = Table(data, colWidths=[100 * mm, 60 * mm])
+    table = Table(data, colWidths=[110 * mm, 59 * mm])
     table.setStyle(_pdf_modern_table_style())
     return table
 
@@ -880,7 +883,7 @@ def _build_task_table(rows, styles) -> Table:
 
     table = Table(
         task_table_data,
-        colWidths=[24 * mm, 67 * mm, 50 * mm, 19 * mm],
+        colWidths=[22 * mm, 75 * mm, 53 * mm, 19 * mm],
         repeatRows=1,
     )
     table.setStyle(_pdf_modern_table_style())
@@ -909,16 +912,19 @@ def _pdf_profile_table_style() -> TableStyle:
         [
             ("FONTNAME", (0, 0), (-1, -1), "Montserrat"),
             ("FONTNAME", (0, 0), (0, -1), "Montserrat-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("FONTNAME", (2, 0), (2, -1), "Montserrat-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
             ("TEXTCOLOR", (0, 0), (0, -1), PDF_TEXT_GRAY),
+            ("TEXTCOLOR", (2, 0), (2, -1), PDF_TEXT_GRAY),
             ("TEXTCOLOR", (1, 0), (1, -1), BRAND_BLACK),
+            ("TEXTCOLOR", (3, 0), (3, -1), BRAND_BLACK),
             ("BACKGROUND", (0, 0), (-1, -1), colors.white),
             ("LINEBELOW", (0, 0), (-1, -1), 0.4, PDF_MID_GRAY),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ]
     )
 
@@ -928,8 +934,8 @@ def _pdf_modern_table_style() -> TableStyle:
         [
             ("FONTNAME", (0, 0), (-1, -1), "Montserrat"),
             ("FONTNAME", (0, 0), (-1, 0), "Montserrat-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 8),
-            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("FONTSIZE", (0, 0), (-1, 0), 7.5),
+            ("FONTSIZE", (0, 1), (-1, -1), 7),
             ("BACKGROUND", (0, 0), (-1, 0), BRAND_BLACK),
             ("TEXTCOLOR", (0, 0), (-1, 0), BRAND_YELLOW),
             ("TEXTCOLOR", (0, 1), (-1, -1), BRAND_BLACK),
@@ -939,10 +945,10 @@ def _pdf_modern_table_style() -> TableStyle:
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
             ("ALIGN", (-1, 1), (-1, -1), "CENTER"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ]
     )
 
@@ -1007,13 +1013,13 @@ def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
     values = [float(months_hours.get(month, Decimal("0"))) for month in range(1, 13)]
     max_value = max(values) if values else 0
 
-    drawing = Drawing(460, 210)
-    drawing.add(Rect(0, 0, 460, 210, fillColor=PDF_LIGHT_GRAY, strokeColor=PDF_MID_GRAY))
-    drawing.add(Rect(0, 0, 460, 8, fillColor=BRAND_YELLOW, strokeColor=BRAND_YELLOW))
+    drawing = Drawing(480, 145)
+    drawing.add(Rect(0, 0, 480, 145, fillColor=PDF_LIGHT_GRAY, strokeColor=PDF_MID_GRAY))
+    drawing.add(Rect(0, 0, 480, 6, fillColor=BRAND_YELLOW, strokeColor=BRAND_YELLOW))
     drawing.add(
         String(
             22,
-            184,
+            123,
             "Начисленные часы по месяцам",
             fontName="Montserrat-Bold",
             fontSize=11,
@@ -1023,9 +1029,9 @@ def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
 
     chart = VerticalBarChart()
     chart.x = 34
-    chart.y = 32
-    chart.height = 130
-    chart.width = 390
+    chart.y = 24
+    chart.height = 88
+    chart.width = 420
     chart.data = [values]
     chart.categoryAxis.categoryNames = month_labels
     chart.valueAxis.valueMin = 0
