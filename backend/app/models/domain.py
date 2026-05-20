@@ -21,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.enums import (
+    AchievementCode,
     ApplicationStatus,
     DurationType,
     FundStatus,
@@ -34,6 +35,10 @@ from app.models.enums import (
 
 def enum_values(enum_cls: type) -> list[str]:
     return [item.value for item in enum_cls]
+
+
+def quoted_enum_values(enum_cls: type) -> str:
+    return ", ".join(f"'{item.value}'" for item in enum_cls)
 
 
 class TimestampMixin:
@@ -70,12 +75,20 @@ class User(Base, TimestampMixin):
     position: Mapped[str | None] = mapped_column(String(160))
     interests: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))
-    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"), nullable=False)
 
     fund: Mapped["Fund | None"] = relationship(back_populates="representative")
     applications: Mapped[list["TaskApplication"]] = relationship(back_populates="volunteer")
-    achievements: Mapped[list["UserAchievement"]] = relationship(back_populates="user")
-    notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
+    achievements: Mapped[list["UserAchievement"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     report_exports: Mapped[list["ReportExport"]] = relationship(back_populates="requester")
 
 
@@ -89,7 +102,7 @@ class StolotoEmployee(Base, TimestampMixin):
     city: Mapped[str | None] = mapped_column(String(120))
     department: Mapped[str | None] = mapped_column(String(160))
     position: Mapped[str | None] = mapped_column(String(160))
-    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"), nullable=False)
 
 
 class Fund(Base, TimestampMixin):
@@ -118,13 +131,18 @@ class Fund(Base, TimestampMixin):
     status: Mapped[FundStatus] = mapped_column(
         Enum(FundStatus, name="fund_status", values_callable=enum_values),
         default=FundStatus.DRAFT,
+        server_default=FundStatus.DRAFT.value,
         nullable=False,
     )
     moderation_comment: Mapped[str | None] = mapped_column(Text)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     representative: Mapped[User] = relationship(back_populates="fund")
-    documents: Mapped[list["FundDocument"]] = relationship(back_populates="fund")
+    documents: Mapped[list["FundDocument"]] = relationship(
+        back_populates="fund",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     tasks: Mapped[list["VolunteerTask"]] = relationship(back_populates="fund")
 
 
@@ -132,7 +150,11 @@ class FundDocument(Base, TimestampMixin):
     __tablename__ = "fund_document"
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    fund_id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("fund.id"), nullable=False)
+    fund_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("fund.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     document_type: Mapped[str] = mapped_column(String(120), nullable=False)
     file_url: Mapped[str] = mapped_column(String(700), nullable=False)
 
@@ -143,6 +165,19 @@ class VolunteerTask(Base, TimestampMixin):
     __tablename__ = "volunteer_task"
     __table_args__ = (
         CheckConstraint("participant_limit IS NULL OR participant_limit > 0", name="task_participant_limit_positive"),
+        CheckConstraint("expected_hours > 0", name="task_expected_hours_positive"),
+        CheckConstraint(
+            "starts_at IS NULL OR ends_at IS NULL OR ends_at > starts_at",
+            name="task_dates_order_valid",
+        ),
+        CheckConstraint(
+            "starts_at IS NULL OR deadline_at IS NULL OR deadline_at <= starts_at",
+            name="task_deadline_before_start_valid",
+        ),
+        CheckConstraint(
+            "status <> 'published' OR (published_at IS NOT NULL AND approved_at IS NOT NULL)",
+            name="task_published_dates_required",
+        ),
         CheckConstraint(
             "participation_format = 'online' OR city IS NOT NULL",
             name="task_offline_city_required",
@@ -156,6 +191,7 @@ class VolunteerTask(Base, TimestampMixin):
             "duration_type",
             "task_type",
         ),
+        Index("volunteer_task_fund_status_idx", "fund_id", "status", "created_at"),
     )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -177,6 +213,7 @@ class VolunteerTask(Base, TimestampMixin):
     task_type: Mapped[TaskType] = mapped_column(
         Enum(TaskType, name="task_type", values_callable=enum_values),
         default=TaskType.REGULAR,
+        server_default=TaskType.REGULAR.value,
         nullable=False,
     )
     city: Mapped[str | None] = mapped_column(String(120))
@@ -193,20 +230,39 @@ class VolunteerTask(Base, TimestampMixin):
     status: Mapped[TaskStatus] = mapped_column(
         Enum(TaskStatus, name="task_status", values_callable=enum_values),
         default=TaskStatus.DRAFT,
+        server_default=TaskStatus.DRAFT.value,
         nullable=False,
     )
     moderation_comment: Mapped[str | None] = mapped_column(Text)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     fund: Mapped[Fund] = relationship(back_populates="tasks")
-    applications: Mapped[list["TaskApplication"]] = relationship(back_populates="task")
+    applications: Mapped[list["TaskApplication"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class TaskApplication(Base, TimestampMixin):
     __tablename__ = "task_application"
     __table_args__ = (
+        CheckConstraint(
+            "status <> 'canceled' OR canceled_at IS NOT NULL",
+            name="task_application_canceled_at_required",
+        ),
+        CheckConstraint(
+            "status NOT IN ('accepted', 'rejected', 'completion_confirmed', 'hours_awarded') "
+            "OR decided_at IS NOT NULL",
+            name="task_application_decided_at_required",
+        ),
+        CheckConstraint(
+            "status NOT IN ('completion_confirmed', 'hours_awarded') "
+            "OR completion_confirmed_at IS NOT NULL",
+            name="task_application_completion_at_required",
+        ),
         Index(
             "task_application_active_unique",
             "task_id",
@@ -215,12 +271,13 @@ class TaskApplication(Base, TimestampMixin):
             postgresql_where=text("status <> 'canceled'"),
         ),
         Index("task_application_status_idx", "status"),
+        Index("task_application_volunteer_created_idx", "volunteer_id", "created_at"),
     )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     task_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("volunteer_task.id"),
+        ForeignKey("volunteer_task.id", ondelete="CASCADE"),
         nullable=False,
     )
     volunteer_id: Mapped[PyUUID] = mapped_column(
@@ -231,6 +288,7 @@ class TaskApplication(Base, TimestampMixin):
     status: Mapped[ApplicationStatus] = mapped_column(
         Enum(ApplicationStatus, name="application_status", values_callable=enum_values),
         default=ApplicationStatus.APPLIED,
+        server_default=ApplicationStatus.APPLIED.value,
         nullable=False,
     )
     volunteer_comment: Mapped[str | None] = mapped_column(Text)
@@ -242,25 +300,49 @@ class TaskApplication(Base, TimestampMixin):
 
     task: Mapped[VolunteerTask] = relationship(back_populates="applications")
     volunteer: Mapped[User] = relationship(back_populates="applications")
-    hour_ledger: Mapped["VolunteerHourLedger | None"] = relationship(back_populates="application")
+    hour_ledger: Mapped["VolunteerHourLedger | None"] = relationship(
+        back_populates="application",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class VolunteerHourLedger(Base, TimestampMixin):
     __tablename__ = "volunteer_hour_ledger"
-    __table_args__ = (Index("hour_ledger_volunteer_idx", "volunteer_id"),)
+    __table_args__ = (
+        CheckConstraint("hours > 0", name="hour_ledger_hours_positive"),
+        Index("hour_ledger_volunteer_idx", "volunteer_id"),
+        Index("hour_ledger_volunteer_awarded_idx", "volunteer_id", "awarded_at"),
+    )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     application_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("task_application.id"),
+        ForeignKey("task_application.id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
-    volunteer_id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("app_user.id"))
-    task_id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("volunteer_task.id"))
+    volunteer_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("app_user.id"),
+        nullable=False,
+    )
+    task_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("volunteer_task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     hours: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
-    awarded_by: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("app_user.id"))
-    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    awarded_by: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("app_user.id"),
+        nullable=False,
+    )
+    awarded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
     admin_comment: Mapped[str | None] = mapped_column(Text)
 
     application: Mapped[TaskApplication] = relationship(back_populates="hour_ledger")
@@ -270,6 +352,14 @@ class UserAchievement(Base, TimestampMixin):
     __tablename__ = "user_achievement"
     __table_args__ = (
         UniqueConstraint("user_id", "achievement_code", name="user_achievement_user_code_key"),
+        CheckConstraint(
+            f"achievement_code IN ({quoted_enum_values(AchievementCode)})",
+            name="user_achievement_code_valid",
+        ),
+        CheckConstraint(
+            "progress_current >= 0 AND progress_target > 0",
+            name="user_achievement_progress_valid",
+        ),
         Index("user_achievement_user_idx", "user_id"),
     )
 
@@ -289,13 +379,18 @@ class UserAchievement(Base, TimestampMixin):
         server_default=text("'{}'::jsonb"),
         nullable=False,
     )
-    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    awarded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
 
     user: Mapped[User] = relationship(back_populates="achievements")
 
 
 class Notification(Base):
     __tablename__ = "notification"
+    __table_args__ = (Index("notification_user_created_idx", "user_id", "created_at"),)
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[PyUUID] = mapped_column(
@@ -305,7 +400,7 @@ class Notification(Base):
     )
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
+    is_read: Mapped[bool] = mapped_column(default=False, server_default=text("false"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -317,11 +412,12 @@ class Notification(Base):
 
 class ReportExport(Base):
     __tablename__ = "report_export"
+    __table_args__ = (Index("report_export_requester_created_idx", "requested_by", "created_at"),)
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     requested_by: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("app_user.id"),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
         nullable=False,
     )
     report_type: Mapped[str] = mapped_column(String(120), nullable=False)
