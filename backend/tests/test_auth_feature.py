@@ -129,7 +129,7 @@ async def test_register_volunteer_uses_stoloto_employee_email(
     monkeypatch.setattr(auth_service, "get_user_by_email", no_existing_user)
     monkeypatch.setattr(auth_service, "get_user_by_employee_id", no_existing_employee_id)
     monkeypatch.setattr(auth_service, "get_stoloto_employee_by_email", find_stoloto_employee)
-    monkeypatch.setattr(auth_service, "hash_password", lambda password: "hash")
+    monkeypatch.setattr(auth_service, "hash_password", lambda _password: "hash")
 
     session = FakeSession()
     user = await auth_service.register_volunteer(
@@ -346,4 +346,4 @@ async def test_register_volunteer_rejects_unknown_employee(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "юзака нету в базе столото"
+    assert response.json()["detail"] == "user is not exists in database"

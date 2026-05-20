@@ -7,10 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, 
 from sqlalchemy import Select, case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.models.domain import Notification
-from app.services.email_sender import send_email
-
-from app.api.deps import require_admin
+from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import Fund, TaskApplication, User, VolunteerHourLedger, VolunteerTask, AllowedEmployeeEmail
 from app.models.enums import ApplicationStatus, FundStatus, TaskStatus, UserRole
@@ -39,6 +36,14 @@ from app.services.email_parser import (
     is_allowed_employee_email,
     normalize_email,
 )
+from app.services.fund_service import (
+    FundModerationCommentRequiredError,
+    FundNotFoundError,
+    InvalidFundStatusTransitionError,
+    get_fund_by_id,
+    list_funds,
+    moderate_fund,
+)
 from app.services.status_transitions import FUND_TRANSITIONS, TASK_TRANSITIONS, can_transition
 
 
@@ -62,6 +67,78 @@ def _csv_cell(value: object) -> str:
     return f'"{text}"'
 
 
+async def _save_allowed_emails(
+    raw_emails: list[str],
+    source: str,
+    session: AsyncSession,
+    admin: User,
+) -> AllowedEmailsImportResult:
+    normalized_unique_emails: list[str] = []
+    invalid_values: list[str] = []
+    forbidden_domain_emails: list[str] = []
+
+    for raw_email in raw_emails:
+        normalized_email = normalize_email(raw_email)
+
+        if normalized_email is None:
+            invalid_values.append(raw_email)
+            continue
+
+        if not is_allowed_employee_email(normalized_email):
+            forbidden_domain_emails.append(normalized_email)
+            continue
+
+        if normalized_email not in normalized_unique_emails:
+            normalized_unique_emails.append(normalized_email)
+
+    if not normalized_unique_emails:
+        return AllowedEmailsImportResult(
+            added_count=0,
+            skipped_duplicates_count=0,
+            invalid_count=len(invalid_values),
+            forbidden_domain_count=len(forbidden_domain_emails),
+            added_emails=[],
+            skipped_duplicates=[],
+            invalid_values=invalid_values,
+            forbidden_domain_emails=forbidden_domain_emails,
+        )
+
+    existing_emails_result = await session.scalars(
+        select(AllowedEmployeeEmail.email).where(
+            AllowedEmployeeEmail.email.in_(normalized_unique_emails)
+        )
+    )
+
+    existing_emails = set(existing_emails_result.all())
+
+    emails_to_add = [
+        email for email in normalized_unique_emails if email not in existing_emails
+    ]
+
+    allowed_email_models = [
+        AllowedEmployeeEmail(
+            email=email,
+            added_by=admin.id,
+            source=source,
+        )
+        for email in emails_to_add
+    ]
+
+    session.add_all(allowed_email_models)
+    await session.commit()
+
+    return AllowedEmailsImportResult(
+        added_count=len(emails_to_add),
+        skipped_duplicates_count=len(existing_emails),
+        invalid_count=len(invalid_values),
+        forbidden_domain_count=len(forbidden_domain_emails),
+        added_emails=emails_to_add,
+        skipped_duplicates=sorted(existing_emails),
+        invalid_values=invalid_values,
+        forbidden_domain_emails=forbidden_domain_emails,
+    )
+
+
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "admin"}
@@ -70,71 +147,53 @@ async def ping() -> dict[str, str]:
 @router.get("/funds", response_model=list[AdminFundListItem])
 async def list_funds_for_admin(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     status_filter: FundStatus | None = Query(default=None, alias="status"),
     search: str | None = Query(default=None, min_length=2),
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[Fund]:
-    stmt = select(Fund).order_by(Fund.created_at.desc())
-
-    if status_filter is not None:
-        stmt = stmt.where(Fund.status == status_filter)
+    funds = await list_funds(session, status=status_filter)
 
     if search:
-        stmt = stmt.where(Fund.name.ilike(f"%{search}%"))
+        search_value = search.strip().lower()
+        funds = [fund for fund in funds if search_value in fund.name.lower()]
 
-    result = await session.scalars(_paginate(stmt, limit, offset))
-    return list(result)
+    return funds[offset : offset + limit]
 
 
 @router.get("/funds/pending", response_model=list[AdminFundListItem])
 async def list_pending_funds(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[Fund]:
-    stmt = (
-        select(Fund)
-        .where(Fund.status == FundStatus.PENDING_REVIEW)
-        .order_by(Fund.created_at.asc())
-    )
-
-    result = await session.scalars(_paginate(stmt, limit, offset))
-    return list(result)
+    funds = await list_funds(session, status=FundStatus.PENDING_REVIEW)
+    return funds[offset : offset + limit]
 
 
 @router.get("/funds/{fund_id}", response_model=AdminFundDetail)
 async def get_fund_for_admin(
     fund_id: UUID,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Fund:
-    fund = await session.scalar(
-        select(Fund)
-        .where(Fund.id == fund_id)
-        .options(
-            selectinload(Fund.representative),
-            selectinload(Fund.documents),
-        )
-    )
-
-    if fund is None:
+    try:
+        return await get_fund_by_id(session, fund_id)
+    except FundNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fund not found",
-        )
-
-    return fund
+        ) from exc
 
 
 @router.patch("/funds/{fund_id}/moderation", response_model=AdminFundDetail)
-async def moderate_fund(
+async def moderate_fund_for_admin(
     fund_id: UUID,
     payload: FundModerationRequest,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Fund:
     allowed_targets = {
         FundStatus.APPROVED,
@@ -148,67 +207,34 @@ async def moderate_fund(
             detail="Admin can set fund only to approved, rejected or needs_changes",
         )
 
-    fund = await session.scalar(
-        select(Fund)
-        .where(Fund.id == fund_id)
-        .options(
-            selectinload(Fund.representative),
-            selectinload(Fund.documents),
+    try:
+        return await moderate_fund(
+            session,
+            fund_id=fund_id,
+            target_status=payload.target_status,
+            moderation_comment=payload.comment,
         )
-    )
-
-    if fund is None:
+    except FundNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fund not found",
-        )
-
-    if not can_transition(fund.status, payload.target_status, FUND_TRANSITIONS):
+        ) from exc
+    except FundModerationCommentRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="comment is required for rejected or needs_changes",
+        ) from exc
+    except InvalidFundStatusTransitionError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Invalid fund status transition: {fund.status} -> {payload.target_status}",
-        )
-
-    fund.status = payload.target_status
-    fund.moderation_comment = payload.comment
-
-    if payload.target_status in {FundStatus.NEEDS_CHANGES, FundStatus.REJECTED}:
-        title = "Заявка фонда требует внимания"
-
-        body = (
-            "Здравствуйте!\n\n"
-            f"Ваша заявка фонда «{fund.name}» была проверена администратором.\n\n"
-            f"Комментарий администратора:\n{payload.comment or 'Комментарий не указан'}\n\n"
-            "Пожалуйста, внесите изменения и отправьте заявку повторно."
-        )
-
-        notification = Notification(
-            user_id=fund.representative_user_id,
-            title=title,
-            body=body,
-        )
-
-        session.add(notification)
-
-        if fund.contact_email:
-            send_email(
-                to_email=fund.contact_email,
-                subject=title,
-                text=body,
-            )
-
-    fund.approved_at = _now() if payload.target_status == FundStatus.APPROVED else None
-
-    await session.commit()
-    await session.refresh(fund)
-
-    return fund
+            detail="invalid fund status transition",
+        ) from exc
 
 
 @router.get("/tasks", response_model=list[AdminTaskListItem])
 async def list_tasks_for_admin(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     status_filter: TaskStatus | None = Query(default=None, alias="status"),
     fund_id: UUID | None = None,
     search: str | None = Query(default=None, min_length=2),
@@ -233,7 +259,7 @@ async def list_tasks_for_admin(
 @router.get("/tasks/pending", response_model=list[AdminTaskListItem])
 async def list_pending_tasks(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[VolunteerTask]:
@@ -251,7 +277,7 @@ async def list_pending_tasks(
 async def get_task_for_admin(
     task_id: UUID,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> VolunteerTask:
     task = await session.scalar(
         select(VolunteerTask)
@@ -273,7 +299,7 @@ async def moderate_task(
     task_id: UUID,
     payload: TaskModerationRequest,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> VolunteerTask:
     allowed_targets = {
         TaskStatus.PUBLISHED,
@@ -324,7 +350,7 @@ async def moderate_task(
 @router.get("/applications", response_model=list[AdminApplicationListItem])
 async def list_applications_for_admin(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
     task_id: UUID | None = None,
     volunteer_id: UUID | None = None,
@@ -349,7 +375,7 @@ async def list_applications_for_admin(
 @router.get("/completions/waiting-hours", response_model=list[AdminCompletionItem])
 async def list_completions_waiting_hours(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     limit: PageLimit = 50,
     offset: PageOffset = 0,
 ) -> list[TaskApplication]:
@@ -381,7 +407,7 @@ async def award_volunteer_hours(
     application_id: UUID,
     payload: AwardHoursRequest,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> VolunteerHourLedger:
     application = await session.scalar(
         select(TaskApplication)
@@ -435,7 +461,7 @@ async def award_volunteer_hours(
 @router.get("/dashboard", response_model=AdminDashboardSummary)
 async def get_admin_dashboard(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AdminDashboardSummary:
     funds_total = await session.scalar(select(func.count(Fund.id)))
 
@@ -488,7 +514,7 @@ async def get_admin_dashboard(
 @router.get("/reports/participants", response_model=list[ParticipantReportRow])
 async def get_participants_report(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     limit: PageLimit = 100,
     offset: PageOffset = 0,
 ) -> list[ParticipantReportRow]:
@@ -551,7 +577,7 @@ async def get_participants_report(
 @router.get("/reports/participants.csv")
 async def export_participants_report_csv(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Response:
     rows = await get_participants_report(
         session=session,
@@ -608,7 +634,7 @@ async def export_participants_report_csv(
 @router.get("/allowed-emails", response_model=list[AllowedEmailRead])
 async def list_allowed_employee_emails(
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
     search: str | None = Query(default=None, min_length=2),
     limit: PageLimit = 100,
     offset: PageOffset = 0,
@@ -632,7 +658,7 @@ async def list_allowed_employee_emails(
 async def add_allowed_employee_email(
     payload: AllowedEmailCreate,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AllowedEmployeeEmail:
     normalized_email = normalize_email(payload.email)
 
@@ -680,7 +706,7 @@ async def add_allowed_employee_email(
 async def add_allowed_employee_emails_bulk(
     payload: AllowedEmailsBulkCreate,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AllowedEmailsImportResult:
     return await _save_allowed_emails(
         raw_emails=[str(email) for email in payload.emails],
@@ -697,7 +723,7 @@ async def add_allowed_employee_emails_bulk(
 async def import_allowed_employee_emails_from_file(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> AllowedEmailsImportResult:
     if not file.filename:
         raise HTTPException(
@@ -730,7 +756,7 @@ async def import_allowed_employee_emails_from_file(
 async def delete_allowed_employee_email(
     email_id: UUID,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> None:
     allowed_email = await session.scalar(
         select(AllowedEmployeeEmail).where(AllowedEmployeeEmail.id == email_id)
@@ -744,74 +770,3 @@ async def delete_allowed_employee_email(
 
     await session.delete(allowed_email)
     await session.commit()
-
-    async def _save_allowed_emails(
-        raw_emails: list[str],
-        source: str,
-        session: AsyncSession,
-        admin: User,
-    ) -> AllowedEmailsImportResult:
-        normalized_unique_emails: list[str] = []
-        invalid_values: list[str] = []
-        forbidden_domain_emails: list[str] = []
-
-        for raw_email in raw_emails:
-            normalized_email = normalize_email(raw_email)
-
-            if normalized_email is None:
-                invalid_values.append(raw_email)
-                continue
-
-            if not is_allowed_employee_email(normalized_email):
-                forbidden_domain_emails.append(normalized_email)
-                continue
-
-            if normalized_email not in normalized_unique_emails:
-                normalized_unique_emails.append(normalized_email)
-
-        if not normalized_unique_emails:
-            return AllowedEmailsImportResult(
-                added_count=0,
-                skipped_duplicates_count=0,
-                invalid_count=len(invalid_values),
-                forbidden_domain_count=len(forbidden_domain_emails),
-                added_emails=[],
-                skipped_duplicates=[],
-                invalid_values=invalid_values,
-                forbidden_domain_emails=forbidden_domain_emails,
-            )
-
-        existing_emails_result = await session.scalars(
-            select(AllowedEmployeeEmail.email).where(
-                AllowedEmployeeEmail.email.in_(normalized_unique_emails)
-            )
-        )
-
-        existing_emails = set(existing_emails_result.all())
-
-        emails_to_add = [
-            email for email in normalized_unique_emails if email not in existing_emails
-        ]
-
-        allowed_email_models = [
-            AllowedEmployeeEmail(
-                email=email,
-                added_by=admin.id,
-                source=source,
-            )
-            for email in emails_to_add
-        ]
-
-        session.add_all(allowed_email_models)
-        await session.commit()
-
-        return AllowedEmailsImportResult(
-            added_count=len(emails_to_add),
-            skipped_duplicates_count=len(existing_emails),
-            invalid_count=len(invalid_values),
-            forbidden_domain_count=len(forbidden_domain_emails),
-            added_emails=emails_to_add,
-            skipped_duplicates=sorted(existing_emails),
-            invalid_values=invalid_values,
-            forbidden_domain_emails=forbidden_domain_emails,
-        )

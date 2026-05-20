@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import (
     ApplicationStatus,
@@ -66,6 +66,22 @@ class AdminFundDetail(AdminFundListItem):
 class FundModerationRequest(BaseModel):
     target_status: FundStatus
     comment: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def support_legacy_status_field(cls, data: object) -> object:
+        if isinstance(data, dict) and "target_status" not in data and "status" in data:
+            data = {**data, "target_status": data["status"]}
+        return data
+
+    @model_validator(mode="after")
+    def require_comment_for_revision(self) -> "FundModerationRequest":
+        if self.target_status in {FundStatus.NEEDS_CHANGES, FundStatus.REJECTED}:
+            if not self.comment or not self.comment.strip():
+                raise ValueError("comment is required for rejected or needs_changes")
+        if self.comment is not None:
+            self.comment = self.comment.strip()
+        return self
 
 
 class AdminTaskListItem(AdminOrmModel):

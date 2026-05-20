@@ -15,3 +15,13 @@ def test_hours_awarded_only_after_completion_confirmation() -> None:
         in APPLICATION_TRANSITIONS[ApplicationStatus.COMPLETION_CONFIRMED]
     )
 
+
+def test_fund_application_review_flow() -> None:
+    assert ApplicationStatus.ACCEPTED in APPLICATION_TRANSITIONS[ApplicationStatus.APPLIED]
+    assert ApplicationStatus.REJECTED in APPLICATION_TRANSITIONS[ApplicationStatus.APPLIED]
+    assert (
+        ApplicationStatus.COMPLETION_CONFIRMED
+        in APPLICATION_TRANSITIONS[ApplicationStatus.ACCEPTED]
+    )
+    assert TaskStatus.CLOSED in TASK_TRANSITIONS[TaskStatus.PUBLISHED]
+

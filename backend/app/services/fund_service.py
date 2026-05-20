@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.models.domain import Fund, FundDocument, User
+from app.models.domain import Fund, FundDocument, Notification, User
+from app.services.email_sender import send_email
 from app.models.enums import FundStatus
 from app.schemas.funds import FundUpdateRequest
 from app.services.status_transitions import FUND_TRANSITIONS, can_transition
@@ -118,6 +119,27 @@ async def moderate_fund(
     fund.status = target_status
     fund.moderation_comment = moderation_comment.strip() if moderation_comment else None
     fund.approved_at = datetime.now(UTC) if target_status == FundStatus.APPROVED else None
+
+    if target_status in {FundStatus.NEEDS_CHANGES, FundStatus.REJECTED}:
+        notification = Notification(
+            user_id=fund.representative_user_id,
+            title="Заявка фонда требует внимания",
+            body=(
+                "Здравствуйте!\n\n"
+                f"Ваша заявка фонда «{fund.name}» была проверена администратором.\n\n"
+                f"Комментарий администратора:\n"
+                f"{fund.moderation_comment or 'Комментарий не указан'}\n\n"
+                "Пожалуйста, внесите изменения и отправьте заявку повторно."
+            ),
+        )
+        session.add(notification)
+
+        if fund.contact_email:
+            send_email(
+                to_email=fund.contact_email,
+                subject=notification.title,
+                text=notification.body,
+            )
 
     await session.commit()
     return await get_fund_by_id(session, fund.id)

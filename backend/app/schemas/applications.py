@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import ApplicationStatus
 from app.schemas.tasks import TaskResponse
@@ -26,7 +26,23 @@ class ApplicationDecisionRequest(BaseModel):
     fund_comment: str | None = Field(default=None, max_length=2000)
 
 
+class ApplicationRejectRequest(BaseModel):
+    fund_comment: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("fund_comment")
+    @classmethod
+    def strip_comment(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("fund_comment is required")
+        return stripped
+
+
 class ApplicationCompletionConfirmRequest(BaseModel):
+    completion_comment: str | None = Field(default=None, max_length=2000)
+
+
+class TaskCompletionsConfirmRequest(BaseModel):
     completion_comment: str | None = Field(default=None, max_length=2000)
 
 

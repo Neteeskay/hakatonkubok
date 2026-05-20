@@ -216,7 +216,7 @@ async def test_admin_approves_fund(
 
     response = await admin_client.patch(
         f"/api/v1/admin/funds/{fund_id}/moderation",
-        json={"status": "approved"},
+        json={"target_status": "approved"},
     )
 
     assert response.status_code == 200
@@ -237,7 +237,7 @@ async def test_admin_returns_conflict_for_invalid_fund_transition(
 
     response = await admin_client.patch(
         f"/api/v1/admin/funds/{uuid4()}/moderation",
-        json={"status": "approved"},
+        json={"target_status": "approved"},
     )
 
     assert response.status_code == 409
@@ -250,7 +250,7 @@ async def test_admin_moderation_requires_comment_for_rejection(
 ) -> None:
     response = await admin_client.patch(
         f"/api/v1/admin/funds/{uuid4()}/moderation",
-        json={"status": "rejected"},
+        json={"target_status": "rejected"},
     )
 
     assert response.status_code == 422

@@ -11,20 +11,27 @@ from app.schemas.applications import (
     ApplicationCompletionConfirmRequest,
     ApplicationCreateRequest,
     ApplicationDecisionRequest,
+    ApplicationRejectRequest,
     ApplicationResponse,
+    TaskCompletionsConfirmRequest,
 )
 from app.services.application_service import (
     AlreadyAppliedError,
     ApplicationAccessDeniedError,
     ApplicationNotFoundError,
+    FundCommentRequiredError,
     InvalidApplicationStatusTransitionError,
     ParticipantLimitReachedError,
+    TaskNotClosedError,
     TaskNotFoundError,
+    TaskNotOpenForApplicationsError,
     TaskNotPublishedError,
     accept_application,
     cancel_my_application,
+    confirm_all_accepted_completions_for_task,
     confirm_application_completion,
     create_application,
+    get_fund_application,
     list_fund_applications,
     list_my_applications,
     reject_application,
@@ -143,6 +150,32 @@ async def get_fund_applications(
     return [ApplicationResponse.model_validate(application) for application in applications]
 
 
+@router.get("/fund/{application_id}", response_model=ApplicationResponse)
+async def get_fund_application_detail(
+    application_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> ApplicationResponse:
+    try:
+        application = await get_fund_application(
+            session,
+            current_user=current_user,
+            application_id=application_id,
+        )
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="application not found",
+        ) from exc
+    except ApplicationAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="application does not belong to current fund",
+        ) from exc
+
+    return ApplicationResponse.model_validate(application)
+
+
 @router.post("/fund/{application_id}/accept", response_model=ApplicationResponse)
 async def accept_fund_application(
     application_id: UUID,
@@ -177,6 +210,11 @@ async def accept_fund_application(
             status_code=status.HTTP_409_CONFLICT,
             detail="application cannot be accepted in current status",
         ) from exc
+    except TaskNotOpenForApplicationsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task is not open for accepting applications",
+        ) from exc
 
     return ApplicationResponse.model_validate(application)
 
@@ -184,7 +222,7 @@ async def accept_fund_application(
 @router.post("/fund/{application_id}/reject", response_model=ApplicationResponse)
 async def reject_fund_application(
     application_id: UUID,
-    payload: ApplicationDecisionRequest,
+    payload: ApplicationRejectRequest,
     current_user: User = Depends(require_roles(UserRole.FUND)),
     session: AsyncSession = Depends(get_session),
 ) -> ApplicationResponse:
@@ -210,8 +248,49 @@ async def reject_fund_application(
             status_code=status.HTTP_409_CONFLICT,
             detail="application cannot be rejected in current status",
         ) from exc
+    except FundCommentRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="fund_comment is required when rejecting an application",
+        ) from exc
+    except TaskNotOpenForApplicationsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task is not open for reviewing applications",
+        ) from exc
 
     return ApplicationResponse.model_validate(application)
+
+
+@router.post(
+    "/fund/tasks/{task_id}/confirm-completions",
+    response_model=list[ApplicationResponse],
+)
+async def confirm_all_fund_task_completions(
+    task_id: UUID,
+    payload: TaskCompletionsConfirmRequest,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> list[ApplicationResponse]:
+    try:
+        applications = await confirm_all_accepted_completions_for_task(
+            session,
+            current_user=current_user,
+            task_id=task_id,
+            completion_comment=payload.completion_comment,
+        )
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
+        ) from exc
+    except TaskNotClosedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task must be closed before confirming volunteer completions",
+        ) from exc
+
+    return [ApplicationResponse.model_validate(application) for application in applications]
 
 
 @router.post(
@@ -245,6 +324,11 @@ async def confirm_fund_application_completion(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="completion can be confirmed only for accepted application",
+        ) from exc
+    except TaskNotClosedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task must be closed before confirming volunteer completion",
         ) from exc
 
     return ApplicationResponse.model_validate(application)
