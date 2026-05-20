@@ -1,0 +1,120 @@
+import { Award, Bell, Clock, Flame, ListChecks, Sparkles } from "lucide-react";
+import { tasks, volunteers } from "@/shared/config/mock-data";
+import { Badge } from "@/shared/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { StatCard } from "@/shared/ui/stat-card";
+
+export default async function ProfilePage() {
+  const volunteer = volunteers[0];
+  const activeTasks = tasks.filter((task) => volunteer.activeTaskIds.includes(task.id));
+  const progress = Math.round((volunteer.hours / 60) * 100);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[2rem] bg-white p-6 shadow-[0_22px_70px_rgba(34,28,8,0.08),inset_0_0_0_1px_rgba(24,20,7,0.06)] md:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1fr_25rem] lg:items-end">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center">
+            <div className="grid size-24 place-items-center rounded-[1.6rem] bg-brand text-3xl font-black text-brand-foreground">АС</div>
+            <div>
+              <p className="text-sm font-extrabold uppercase text-black/48">{volunteer.level}</p>
+              <h1 className="mt-2 text-4xl md:text-6xl">{volunteer.name}</h1>
+              <p className="mt-3 text-black/64">{volunteer.role} · {volunteer.department} · {volunteer.city}</p>
+            </div>
+          </div>
+          <div className="rounded-[1.35rem] bg-background/10 p-5">
+            <div className="flex justify-between text-sm text-background/62">
+              <span>Прогресс до 60 часов</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="mt-3 h-3 overflow-hidden rounded-lg bg-background/12">
+              <div className="h-full rounded-lg bg-brand" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Часов помощи" value={volunteer.hours} delta="за всё время" icon={Clock} tone="brand" />
+        <StatCard label="Завершено задач" value={volunteer.completedTasks} delta="4 в этом квартале" icon={ListChecks} tone="blue" />
+        <StatCard label="Активная серия" value="5 недель" delta="участие без пауз" icon={Flame} tone="green" />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_24rem]">
+        <div className="space-y-5">
+          <Card>
+            <CardHeader><CardTitle>Активные задачи</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {activeTasks.map((task) => (
+                <div key={task.id} className="rounded-[1.25rem] bg-surface-raised p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-black">{task.title}</p>
+                      <p className="mt-1 text-sm text-foreground/58">{task.foundation} · {task.date}</p>
+                    </div>
+                    <Badge tone="brand">{task.hours} часов</Badge>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>История участия</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {volunteer.history.map((item) => (
+                <div key={item.title} className="grid gap-2 rounded-[1.2rem] bg-surface-raised p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
+                  <span className="font-bold">{item.title}</span>
+                  <span className="text-sm text-foreground/58">{item.date}</span>
+                  <Badge tone="green">{item.hours} ч · {item.status}</Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <aside className="space-y-5">
+          <Card>
+            <CardHeader><CardTitle>Навыки и интересы</CardTitle></CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {volunteer.interests.map((interest) => <Badge key={interest}>{interest}</Badge>)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Достижения</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {volunteer.achievements.map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-[1.1rem] bg-brand-soft p-3">
+                  <Award className="size-5" />
+                  <span className="text-sm font-black">{item}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Уведомления</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {volunteer.notifications.map((item) => (
+                <div key={item.title} className="rounded-[1.1rem] bg-surface-raised p-3">
+                  <p className="flex items-center gap-2 text-sm font-black"><Bell className="size-4" />{item.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-foreground/58">{item.text}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Лента вклада</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          {["Откликнулась на спортивный день", "Получила подтверждение часов", "Помогла фонду с медиакитом"].map((item) => (
+            <div key={item} className="rounded-[1.2rem] bg-surface-raised p-4">
+              <Sparkles className="size-5 text-accent-red" />
+              <p className="mt-4 font-bold">{item}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
