@@ -53,7 +53,7 @@ async def create_volunteer(
     except StolotoEmployeeNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="юзака нету в базе столото",
+            detail="user is not exists in database",
         ) from exc
     return VolunteerRegisterResponse(user=user)
 
