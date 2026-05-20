@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from io import BytesIO
 from uuid import uuid4
+
+from openpyxl import load_workbook
 
 from app.schemas.reports import ParticipantReportRow, PlatformAnalyticsReport
 from app.services.report_service import (
@@ -51,6 +54,12 @@ def test_participants_report_exports_csv_and_xlsx() -> None:
 
     assert "volunteer@stoloto.local" in csv_content
     assert xlsx_content.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_content))
+    worksheet = workbook["Участники"]
+    assert worksheet["A1"].value.startswith("Сформировано платформой")
+    assert worksheet["A2"].value == "Отчет по участникам корпоративного волонтерства"
+    assert worksheet["A3"].value == "ID волонтера"
+    assert "A1:J1" in {str(cell_range) for cell_range in worksheet.merged_cells.ranges}
 
 
 def test_full_report_export_contains_workbook_bytes() -> None:
@@ -62,3 +71,8 @@ def test_full_report_export_contains_workbook_bytes() -> None:
 
     assert "volunteers_total" in csv_content
     assert xlsx_content.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_content))
+    assert "Участники" in workbook.sheetnames
+    assert "Аналитика" in workbook.sheetnames
+    assert workbook["Аналитика"]["A2"].value == "Сводная аналитика платформы"
+    assert workbook["Аналитика"]["A4"].value == "Всего волонтеров"

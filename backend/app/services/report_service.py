@@ -6,6 +6,8 @@ from typing import Iterable
 from uuid import UUID
 
 from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +30,48 @@ PARTICIPANT_HEADERS = [
 ]
 
 ANALYTICS_HEADERS = ["metric", "value"]
+
+PARTICIPANT_XLSX_HEADERS = [
+    "ID волонтера",
+    "ФИО",
+    "Email",
+    "Город",
+    "Подразделение",
+    "Должность",
+    "Дата регистрации",
+    "Откликов",
+    "Выполнено задач",
+    "Начислено часов",
+]
+
+ANALYTICS_LABELS = {
+    "volunteers_total": "Всего волонтеров",
+    "funds_total": "Всего фондов",
+    "funds_pending_review": "Фондов на модерации",
+    "funds_approved": "Одобренных фондов",
+    "tasks_total": "Всего заданий",
+    "tasks_pending_review": "Заданий на модерации",
+    "tasks_published": "Опубликованных заданий",
+    "tasks_closed": "Закрытых заданий",
+    "applications_total": "Всего откликов",
+    "accepted_applications": "Принятых откликов",
+    "completions_waiting_hours": "Выполнений без начисленных часов",
+    "awarded_hours_total": "Начислено часов всего",
+}
+
+ANALYTICS_XLSX_HEADERS = ["Показатель", "Значение"]
+
+PARTICIPANT_COLUMN_WIDTHS = [38, 28, 32, 22, 24, 24, 22, 14, 18, 18]
+ANALYTICS_COLUMN_WIDTHS = [42, 18, 18, 18]
+
+THIN_BLACK_BORDER = Border(
+    left=Side(style="thin", color="000000"),
+    right=Side(style="thin", color="000000"),
+    top=Side(style="thin", color="000000"),
+    bottom=Side(style="thin", color="000000"),
+)
+TITLE_FILL = PatternFill("solid", fgColor="F8F5FF")
+HEADER_FILL = PatternFill("solid", fgColor="EDE7F6")
 
 
 async def fetch_participant_report_rows(
@@ -159,10 +203,22 @@ def build_participants_csv(rows: Iterable[ParticipantReportRow]) -> str:
 def build_participants_xlsx_bytes(rows: Iterable[ParticipantReportRow]) -> bytes:
     workbook = Workbook()
     worksheet = workbook.active
-    worksheet.title = "Participants"
-    worksheet.append(PARTICIPANT_HEADERS)
+    worksheet.title = "Участники"
+    _apply_report_title(
+        worksheet,
+        title="Отчет по участникам корпоративного волонтерства",
+        title_columns=len(PARTICIPANT_XLSX_HEADERS),
+    )
+    worksheet.append(PARTICIPANT_XLSX_HEADERS)
     for row in rows:
         worksheet.append(_participant_row_values(row))
+    _style_table_sheet(
+        worksheet,
+        header_row=3,
+        data_start_row=4,
+        data_columns=len(PARTICIPANT_XLSX_HEADERS),
+        column_widths=PARTICIPANT_COLUMN_WIDTHS,
+    )
     return _workbook_to_bytes(workbook)
 
 
@@ -178,10 +234,22 @@ def build_analytics_csv(report: PlatformAnalyticsReport) -> str:
 def build_analytics_xlsx_bytes(report: PlatformAnalyticsReport) -> bytes:
     workbook = Workbook()
     worksheet = workbook.active
-    worksheet.title = "Analytics"
-    worksheet.append(ANALYTICS_HEADERS)
+    worksheet.title = "Аналитика"
+    _apply_report_title(
+        worksheet,
+        title="Сводная аналитика платформы",
+        title_columns=len(ANALYTICS_COLUMN_WIDTHS),
+    )
+    worksheet.append(ANALYTICS_XLSX_HEADERS)
     for metric, value in report.model_dump().items():
-        worksheet.append([metric, _export_value(value)])
+        worksheet.append([ANALYTICS_LABELS.get(metric, metric), _export_value(value)])
+    _style_table_sheet(
+        worksheet,
+        header_row=3,
+        data_start_row=4,
+        data_columns=len(ANALYTICS_XLSX_HEADERS),
+        column_widths=ANALYTICS_COLUMN_WIDTHS,
+    )
     return _workbook_to_bytes(workbook)
 
 
@@ -191,15 +259,39 @@ def build_full_report_xlsx_bytes(
 ) -> bytes:
     workbook = Workbook()
     participants_sheet = workbook.active
-    participants_sheet.title = "Participants"
-    participants_sheet.append(PARTICIPANT_HEADERS)
+    participants_sheet.title = "Участники"
+    _apply_report_title(
+        participants_sheet,
+        title="Отчет по участникам корпоративного волонтерства",
+        title_columns=len(PARTICIPANT_XLSX_HEADERS),
+    )
+    participants_sheet.append(PARTICIPANT_XLSX_HEADERS)
     for row in participants:
         participants_sheet.append(_participant_row_values(row))
+    _style_table_sheet(
+        participants_sheet,
+        header_row=3,
+        data_start_row=4,
+        data_columns=len(PARTICIPANT_XLSX_HEADERS),
+        column_widths=PARTICIPANT_COLUMN_WIDTHS,
+    )
 
-    analytics_sheet = workbook.create_sheet("Analytics")
-    analytics_sheet.append(ANALYTICS_HEADERS)
+    analytics_sheet = workbook.create_sheet("Аналитика")
+    _apply_report_title(
+        analytics_sheet,
+        title="Сводная аналитика платформы",
+        title_columns=len(ANALYTICS_COLUMN_WIDTHS),
+    )
+    analytics_sheet.append(ANALYTICS_XLSX_HEADERS)
     for metric, value in analytics.model_dump().items():
-        analytics_sheet.append([metric, _export_value(value)])
+        analytics_sheet.append([ANALYTICS_LABELS.get(metric, metric), _export_value(value)])
+    _style_table_sheet(
+        analytics_sheet,
+        header_row=3,
+        data_start_row=4,
+        data_columns=len(ANALYTICS_XLSX_HEADERS),
+        column_widths=ANALYTICS_COLUMN_WIDTHS,
+    )
 
     return _workbook_to_bytes(workbook)
 
@@ -208,6 +300,66 @@ def _workbook_to_bytes(workbook: Workbook) -> bytes:
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
+
+
+def _apply_report_title(worksheet, *, title: str, title_columns: int) -> None:
+    generated_at = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=title_columns)
+    worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=title_columns)
+    worksheet.sheet_view.showGridLines = False
+    worksheet.freeze_panes = "A4"
+
+    service_cell = worksheet.cell(row=1, column=1)
+    service_cell.value = (
+        "Сформировано платформой «Помогать просто»\n"
+        f"Дата формирования: {generated_at}"
+    )
+    service_cell.font = Font(name="Times New Roman", size=12, bold=True)
+    service_cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    service_cell.fill = TITLE_FILL
+
+    title_cell = worksheet.cell(row=2, column=1)
+    title_cell.value = title
+    title_cell.font = Font(name="Times New Roman", size=14, bold=True)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    title_cell.fill = TITLE_FILL
+
+    worksheet.row_dimensions[1].height = 54
+    worksheet.row_dimensions[2].height = 48
+    worksheet.row_dimensions[3].height = 42
+
+
+def _style_table_sheet(
+    worksheet,
+    *,
+    header_row: int,
+    data_start_row: int,
+    data_columns: int,
+    column_widths: list[int],
+) -> None:
+    for index, width in enumerate(column_widths, start=1):
+        worksheet.column_dimensions[get_column_letter(index)].width = width
+
+    for row in worksheet.iter_rows(
+        min_row=header_row,
+        max_row=max(worksheet.max_row, header_row),
+        min_col=1,
+        max_col=data_columns,
+    ):
+        for cell in row:
+            cell.border = THIN_BLACK_BORDER
+            cell.font = Font(name="Times New Roman", size=12, bold=cell.row == header_row)
+            cell.alignment = Alignment(
+                horizontal="center" if cell.row == header_row else "left",
+                vertical="center",
+                wrap_text=True,
+            )
+            if cell.row == header_row:
+                cell.fill = HEADER_FILL
+
+    for row_number in range(data_start_row, worksheet.max_row + 1):
+        worksheet.row_dimensions[row_number].height = 30
 
 
 def _participant_row_values(row: ParticipantReportRow) -> list[object]:
