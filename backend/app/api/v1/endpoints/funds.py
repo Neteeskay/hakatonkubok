@@ -5,11 +5,13 @@ from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import User
 from app.models.enums import UserRole
-from app.schemas.funds import FundDocumentResponse
+from app.schemas.funds import FundDocumentResponse, FundProfileResponse, FundUpdateRequest
 from app.services.fund_service import (
     EmptyFundDocumentError,
     FundNotFoundError,
     add_fund_document,
+    get_fund_by_representative,
+    update_fund_profile,
 )
 
 router = APIRouter()
@@ -18,6 +20,31 @@ router = APIRouter()
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "funds"}
+
+
+@router.get("/me", response_model=FundProfileResponse)
+async def my_fund_profile(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundProfileResponse:
+    try:
+        fund = await get_fund_by_representative(session, current_user)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    return FundProfileResponse.model_validate(fund)
+
+
+@router.patch("/me", response_model=FundProfileResponse)
+async def update_my_fund_profile(
+    payload: FundUpdateRequest,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundProfileResponse:
+    try:
+        fund = await update_fund_profile(session, current_user=current_user, payload=payload)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    return FundProfileResponse.model_validate(fund)
 
 
 @router.post(
