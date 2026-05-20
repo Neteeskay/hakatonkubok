@@ -28,9 +28,23 @@ BEGIN
     END IF;
 END $$;
 
+CREATE TABLE IF NOT EXISTS mock_employee (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(320) NOT NULL UNIQUE,
+    full_name VARCHAR(255) NOT NULL,
+    city VARCHAR(120),
+    department VARCHAR(160),
+    position VARCHAR(160),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS app_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role user_role NOT NULL,
+    username VARCHAR(80) UNIQUE,
     email VARCHAR(320) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
@@ -48,7 +62,7 @@ CREATE TABLE IF NOT EXISTS app_user (
 
 CREATE TABLE IF NOT EXISTS fund (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    representative_user_id UUID NOT NULL REFERENCES app_user(id),
+    representative_user_id UUID NOT NULL UNIQUE REFERENCES app_user(id),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     help_categories TEXT[],
@@ -161,6 +175,7 @@ CREATE TABLE IF NOT EXISTS report_export (
 );
 
 CREATE INDEX IF NOT EXISTS app_user_role_idx ON app_user (role);
+CREATE INDEX IF NOT EXISTS ix_app_user_username ON app_user (username);
 CREATE INDEX IF NOT EXISTS fund_status_idx ON fund (status);
 CREATE INDEX IF NOT EXISTS volunteer_task_feed_idx
     ON volunteer_task (status, city, category, participation_format, duration_type, task_type);
@@ -184,4 +199,3 @@ LEFT JOIN task_application a ON a.volunteer_id = u.id
 LEFT JOIN volunteer_hour_ledger h ON h.volunteer_id = u.id
 WHERE u.role = 'volunteer'
 GROUP BY u.id;
-

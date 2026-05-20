@@ -8,6 +8,7 @@ dependencies = [
   "asyncpg>=0.29",
   "fastapi>=0.111",
   "orjson>=3.10",
+  "psycopg[binary]>=3.2",
   "pydantic-settings>=2.3",
   "python-jose[cryptography]>=3.3",
   "python-multipart>=0.0.9",
@@ -26,6 +27,14 @@ native = [
   "maturin>=1.7",
 ]
 
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
@@ -33,4 +42,3 @@ target-version = "py312"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-

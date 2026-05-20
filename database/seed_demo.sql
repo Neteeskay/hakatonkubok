@@ -1,11 +1,35 @@
+INSERT INTO mock_employee (
+    id, employee_id, email, full_name, city, department, position
+) VALUES
+    (
+        '90000000-0000-0000-0000-000000000001',
+        'EMP-1001',
+        'volunteer@stoloto.local',
+        'Иван Петров',
+        'Нижний Новгород',
+        'IT',
+        'Backend developer'
+    ),
+    (
+        '90000000-0000-0000-0000-000000000002',
+        'EMP-1002',
+        'anna.smirnova@stoloto.local',
+        'Анна Смирнова',
+        'Москва',
+        'Маркетинг',
+        'Контент-менеджер'
+    )
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO app_user (
-    id, role, email, password_hash, full_name, city, employee_id, department, position, interests, skills
+    id, role, username, email, password_hash, full_name, city, employee_id, department, position, interests, skills
 ) VALUES
     (
         '00000000-0000-0000-0000-000000000001',
         'admin',
+        'admin',
         'admin@stoloto.local',
-        'demo-password-hash',
+        'pbkdf2_sha256$260000$cG9tb2dhdC1hZG1pbi1zYWx0$zN/12tkCRC0fPo//rFG9GLk1xGJH6yeTon9HE+fQDNc=',
         'Администратор платформы',
         'Нижний Новгород',
         NULL,
@@ -17,8 +41,9 @@ INSERT INTO app_user (
     (
         '00000000-0000-0000-0000-000000000002',
         'volunteer',
+        NULL,
         'volunteer@stoloto.local',
-        'demo-password-hash',
+        'pbkdf2_sha256$260000$cG9tb2dhdC1kZW1vLXNhbHQ=$uidkBgxprh+Rzsh/5yLGgdALWIsfy8atRs2QnvmHJdQ=',
         'Иван Петров',
         'Нижний Новгород',
         'EMP-1001',
@@ -30,8 +55,9 @@ INSERT INTO app_user (
     (
         '00000000-0000-0000-0000-000000000003',
         'fund',
+        NULL,
         'fund@example.org',
-        'demo-password-hash',
+        'pbkdf2_sha256$260000$cG9tb2dhdC1kZW1vLXNhbHQ=$uidkBgxprh+Rzsh/5yLGgdALWIsfy8atRs2QnvmHJdQ=',
         'Мария Иванова',
         'Нижний Новгород',
         NULL,
@@ -125,4 +151,3 @@ INSERT INTO task_application (
     now()
 )
 ON CONFLICT (id) DO NOTHING;
-
