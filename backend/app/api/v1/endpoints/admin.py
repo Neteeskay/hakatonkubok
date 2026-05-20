@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, File, UploadFile
-from sqlalchemy import Select, case, distinct, func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.core.deps import require_roles
@@ -22,8 +22,12 @@ from app.schemas.admin import (
     AdminTaskListItem,
     AwardHoursRequest,
     FundModerationRequest,
-    ParticipantReportRow,
     TaskModerationRequest,
+)
+from app.schemas.reports import ParticipantReportRow
+from app.services.report_service import (
+    build_participants_csv,
+    fetch_participant_report_rows,
 )
 from app.schemas.allowed_emails import (
     AllowedEmailCreate,
@@ -59,12 +63,6 @@ def _now() -> datetime:
 
 def _paginate(stmt: Select, limit: int, offset: int) -> Select:
     return stmt.limit(limit).offset(offset)
-
-
-def _csv_cell(value: object) -> str:
-    text = "" if value is None else str(value)
-    text = text.replace('"', '""')
-    return f'"{text}"'
 
 
 async def _save_allowed_emails(
@@ -518,60 +516,7 @@ async def get_participants_report(
     limit: PageLimit = 100,
     offset: PageOffset = 0,
 ) -> list[ParticipantReportRow]:
-    stmt = (
-        select(
-            User.id.label("volunteer_id"),
-            User.full_name.label("full_name"),
-            User.email.label("email"),
-            User.created_at.label("registration_date"),
-            User.city.label("city"),
-            User.department.label("department"),
-            User.position.label("position"),
-            func.count(distinct(TaskApplication.id)).label("applications_count"),
-            func.count(distinct(VolunteerHourLedger.task_id)).label("completed_tasks_count"),
-            func.coalesce(func.sum(VolunteerHourLedger.hours), 0).label("awarded_hours"),
-            func.array_remove(
-                func.array_agg(distinct(VolunteerTask.category)),
-                None,
-            ).label("help_categories"),
-        )
-        .select_from(User)
-        .outerjoin(TaskApplication, TaskApplication.volunteer_id == User.id)
-        .outerjoin(VolunteerHourLedger, VolunteerHourLedger.volunteer_id == User.id)
-        .outerjoin(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
-        .where(User.role == UserRole.VOLUNTEER)
-        .group_by(
-            User.id,
-            User.full_name,
-            User.email,
-            User.created_at,
-            User.city,
-            User.department,
-            User.position,
-        )
-        .order_by(User.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-
-    result = await session.execute(stmt)
-
-    return [
-        ParticipantReportRow(
-            volunteer_id=row.volunteer_id,
-            full_name=row.full_name,
-            email=row.email,
-            registration_date=row.registration_date,
-            applications_count=row.applications_count,
-            completed_tasks_count=row.completed_tasks_count,
-            awarded_hours=row.awarded_hours,
-            city=row.city,
-            department=row.department,
-            position=row.position,
-            help_categories=row.help_categories or [],
-        )
-        for row in result
-    ]
+    return await fetch_participant_report_rows(session, limit=limit, offset=offset)
 
 
 @router.get("/reports/participants.csv")
@@ -579,49 +524,8 @@ async def export_participants_report_csv(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_roles(UserRole.ADMIN)),
 ) -> Response:
-    rows = await get_participants_report(
-        session=session,
-        _=_,
-        limit=100,
-        offset=0,
-    )
-
-    header = [
-        "volunteer_id",
-        "full_name",
-        "email",
-        "registration_date",
-        "applications_count",
-        "completed_tasks_count",
-        "awarded_hours",
-        "city",
-        "department",
-        "position",
-        "help_categories",
-    ]
-
-    csv_lines = [";".join(header)]
-
-    for row in rows:
-        csv_lines.append(
-            ";".join(
-                [
-                    _csv_cell(row.volunteer_id),
-                    _csv_cell(row.full_name),
-                    _csv_cell(row.email),
-                    _csv_cell(row.registration_date),
-                    _csv_cell(row.applications_count),
-                    _csv_cell(row.completed_tasks_count),
-                    _csv_cell(row.awarded_hours),
-                    _csv_cell(row.city),
-                    _csv_cell(row.department),
-                    _csv_cell(row.position),
-                    _csv_cell(", ".join(row.help_categories)),
-                ]
-            )
-        )
-
-    csv_content = "\n".join(csv_lines)
+    rows = await fetch_participant_report_rows(session, limit=None, offset=0)
+    csv_content = build_participants_csv(rows)
 
     return Response(
         content=csv_content,

@@ -166,16 +166,3 @@ class AdminDashboardSummary(BaseModel):
     completions_waiting_hours: int
     awarded_hours_total: Decimal
 
-
-class ParticipantReportRow(BaseModel):
-    volunteer_id: UUID
-    full_name: str | None
-    email: str
-    registration_date: datetime
-    applications_count: int
-    completed_tasks_count: int
-    awarded_hours: Decimal
-    city: str | None
-    department: str | None
-    position: str | None
-    help_categories: list[str]
