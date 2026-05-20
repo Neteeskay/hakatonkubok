@@ -16,8 +16,8 @@ from app.schemas.auth import (
 from app.services.auth_service import (
     DuplicateEmployeeIdError,
     DuplicateEmailError,
-    EmployeeVerificationError,
     InvalidCredentialsError,
+    StolotoEmployeeNotFoundError,
     authenticate_user,
     issue_user_token,
     register_fund,
@@ -50,10 +50,10 @@ async def create_volunteer(
             status_code=status.HTTP_409_CONFLICT,
             detail="employee_id already exists",
         ) from exc
-    except EmployeeVerificationError as exc:
+    except StolotoEmployeeNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="employee not found or inactive",
+            detail="юзака нету в базе столото",
         ) from exc
     return VolunteerRegisterResponse(user=user)
 

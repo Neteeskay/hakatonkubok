@@ -1,4 +1,4 @@
-INSERT INTO mock_employee (
+INSERT INTO stoloto_employee (
     id, employee_id, email, full_name, city, department, position
 ) VALUES
     (

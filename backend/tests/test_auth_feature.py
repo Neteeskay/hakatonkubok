@@ -11,10 +11,12 @@ from app.core.deps import get_current_user
 from app.db.session import get_session
 from app.main import app
 from app.models.enums import FundStatus, UserRole
+from app.schemas.auth import VolunteerRegisterRequest
+from app.services import auth_service
 from app.services.auth_service import (
     DuplicateEmailError,
     DuplicateEmployeeIdError,
-    EmployeeVerificationError,
+    StolotoEmployeeNotFoundError,
 )
 
 
@@ -41,6 +43,20 @@ def make_fund() -> SimpleNamespace:
         moderation_comment=None,
         created_at=datetime.now(UTC),
     )
+
+
+class FakeSession:
+    def __init__(self) -> None:
+        self.added: object | None = None
+
+    def add(self, instance: object) -> None:
+        self.added = instance
+
+    async def commit(self) -> None:
+        pass
+
+    async def refresh(self, instance: object) -> None:
+        pass
 
 
 @pytest_asyncio.fixture
@@ -86,6 +102,81 @@ async def test_register_volunteer(client: AsyncClient, monkeypatch: pytest.Monke
     assert body["user"]["role"] == "volunteer"
     assert body["user"]["email"] == "volunteer@example.com"
     assert body["user"]["employee_id"] == "EMP-42"
+
+
+@pytest.mark.asyncio
+async def test_register_volunteer_uses_stoloto_employee_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_existing_user(session: object, email: str) -> None:
+        return None
+
+    async def no_existing_employee_id(session: object, employee_id: str) -> None:
+        return None
+
+    async def find_stoloto_employee(session: object, email: str) -> SimpleNamespace:
+        assert email == "volunteer@stoloto.local"
+        return SimpleNamespace(
+            employee_id="EMP-1001",
+            email=email,
+            full_name="Ivan Petrov",
+            city="Nizhny Novgorod",
+            department="IT",
+            position="Backend developer",
+            is_active=True,
+        )
+
+    monkeypatch.setattr(auth_service, "get_user_by_email", no_existing_user)
+    monkeypatch.setattr(auth_service, "get_user_by_employee_id", no_existing_employee_id)
+    monkeypatch.setattr(auth_service, "get_stoloto_employee_by_email", find_stoloto_employee)
+    monkeypatch.setattr(auth_service, "hash_password", lambda password: "hash")
+
+    session = FakeSession()
+    user = await auth_service.register_volunteer(
+        session,
+        VolunteerRegisterRequest(
+            email="volunteer@stoloto.local",
+            password="password123",
+            skills=["python"],
+        ),
+    )
+
+    assert session.added is user
+    assert user.email == "volunteer@stoloto.local"
+    assert user.employee_id == "EMP-1001"
+    assert user.full_name == "Ivan Petrov"
+
+
+@pytest.mark.asyncio
+async def test_register_volunteer_rejects_employee_id_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_existing_user(session: object, email: str) -> None:
+        return None
+
+    async def find_stoloto_employee(session: object, email: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            employee_id="EMP-1001",
+            email=email,
+            full_name="Ivan Petrov",
+            city="Nizhny Novgorod",
+            department="IT",
+            position="Backend developer",
+            is_active=True,
+        )
+
+    monkeypatch.setattr(auth_service, "get_user_by_email", no_existing_user)
+    monkeypatch.setattr(auth_service, "get_stoloto_employee_by_email", find_stoloto_employee)
+
+    with pytest.raises(StolotoEmployeeNotFoundError):
+        await auth_service.register_volunteer(
+            FakeSession(),
+            VolunteerRegisterRequest(
+                email="volunteer@stoloto.local",
+                password="password123",
+                employee_id="EMP-404",
+            ),
+        )
 
 
 @pytest.mark.asyncio
@@ -241,7 +332,7 @@ async def test_register_volunteer_rejects_unknown_employee(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_register_volunteer(session: object, payload: object) -> SimpleNamespace:
-        raise EmployeeVerificationError
+        raise StolotoEmployeeNotFoundError
 
     monkeypatch.setattr(auth_endpoint, "register_volunteer", fake_register_volunteer)
 
@@ -255,5 +346,4 @@ async def test_register_volunteer_rejects_unknown_employee(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "employee not found or inactive"
-
+    assert response.json()["detail"] == "юзака нету в базе столото"

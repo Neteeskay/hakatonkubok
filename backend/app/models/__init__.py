@@ -1,9 +1,9 @@
 from app.models.domain import (
     Fund,
     FundDocument,
-    MockEmployee,
     Notification,
     ReportExport,
+    StolotoEmployee,
     TaskApplication,
     User,
     VolunteerHourLedger,
@@ -13,9 +13,9 @@ from app.models.domain import (
 __all__ = [
     "Fund",
     "FundDocument",
-    "MockEmployee",
     "Notification",
     "ReportExport",
+    "StolotoEmployee",
     "TaskApplication",
     "User",
     "VolunteerHourLedger",

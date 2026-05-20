@@ -65,8 +65,8 @@ class User(Base, TimestampMixin):
     report_exports: Mapped[list["ReportExport"]] = relationship(back_populates="requester")
 
 
-class MockEmployee(Base, TimestampMixin):
-    __tablename__ = "mock_employee"
+class StolotoEmployee(Base, TimestampMixin):
+    __tablename__ = "stoloto_employee"
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     employee_id: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)

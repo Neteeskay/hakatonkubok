@@ -2,7 +2,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.domain import Fund, MockEmployee, User
+from app.models.domain import Fund, StolotoEmployee, User
 from app.models.enums import FundStatus, UserRole
 from app.schemas.auth import FundRegisterRequest, VolunteerRegisterRequest
 
@@ -19,7 +19,7 @@ class DuplicateEmployeeIdError(AuthError):
     pass
 
 
-class EmployeeVerificationError(AuthError):
+class StolotoEmployeeNotFoundError(AuthError):
     pass
 
 
@@ -44,22 +44,12 @@ async def get_user_by_employee_id(session: AsyncSession, employee_id: str) -> Us
     return result.scalar_one_or_none()
 
 
-async def get_mock_employee(
+async def get_stoloto_employee_by_email(
     session: AsyncSession,
     *,
     email: str,
-    employee_id: str | None,
-) -> MockEmployee | None:
-    if employee_id:
-        result = await session.execute(
-            select(MockEmployee).where(MockEmployee.employee_id == employee_id)
-        )
-        employee = result.scalar_one_or_none()
-        if employee and employee.email != email:
-            raise EmployeeVerificationError
-        return employee
-
-    result = await session.execute(select(MockEmployee).where(MockEmployee.email == email))
+) -> StolotoEmployee | None:
+    result = await session.execute(select(StolotoEmployee).where(StolotoEmployee.email == email))
     return result.scalar_one_or_none()
 
 
@@ -67,13 +57,14 @@ async def register_volunteer(session: AsyncSession, payload: VolunteerRegisterRe
     if await get_user_by_email(session, payload.email):
         raise DuplicateEmailError
 
-    employee = await get_mock_employee(
+    employee = await get_stoloto_employee_by_email(
         session,
         email=payload.email,
-        employee_id=payload.employee_id,
     )
     if not employee or not employee.is_active:
-        raise EmployeeVerificationError
+        raise StolotoEmployeeNotFoundError
+    if payload.employee_id and payload.employee_id != employee.employee_id:
+        raise StolotoEmployeeNotFoundError
 
     employee_id = payload.employee_id or employee.employee_id
     if await get_user_by_employee_id(session, employee_id):

@@ -28,7 +28,7 @@ BEGIN
     END IF;
 END $$;
 
-CREATE TABLE IF NOT EXISTS mock_employee (
+CREATE TABLE IF NOT EXISTS stoloto_employee (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     employee_id VARCHAR(80) NOT NULL UNIQUE,
     email VARCHAR(320) NOT NULL UNIQUE,
