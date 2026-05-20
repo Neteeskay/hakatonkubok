@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -11,6 +12,13 @@ from app.models.enums import (
     TaskStatus,
     TaskType,
 )
+
+
+class TaskFeedSort(StrEnum):
+    PUBLISHED_AT_DESC = "published_at_desc"
+    DEADLINE_AT_ASC = "deadline_at_asc"
+    EXPECTED_HOURS_DESC = "expected_hours_desc"
+    EXPECTED_HOURS_ASC = "expected_hours_asc"
 
 
 class TaskFundResponse(BaseModel):

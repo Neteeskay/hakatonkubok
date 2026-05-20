@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,8 +7,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import User
-from app.models.enums import TaskStatus, UserRole
-from app.schemas.tasks import TaskCreateRequest, TaskResponse, TaskUpdateRequest
+from app.models.enums import (
+    DurationType,
+    HelpCategory,
+    ParticipationFormat,
+    TaskStatus,
+    TaskType,
+    UserRole,
+)
+from app.schemas.tasks import (
+    TaskCreateRequest,
+    TaskFeedSort,
+    TaskResponse,
+    TaskUpdateRequest,
+)
 from app.services.fund_service import FundNotFoundError
 from app.services.task_service import (
     FundNotApprovedError,
@@ -18,17 +31,73 @@ from app.services.task_service import (
     close_task,
     create_task,
     get_fund_task,
+    get_published_task_for_volunteer,
     list_fund_tasks,
+    list_published_tasks,
     submit_task_for_review,
     update_task,
 )
 
 router = APIRouter()
 
+PageLimit = Annotated[int, Query(ge=1, le=100)]
+PageOffset = Annotated[int, Query(ge=0)]
+
 
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "tasks"}
+
+
+@router.get("/feed", response_model=list[TaskResponse])
+async def list_task_feed(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    city: str | None = Query(default=None, min_length=1, max_length=120),
+    category: HelpCategory | None = Query(default=None, alias="category"),
+    participation_format: ParticipationFormat | None = Query(default=None, alias="format"),
+    duration_type: DurationType | None = Query(default=None, alias="duration"),
+    task_type: TaskType | None = Query(default=None, alias="type"),
+    fund_id: UUID | None = None,
+    search: str | None = Query(default=None, min_length=2, max_length=200),
+    required_skill: str | None = Query(default=None, min_length=1, max_length=80),
+    available_only: bool = Query(default=True),
+    sort: TaskFeedSort = TaskFeedSort.PUBLISHED_AT_DESC,
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
+) -> list[TaskResponse]:
+    tasks = await list_published_tasks(
+        session,
+        city=city,
+        category=category,
+        participation_format=participation_format,
+        duration_type=duration_type,
+        task_type=task_type,
+        fund_id=fund_id,
+        search=search,
+        required_skill=required_skill,
+        available_only=available_only,
+        sort=sort,
+        limit=limit,
+        offset=offset,
+    )
+    return [TaskResponse.model_validate(task) for task in tasks]
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task_card(
+    task_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.VOLUNTEER)),
+) -> TaskResponse:
+    try:
+        task = await get_published_task_for_volunteer(session, task_id)
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
+        ) from exc
+    return TaskResponse.model_validate(task)
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)

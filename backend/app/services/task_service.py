@@ -1,14 +1,22 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.domain import Fund, User, VolunteerTask
-from app.models.enums import FundStatus, TaskStatus
+from app.models.enums import (
+    DurationType,
+    FundStatus,
+    HelpCategory,
+    ParticipationFormat,
+    TaskStatus,
+    TaskType,
+)
 from app.schemas.tasks import (
     TaskCreateRequest,
+    TaskFeedSort,
     TaskUpdateRequest,
     validate_task_dates,
     validate_task_location,
@@ -60,6 +68,114 @@ def validate_task_state(task: VolunteerTask) -> None:
         validate_task_dates(task.starts_at, task.ends_at, task.deadline_at)
     except ValueError as exc:
         raise InvalidTaskDataError(str(exc)) from exc
+
+
+def _published_tasks_base_query():
+    return (
+        select(VolunteerTask)
+        .join(Fund, Fund.id == VolunteerTask.fund_id)
+        .where(
+            VolunteerTask.status == TaskStatus.PUBLISHED,
+            Fund.status == FundStatus.APPROVED,
+        )
+        .options(*task_load_options())
+    )
+
+
+def _apply_feed_sort(statement, sort: TaskFeedSort):
+    if sort == TaskFeedSort.DEADLINE_AT_ASC:
+        return statement.order_by(
+            VolunteerTask.deadline_at.asc().nulls_last(),
+            VolunteerTask.published_at.desc().nulls_last(),
+        )
+    if sort == TaskFeedSort.EXPECTED_HOURS_DESC:
+        return statement.order_by(
+            VolunteerTask.expected_hours.desc(),
+            VolunteerTask.published_at.desc().nulls_last(),
+        )
+    if sort == TaskFeedSort.EXPECTED_HOURS_ASC:
+        return statement.order_by(
+            VolunteerTask.expected_hours.asc(),
+            VolunteerTask.published_at.desc().nulls_last(),
+        )
+    return statement.order_by(
+        VolunteerTask.published_at.desc().nulls_last(),
+        VolunteerTask.created_at.desc(),
+    )
+
+
+async def list_published_tasks(
+    session: AsyncSession,
+    *,
+    city: str | None = None,
+    category: HelpCategory | None = None,
+    participation_format: ParticipationFormat | None = None,
+    duration_type: DurationType | None = None,
+    task_type: TaskType | None = None,
+    fund_id: UUID | None = None,
+    search: str | None = None,
+    required_skill: str | None = None,
+    available_only: bool = True,
+    sort: TaskFeedSort = TaskFeedSort.PUBLISHED_AT_DESC,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[VolunteerTask]:
+    statement = _published_tasks_base_query()
+
+    if available_only:
+        now = datetime.now(UTC)
+        statement = statement.where(
+            or_(VolunteerTask.deadline_at.is_(None), VolunteerTask.deadline_at >= now)
+        )
+
+    if city is not None:
+        statement = statement.where(VolunteerTask.city.ilike(f"%{city.strip()}%"))
+
+    if category is not None:
+        statement = statement.where(VolunteerTask.category == category)
+
+    if participation_format is not None:
+        statement = statement.where(VolunteerTask.participation_format == participation_format)
+
+    if duration_type is not None:
+        statement = statement.where(VolunteerTask.duration_type == duration_type)
+
+    if task_type is not None:
+        statement = statement.where(VolunteerTask.task_type == task_type)
+
+    if fund_id is not None:
+        statement = statement.where(VolunteerTask.fund_id == fund_id)
+
+    if search:
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(
+            or_(
+                VolunteerTask.title.ilike(pattern),
+                VolunteerTask.description.ilike(pattern),
+            )
+        )
+
+    if required_skill:
+        skill = required_skill.strip().lower()
+        if skill:
+            statement = statement.where(VolunteerTask.required_skills.contains([skill]))
+
+    statement = _apply_feed_sort(statement, sort).limit(limit).offset(offset)
+
+    result = await session.execute(statement)
+    return list(result.scalars().all())
+
+
+async def get_published_task_for_volunteer(
+    session: AsyncSession,
+    task_id: UUID,
+) -> VolunteerTask:
+    task = await session.scalar(
+        _published_tasks_base_query().where(VolunteerTask.id == task_id)
+    )
+    if task is None:
+        raise TaskNotFoundError
+    return task
 
 
 async def get_task_by_id(session: AsyncSession, task_id: UUID) -> VolunteerTask:
