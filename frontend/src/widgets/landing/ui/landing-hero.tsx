@@ -26,13 +26,13 @@ export function LandingHero() {
             </Reveal>
             <Reveal delay={0.12}>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <Button className="h-[58px] rounded-xl px-7 text-[15px] shadow-[0_24px_60px_rgba(255,205,0,0.24)]" asChild>
+                <Button className="h-[58px] rounded-xl px-7 text-[15px] shadow-[0_24px_60px_rgba(255,227,0,0.24)]" asChild>
                   <Link href="/register/volunteer">
                     Стать волонтёром
                     <ArrowRight className="size-5" />
                   </Link>
                 </Button>
-                <Button variant="ghost" className="h-[58px] rounded-xl bg-white/12 px-7 text-[15px] text-white shadow-[inset_0_0_0_1px_rgba(255,211,0,0.95),0_18px_42px_rgba(0,0,0,0.16)] backdrop-blur hover:bg-white/18" asChild>
+                <Button variant="ghost" className="h-[58px] rounded-xl bg-white/12 px-7 text-[15px] text-white shadow-[inset_0_0_0_1px_rgba(255,227,0,0.95),0_18px_42px_rgba(0,0,0,0.16)] backdrop-blur hover:bg-white/18" asChild>
                   <Link href="/register/foundation">
                     Для фондов и НКО
                     <ArrowRight className="size-5" />

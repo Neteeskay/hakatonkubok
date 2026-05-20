@@ -27,7 +27,7 @@ export function CreateTaskPage() {
             <h3 className="mt-4 text-xl font-black">Проверка fundraising</h3>
             <p className="mt-2 text-sm leading-6 text-black/64">Задачи про сбор денег, пожертвования и финансовые переводы не публикуются. Платформа поддерживает только волонтёрское участие.</p>
           </div>
-          <button className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black shadow-[0_14px_32px_rgba(255,204,0,0.28)]">Отправить на модерацию</button>
+          <button className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.28)]">Отправить на модерацию</button>
         </div>
       </div>
     </FoundationShell>

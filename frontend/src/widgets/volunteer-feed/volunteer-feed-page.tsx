@@ -10,8 +10,7 @@ import { TaskDetailDrawer } from "@/widgets/volunteer-feed/task-detail-drawer";
 import { categoryLabels, formatLabels, skillLabels, taskStatusLabels } from "@/widgets/volunteer-feed/task-dictionaries";
 import { TaskFeedEmpty } from "@/widgets/volunteer-feed/feed-states";
 import { VolunteerTaskCard } from "@/widgets/volunteer-feed/volunteer-task-card";
-
-type ApplicationStatus = "idle" | "pending" | "accepted" | "rejected" | "completed" | "hours";
+import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
 
 export function VolunteerFeedPage() {
   const filters = useTaskFilters();
@@ -61,7 +60,7 @@ export function VolunteerFeedPage() {
           <TaskFeedEmpty />
         )}
         {visibleTasks.length ? (
-          <button className="mx-auto mt-5 flex h-11 w-full max-w-[620px] items-center justify-center rounded-full bg-white text-sm font-black text-black/76 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-[#fff8d7]">
+          <button className="mx-auto mt-5 flex h-11 w-full max-w-[620px] items-center justify-center rounded-full bg-white text-sm font-black text-black/76 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12">
             Показать ещё задания
           </button>
         ) : null}
@@ -69,15 +68,12 @@ export function VolunteerFeedPage() {
       <TaskDetailDrawer
         task={selectedTask}
         status={selectedStatus}
-        onApply={() => {
+        onStatusChange={(status) => {
           if (!selectedTask) return;
-          setStatuses((current) => ({ ...current, [selectedTask.id]: "pending" }));
-        }}
-        onCancel={() => {
-          if (!selectedTask) return;
-          setStatuses((current) => ({ ...current, [selectedTask.id]: "idle" }));
+          setStatuses((current) => ({ ...current, [selectedTask.id]: status }));
         }}
         onClose={() => setSelectedTask(null)}
+        onTaskOpen={setSelectedTask}
       />
     </div>
   );

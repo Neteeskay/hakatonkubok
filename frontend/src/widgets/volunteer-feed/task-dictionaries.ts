@@ -38,9 +38,9 @@ export const taskStatusLabels: Record<TaskStatus, string> = {
 };
 
 export const taskVisuals: Record<string, { image: string; badge: string; tone: string }> = {
-  "task-001": { image: "/peoples.png", badge: "Новое", tone: "from-[#fff7bf] to-white" },
-  "task-002": { image: "/backTaskVolounteer.png", badge: "Pro bono", tone: "from-[#f3f0e8] to-white" },
-  "task-003": { image: "/backroundAddPeoplemain.png", badge: "Подходит вам", tone: "from-[#fff3a6] to-white" },
-  "task-004": { image: "/peoples.png", badge: "Офлайн", tone: "from-[#fff8d7] to-white" },
-  "task-005": { image: "/heart.png", badge: "Pro bono", tone: "from-[#fff0a8] to-white" }
+  "task-001": { image: "/tasks/3.jpg", badge: "Новое", tone: "from-brand/20 to-white" },
+  "task-002": { image: "/tasks/2.jpg", badge: "Pro bono", tone: "from-[#f3f0e8] to-white" },
+  "task-003": { image: "/tasks/1.jpg", badge: "Подходит вам", tone: "from-brand/20 to-white" },
+  "task-004": { image: "/tasks/4.jpg", badge: "Офлайн", tone: "from-brand/12 to-white" },
+  "task-005": { image: "/tasks/2.jpg", badge: "Pro bono", tone: "from-brand/20 to-white" }
 };

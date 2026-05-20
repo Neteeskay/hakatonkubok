@@ -1,3 +1,3 @@
-import { HistoryPage } from "@/widgets/role-pages/volunteer-sections";
+import { VolunteerHistoryPage } from "@/widgets/volunteer-activity/volunteer-history-page";
 
-export default HistoryPage;
+export default VolunteerHistoryPage;

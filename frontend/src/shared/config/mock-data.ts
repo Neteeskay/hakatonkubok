@@ -237,6 +237,18 @@ export const foundations: Foundation[] = [
     moderationStatus: "changes",
     curator: "Наталья Хасанова",
     reportsReady: 1
+  },
+  {
+    id: "fond-005",
+    name: "Добрые решения",
+    focus: "Pro bono, аналитика и цифровые сервисы для НКО",
+    city: "Онлайн",
+    activeTasks: 2,
+    volunteersNeeded: 9,
+    responseRate: 95,
+    moderationStatus: "approved",
+    curator: "Алексей Морозов",
+    reportsReady: 5
   }
 ];
 

@@ -35,7 +35,7 @@ export function Topbar({ role }: { role: AppRole }) {
         <Dropdown
           label={
             <span className="flex items-center gap-3 rounded-full">
-              <span className="grid size-12 place-items-center rounded-full bg-brand text-sm font-black text-black shadow-[0_14px_30px_rgba(255,204,0,0.28)]">{initials}</span>
+              <span className="grid size-12 place-items-center rounded-full bg-brand text-sm font-black text-black shadow-[0_14px_30px_rgba(255,227,0,0.28)]">{initials}</span>
               <span className="hidden text-left leading-tight md:block">
                 <span className="block text-sm font-black">{name}</span>
                 <span className="block text-xs text-foreground/54">{roleLabels[role]}</span>

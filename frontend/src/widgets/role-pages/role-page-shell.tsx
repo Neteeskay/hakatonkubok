@@ -38,7 +38,7 @@ export function RoleHero({
         <div className="mt-4 h-1 w-12 rounded-full bg-brand" />
         <p className="mt-6 max-w-xl text-base leading-7 text-black/68 md:text-lg">{description}</p>
         {action ? (
-          <button className="mt-7 inline-flex h-12 items-center gap-3 rounded-2xl bg-brand px-5 text-sm font-black text-black shadow-[0_18px_42px_rgba(255,199,0,0.32)] transition hover:-translate-y-0.5">
+          <button className="mt-7 inline-flex h-12 items-center gap-3 rounded-2xl bg-brand px-5 text-sm font-black text-black shadow-[0_18px_42px_rgba(255,227,0,0.32)] transition hover:-translate-y-0.5">
             {action}
             <ArrowRight className="size-4" />
           </button>

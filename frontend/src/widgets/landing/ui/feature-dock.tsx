@@ -14,7 +14,7 @@ export function FeatureDock() {
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
       {features.map((feature) => (
         <article key={feature.title} className="group relative min-h-[190px] rounded-[1.35rem] bg-[#fffdf7] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_18px_50px_rgba(52,43,13,0.07)] transition duration-500 hover:-translate-y-1 hover:bg-white">
-          <div className="grid size-14 place-items-center rounded-2xl bg-brand text-black shadow-[0_16px_34px_rgba(255,204,0,0.32)]">
+          <div className="grid size-14 place-items-center rounded-2xl bg-brand text-black shadow-[0_16px_34px_rgba(255,227,0,0.32)]">
             <feature.icon className="size-7 stroke-[2.1]" />
           </div>
           <h3 className="mt-4 text-[18px] font-black">{feature.title}</h3>

@@ -5,7 +5,7 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "quiet" | "danger";
 type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-brand text-brand-foreground hover:brightness-95 shadow-[0_10px_24px_rgba(255,199,42,0.28)]",
+  primary: "bg-brand text-brand-foreground hover:brightness-95 shadow-[0_10px_24px_rgba(255,227,0,0.28)]",
   secondary: "bg-foreground text-background hover:bg-foreground/88",
   ghost: "bg-surface-raised hover:bg-surface-muted",
   quiet: "bg-transparent hover:bg-surface-muted text-foreground/78",

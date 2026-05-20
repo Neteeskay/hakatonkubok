@@ -24,7 +24,7 @@ export default function FoundationRegisterPage() {
                 <div className="mt-5 rounded-2xl bg-brand/40 p-4 text-sm font-black">uploaded: charter.pdf, ogrn.pdf</div>
               </div>
               <div className="rounded-[1.35rem] bg-white p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
-                <ShieldCheck className="size-8 text-[#d8ae00]" />
+                <ShieldCheck className="size-8 text-brand" />
                 <h3 className="mt-4 text-xl font-black text-black">STATUS: moderation pending</h3>
                 <p className="mt-2 text-sm leading-6 text-black/62">Публикация заданий будет доступна после проверки администратора.</p>
               </div>

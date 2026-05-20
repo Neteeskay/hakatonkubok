@@ -1,3 +1,3 @@
-import { ApplicationsPage } from "@/widgets/role-pages/volunteer-sections";
+import { VolunteerApplicationsPage } from "@/widgets/volunteer-activity/volunteer-applications-page";
 
-export default ApplicationsPage;
+export default VolunteerApplicationsPage;

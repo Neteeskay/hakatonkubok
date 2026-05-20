@@ -12,11 +12,11 @@ export default function VolunteerRegisterPage() {
           <button className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black">Проверить сотрудника</button>
         </div>
         <div className="rounded-[1.35rem] bg-white p-6 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
-          <CheckCircle2 className="size-8 text-[#d8ae00]" />
+          <CheckCircle2 className="size-8 text-brand" />
           <h3 className="mt-5 text-2xl font-black text-black">Анна Соколова</h3>
           <p className="mt-2 text-black/62">Москва / Цифровые сервисы / Продуктовый дизайнер</p>
           <div className="mt-5 flex flex-wrap gap-2">
-            {["дети", "спорт", "дизайн", "события"].map((item) => <span key={item} className="rounded-full bg-[#fff4ba] px-3 py-2 text-xs font-black text-black">{item}</span>)}
+            {["дети", "спорт", "дизайн", "события"].map((item) => <span key={item} className="rounded-full bg-brand/20 px-3 py-2 text-xs font-black text-black">{item}</span>)}
           </div>
           <Link href="/volunteer" className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-black">Завершить onboarding <ArrowRight className="size-4" /></Link>
         </div>

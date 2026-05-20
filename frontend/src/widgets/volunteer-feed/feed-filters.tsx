@@ -57,7 +57,7 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
         </label>
         <div className="grid gap-2 sm:grid-cols-2">
           <SelectPill label="Сортировка" value={sort} onChange={setSort} options={sortOptions} icon={<SlidersHorizontal className="size-4" />} />
-          <button onClick={reset} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold text-black/58 transition hover:bg-[#fff7c7]">
+          <button onClick={reset} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold text-black/58 transition hover:bg-brand/12">
             <RotateCcw className="size-4" />
             Сбросить фильтры
           </button>
@@ -91,7 +91,7 @@ function SelectPill({ label, value, options, onChange, icon }: { label: string; 
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-xl bg-white px-4 pr-9 text-sm font-bold text-black/72 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none transition hover:bg-[#fffdf2] focus:shadow-[inset_0_0_0_2px_rgba(255,204,0,0.85)]"
+        className="h-12 w-full appearance-none rounded-xl bg-white px-4 pr-9 text-sm font-bold text-black/72 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none transition hover:bg-[#fffdf2] focus:shadow-[inset_0_0_0_2px_rgba(255,227,0,0.85)]"
       >
         {options.map((option) => <option key={option}>{option}</option>)}
       </select>
@@ -106,7 +106,7 @@ function SelectChip({ value, options, onChange }: { value: string; options: stri
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 appearance-none rounded-full bg-white px-4 pr-8 text-sm font-bold text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none hover:bg-[#fff8d7]"
+        className="h-10 appearance-none rounded-full bg-white px-4 pr-8 text-sm font-bold text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none hover:bg-brand/12"
       >
         {options.map((option) => <option key={option}>{option}</option>)}
       </select>
@@ -121,7 +121,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       onClick={onClick}
       className={cn(
         "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-bold transition",
-        active ? "bg-black text-white shadow-[0_12px_30px_rgba(0,0,0,0.12)]" : "bg-white text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] hover:bg-[#fff8d7]"
+        active ? "bg-brand text-black shadow-[0_12px_30px_rgba(255,227,0,0.22)]" : "bg-white text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] hover:bg-brand/12"
       )}
     >
       {children}

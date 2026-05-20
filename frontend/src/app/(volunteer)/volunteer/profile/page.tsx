@@ -1,3 +1,3 @@
-import { ProfilePage } from "@/widgets/role-pages/volunteer-sections";
+import { VolunteerProfilePage } from "@/widgets/volunteer-profile/volunteer-profile-page";
 
-export default ProfilePage;
+export default VolunteerProfilePage;

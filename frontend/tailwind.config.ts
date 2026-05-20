@@ -38,7 +38,7 @@ const config: Config = {
         destructive: "hsl(var(--destructive))"
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "Inter", "Arial", "sans-serif"]
+        sans: ["var(--font-sans)"]
       },
       borderRadius: {
         xl: "0.75rem",

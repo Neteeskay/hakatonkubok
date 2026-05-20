@@ -6,7 +6,7 @@ import { Button } from "@/shared/ui/button";
 export function PeopleSection() {
   return (
     <section id="stories" className="relative overflow-hidden px-4 py-20 md:px-8">
-      <div className="absolute left-0 top-20 h-72 w-72 rounded-full bg-brand/18 blur-3xl" />
+      {/* <div className="absolute left-0 top-20 h-72 w-72 rounded-full bg-brand/18 blur-3xl" />
       <div className="absolute right-0 top-10 h-80 w-80 rounded-full bg-brand/26 blur-3xl" />
       <div className="absolute left-0 top-40 h-64 w-64 opacity-70 [background:radial-gradient(circle,rgba(255,209,0,.62)_2px,transparent_3px)] [background-size:18px_18px]" />
       <div className="absolute right-12 top-10 h-56 w-56 opacity-60 [background:radial-gradient(circle,rgba(255,209,0,.6)_2px,transparent_3px)] [background-size:18px_18px]" />
@@ -34,7 +34,7 @@ export function PeopleSection() {
             className="object-contain object-center drop-shadow-[0_30px_70px_rgba(80,61,0,0.16)]"
           />
         </div>
-      </div>
+      </div> */}
     </section>
   );
 }

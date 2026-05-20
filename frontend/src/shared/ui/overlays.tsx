@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/utils";
@@ -58,13 +59,39 @@ export function Sheet({
 
 export function Dropdown({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-surface-muted" onClick={() => setOpen(!open)}>
         {label}
       </button>
       {open ? (
-        <div className="absolute right-0 top-11 z-20 min-w-52 rounded-xl bg-surface p-2 shadow-panel">{children}</div>
+        <div className="absolute right-0 top-full z-50 mt-2 min-w-52 rounded-xl bg-surface p-2 shadow-panel" onClick={() => setOpen(false)}>{children}</div>
       ) : null}
     </div>
   );

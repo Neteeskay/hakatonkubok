@@ -1,3 +1,3 @@
-import { NotificationsPage } from "@/widgets/role-pages/volunteer-sections";
+import { VolunteerNotificationsPage } from "@/widgets/volunteer-activity/volunteer-notifications-page";
 
-export default NotificationsPage;
+export default VolunteerNotificationsPage;
