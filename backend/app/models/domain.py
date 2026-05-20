@@ -195,6 +195,7 @@ class VolunteerTask(Base, TimestampMixin):
     )
     moderation_comment: Mapped[str | None] = mapped_column(Text)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     fund: Mapped[Fund] = relationship(back_populates="tasks")

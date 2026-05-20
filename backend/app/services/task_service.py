@@ -340,9 +340,18 @@ async def moderate_task(
     if not can_transition(task.status, target_status, TASK_TRANSITIONS):
         raise InvalidTaskStatusTransitionError
 
+    now = datetime.now(UTC)
+
     task.status = target_status
     task.moderation_comment = moderation_comment.strip() if moderation_comment else None
-    task.published_at = datetime.now(UTC) if target_status == TaskStatus.PUBLISHED else None
+
+    if target_status == TaskStatus.PUBLISHED:
+        task.approved_at = now
+        task.published_at = now
+    else:
+        task.approved_at = None
+        task.published_at = None
+
     task.closed_at = None
 
     await session.commit()

@@ -15,6 +15,21 @@ from app.models.domain import Fund, TaskApplication, User, VolunteerHourLedger, 
 from app.models.enums import ApplicationStatus, FundStatus, TaskStatus, UserRole
 from app.schemas.reports import ParticipantReportRow, PlatformAnalyticsReport
 
+from collections import Counter, defaultdict
+from pathlib import Path
+
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.fonts import addMapping
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase.pdfmetrics import registerFont
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
 
 PARTICIPANT_HEADERS = [
     "volunteer_id",
@@ -374,3 +389,232 @@ def _export_value(value: object) -> object:
     if isinstance(value, Decimal):
         return str(value)
     return value
+
+
+BRAND_YELLOW = colors.HexColor("#FFE300")
+BRAND_BLACK = colors.HexColor("#000000")
+
+FONT_DIR = Path("app/static/fonts")
+MONTSERRAT_REGULAR_PATH = FONT_DIR / "Montserrat-Regular.ttf"
+MONTSERRAT_BOLD_PATH = FONT_DIR / "Montserrat-Bold.ttf"
+
+
+def register_montserrat_fonts() -> None:
+    if not MONTSERRAT_REGULAR_PATH.exists() or not MONTSERRAT_BOLD_PATH.exists():
+        raise RuntimeError(
+            "Montserrat fonts are required. Put Montserrat-Regular.ttf and "
+            "Montserrat-Bold.ttf into app/static/fonts/"
+        )
+
+    registerFont(TTFont("Montserrat", str(MONTSERRAT_REGULAR_PATH)))
+    registerFont(TTFont("Montserrat-Bold", str(MONTSERRAT_BOLD_PATH)))
+    addMapping("Montserrat", 0, 0, "Montserrat")
+    addMapping("Montserrat", 1, 0, "Montserrat-Bold")
+
+
+async def build_volunteer_year_statistics_pdf(
+    session: AsyncSession,
+    *,
+    volunteer: User,
+    year: int,
+) -> bytes:
+    register_montserrat_fonts()
+
+    result = await session.execute(
+        select(
+            VolunteerTask.title,
+            Fund.name.label("fund_name"),
+            VolunteerTask.category,
+            VolunteerTask.participation_format,
+            VolunteerTask.task_type,
+            VolunteerHourLedger.hours,
+            VolunteerHourLedger.awarded_at,
+        )
+        .join(TaskApplication, TaskApplication.id == VolunteerHourLedger.application_id)
+        .join(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
+        .join(Fund, Fund.id == VolunteerTask.fund_id)
+        .where(VolunteerHourLedger.volunteer_id == volunteer.id)
+        .where(func.extract("year", VolunteerHourLedger.awarded_at) == year)
+        .order_by(VolunteerHourLedger.awarded_at.asc())
+    )
+
+    rows = result.all()
+
+    total_hours = sum(Decimal(row.hours) for row in rows)
+    completed_tasks_count = len(rows)
+
+    months_hours: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    category_counter: Counter[str] = Counter()
+
+    for row in rows:
+        months_hours[row.awarded_at.month] += Decimal(row.hours)
+        category_counter[str(row.category.value)] += 1
+
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+        title=f"volunteer_statistics_{year}",
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="MontserratTitle",
+            fontName="Montserrat-Bold",
+            fontSize=20,
+            leading=24,
+            textColor=BRAND_BLACK,
+            alignment=TA_CENTER,
+            spaceAfter=12,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratHeading",
+            fontName="Montserrat-Bold",
+            fontSize=13,
+            leading=16,
+            textColor=BRAND_BLACK,
+            spaceBefore=12,
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MontserratText",
+            fontName="Montserrat",
+            fontSize=10,
+            leading=13,
+            textColor=BRAND_BLACK,
+        )
+    )
+
+    story = []
+
+    story.append(Paragraph("Личная статистика волонтёра", styles["MontserratTitle"]))
+    story.append(Paragraph(f"Отчётный год: {year}", styles["MontserratText"]))
+    story.append(Spacer(1, 8))
+
+    summary_table = Table(
+        [
+            ["Волонтёр", volunteer.full_name or volunteer.email],
+            ["Email", volunteer.email],
+            ["Город", volunteer.city or "Не указан"],
+            ["Подразделение", volunteer.department or "Не указано"],
+            ["Выполнено заданий", str(completed_tasks_count)],
+            ["Начислено часов", str(total_hours)],
+        ],
+        colWidths=[55 * mm, 105 * mm],
+    )
+    summary_table.setStyle(_pdf_table_style())
+    story.append(summary_table)
+
+    if rows:
+        story.append(Paragraph("Часы по месяцам", styles["MontserratHeading"]))
+        story.append(_build_month_hours_chart(months_hours))
+
+        story.append(Paragraph("Категории помощи", styles["MontserratHeading"]))
+        category_data = [["Категория", "Количество выполненных заданий"]]
+        for category, count in category_counter.most_common():
+            category_data.append([category, str(count)])
+
+        category_table = Table(category_data, colWidths=[90 * mm, 70 * mm])
+        category_table.setStyle(_pdf_table_style())
+        story.append(category_table)
+
+        story.append(Paragraph("Выполненные задания", styles["MontserratHeading"]))
+
+        task_table_data = [["Дата", "Задание", "Фонд", "Часы"]]
+        for row in rows:
+            task_table_data.append(
+                [
+                    row.awarded_at.strftime("%d.%m.%Y"),
+                    row.title,
+                    row.fund_name,
+                    str(row.hours),
+                ]
+            )
+
+        task_table = Table(
+            task_table_data,
+            colWidths=[25 * mm, 65 * mm, 50 * mm, 20 * mm],
+            repeatRows=1,
+        )
+        task_table.setStyle(_pdf_table_style())
+        story.append(task_table)
+    else:
+        story.append(Spacer(1, 10))
+        story.append(
+            Paragraph(
+                "За выбранный год подтверждённых выполнений и начисленных часов пока нет.",
+                styles["MontserratText"],
+            )
+        )
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def _pdf_table_style() -> TableStyle:
+    return TableStyle(
+        [
+            ("FONTNAME", (0, 0), (-1, -1), "Montserrat"),
+            ("FONTNAME", (0, 0), (-1, 0), "Montserrat-Bold"),
+            ("BACKGROUND", (0, 0), (-1, 0), BRAND_YELLOW),
+            ("TEXTCOLOR", (0, 0), (-1, -1), BRAND_BLACK),
+            ("GRID", (0, 0), (-1, -1), 0.6, BRAND_BLACK),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
+    )
+
+
+def _build_month_hours_chart(months_hours: dict[int, Decimal]) -> Drawing:
+    month_labels = [
+        "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+        "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+    ]
+
+    values = [float(months_hours.get(month, Decimal("0"))) for month in range(1, 13)]
+
+    drawing = Drawing(460, 220)
+
+    chart = VerticalBarChart()
+    chart.x = 35
+    chart.y = 35
+    chart.height = 150
+    chart.width = 390
+    chart.data = [values]
+    chart.categoryAxis.categoryNames = month_labels
+    chart.valueAxis.valueMin = 0
+    chart.valueAxis.valueMax = max(values) + 1 if max(values) > 0 else 1
+    chart.valueAxis.valueStep = max(1, int(chart.valueAxis.valueMax / 5))
+    chart.bars[0].fillColor = BRAND_YELLOW
+    chart.bars[0].strokeColor = BRAND_BLACK
+    chart.categoryAxis.labels.fontName = "Montserrat"
+    chart.categoryAxis.labels.fontSize = 7
+    chart.valueAxis.labels.fontName = "Montserrat"
+    chart.valueAxis.labels.fontSize = 7
+
+    drawing.add(chart)
+    drawing.add(
+        String(
+            35,
+            200,
+            "Начисленные волонтёрские часы по месяцам",
+            fontName="Montserrat-Bold",
+            fontSize=10,
+            fillColor=BRAND_BLACK,
+        )
+    )
+
+    return drawing
