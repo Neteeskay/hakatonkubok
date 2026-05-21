@@ -242,6 +242,7 @@ class AdminVolunteerDirectoryItem(AdminOrmModel):
     email: str
     full_name: str | None = None
     city: str | None = None
+    avatar_url: str | None = None
     department: str | None = None
     position: str | None = None
     interests: list[str] | None = None

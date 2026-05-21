@@ -62,6 +62,7 @@ async def test_fund_uploads_verification_document(
             fund_id=uuid4(),
             document_type=document_type,
             file_url="uploads/funds/fund-id/certificate.pdf",
+            is_public=False,
             created_at=datetime.now(UTC),
         )
 

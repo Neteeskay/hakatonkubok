@@ -12,7 +12,7 @@ from app.api.v1.endpoints import funds as funds_endpoint
 from app.core.deps import get_current_user
 from app.db.session import get_session
 from app.main import app
-from app.models.enums import FundStatus, UserRole
+from app.models.enums import ApplicationStatus, FundStatus, UserRole
 from app.services.fund_service import InvalidFundStatusTransitionError
 
 
@@ -25,9 +25,12 @@ def make_user(role: UserRole) -> SimpleNamespace:
         full_name="Admin" if role == UserRole.ADMIN else "Fund Representative",
         city=None,
         phone="+7 900 000-00-00",
+        avatar_url="uploads/volunteers/avatar.png" if role == UserRole.VOLUNTEER else None,
         employee_id=None,
         department=None,
         position=None,
+        interests=["ecology"] if role == UserRole.VOLUNTEER else None,
+        skills=["python"] if role == UserRole.VOLUNTEER else None,
         created_at=datetime.now(UTC),
         is_active=True,
     )
@@ -39,6 +42,7 @@ def make_document() -> SimpleNamespace:
         fund_id=uuid4(),
         document_type="registration_certificate",
         file_url="uploads/funds/fund-id/certificate.pdf",
+        is_public=True,
         created_at=datetime.now(UTC),
     )
 
@@ -56,6 +60,11 @@ def make_fund(status: FundStatus = FundStatus.PENDING_REVIEW) -> SimpleNamespace
         ogrn="1025200000000",
         region="Nizhny Novgorod",
         website_url="https://example.org",
+        cover_url="uploads/funds/fund-id/cover.jpg",
+        logo_url="uploads/funds/fund-id/logo.png",
+        socials={"vk": "https://vk.com/testfund"},
+        vk_url="https://vk.com/testfund",
+        max_url=None,
         contact_person="Maria Ivanova",
         contact_position="Coordinator",
         contact_email="fund@example.org",
@@ -221,6 +230,72 @@ async def test_admin_lists_funds_by_status(
     body = response.json()
     assert len(body) == 1
     assert body[0]["status"] == "pending_review"
+
+
+@pytest.mark.asyncio
+async def test_admin_fund_directory_returns_logo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fund = make_fund(FundStatus.APPROVED)
+
+    async def fake_list_funds(
+        session: object,
+        status: FundStatus | None = None,
+    ) -> list[SimpleNamespace]:
+        assert status is None
+        return [fund]
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.values = iter([2, 3, Decimal("12.50")])
+
+        async def scalar(self, statement: object) -> object:
+            return next(self.values)
+
+    monkeypatch.setattr(admin_endpoint, "list_funds", fake_list_funds)
+
+    items = await admin_endpoint.list_admin_funds_directory(
+        session=FakeSession(),
+        _=make_user(UserRole.ADMIN),
+        status_filter=None,
+        search=None,
+        limit=50,
+        offset=0,
+    )
+
+    assert items[0].logo == "uploads/funds/fund-id/logo.png"
+
+
+@pytest.mark.asyncio
+async def test_admin_volunteers_return_avatar_url() -> None:
+    volunteer = make_user(UserRole.VOLUNTEER)
+
+    class FakeRows:
+        def all(self) -> list[tuple[ApplicationStatus, int]]:
+            return [
+                (ApplicationStatus.ACCEPTED, 1),
+                (ApplicationStatus.HOURS_AWARDED, 2),
+            ]
+
+    class FakeSession:
+        async def scalars(self, statement: object) -> list[SimpleNamespace]:
+            return [volunteer]
+
+        async def execute(self, statement: object) -> FakeRows:
+            return FakeRows()
+
+        async def scalar(self, statement: object) -> Decimal:
+            return Decimal("5.00")
+
+    items = await admin_endpoint.list_volunteers_for_admin(
+        session=FakeSession(),
+        _=make_user(UserRole.ADMIN),
+        search=None,
+        limit=50,
+        offset=0,
+    )
+
+    assert items[0].avatar_url == "uploads/volunteers/avatar.png"
 
 
 @pytest.mark.asyncio
