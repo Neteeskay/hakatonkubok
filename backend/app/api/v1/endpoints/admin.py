@@ -648,10 +648,16 @@ async def import_allowed_employee_emails_from_file(
 
     content = await file.read()
 
-    raw_emails = extract_emails_from_file(
-        filename=file.filename,
-        content=content,
-    )
+    try:
+        raw_emails = extract_emails_from_file(
+            filename=file.filename,
+            content=content,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
     return await _save_allowed_emails(
         raw_emails=raw_emails,

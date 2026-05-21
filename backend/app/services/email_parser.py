@@ -1,10 +1,15 @@
 import csv
 import io
 import re
+import tempfile
+from pathlib import Path
 
-EMAIL_REGEX = re.compile(
-    r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+from app.native.volunteer_core import (
+    has_rust_email_csv_parser,
+    parse_stoloto_employee_emails_csv,
 )
+
+EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 
 
 def normalize_email(raw_email: str) -> str | None:
@@ -38,6 +43,31 @@ def extract_emails_from_csv(content: str) -> list[str]:
     return list(dict.fromkeys(emails))
 
 
+def extract_emails_from_csv_bytes(content: bytes) -> list[str]:
+    rust_emails = extract_emails_from_csv_bytes_with_rust(content)
+    if rust_emails is not None:
+        return rust_emails
+
+    text = content.decode("utf-8-sig", errors="ignore")
+    return extract_emails_from_csv(text)
+
+
+def extract_emails_from_csv_bytes_with_rust(content: bytes) -> list[str] | None:
+    if not has_rust_email_csv_parser():
+        return None
+
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp_file:
+            temp_file.write(content)
+            temp_path = Path(temp_file.name)
+
+        return parse_stoloto_employee_emails_csv(str(temp_path))
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
 def extract_emails_from_file(filename: str, content: bytes) -> list[str]:
     text = content.decode("utf-8-sig", errors="ignore")
 
@@ -47,6 +77,6 @@ def extract_emails_from_file(filename: str, content: bytes) -> list[str]:
         return extract_emails_from_txt(text)
 
     if filename_lower.endswith(".csv"):
-        return extract_emails_from_csv(text)
+        return extract_emails_from_csv_bytes(content)
 
     raise ValueError("Only .txt and .csv files are supported")
