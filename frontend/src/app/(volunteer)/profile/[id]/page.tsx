@@ -1,13 +1,19 @@
-import { Award, Bell, Clock, Flame, ListChecks, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Bell, Clock, Flame, ListChecks, Sparkles } from "lucide-react";
 import { tasks, volunteers } from "@/shared/config/mock-data";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { StatCard } from "@/shared/ui/stat-card";
+import { getVolunteerAchievements } from "@/widgets/volunteer-achievements/achievement-data";
 
 export default async function ProfilePage() {
   const volunteer = volunteers[0];
   const activeTasks = tasks.filter((task) => volunteer.activeTaskIds.includes(task.id));
   const progress = Math.round((volunteer.hours / 60) * 100);
+  const achievements = getVolunteerAchievements();
+  const profileBadges = volunteer.achievements
+    .map((title) => achievements.find((achievement) => achievement.title === title))
+    .filter((achievement): achievement is NonNullable<typeof achievement> => Boolean(achievement));
 
   return (
     <div className="space-y-6">
@@ -81,11 +87,14 @@ export default async function ProfilePage() {
           </Card>
           <Card>
             <CardHeader><CardTitle>Достижения</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {volunteer.achievements.map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-[1.1rem] bg-brand-soft p-3">
-                  <Award className="size-5" />
-                  <span className="text-sm font-black">{item}</span>
+            <CardContent className="grid grid-cols-2 gap-4">
+              {profileBadges.map((badge) => (
+                <div key={badge.id} className="group text-center">
+                  <div className="relative mx-auto flex h-24 items-center justify-center transition duration-300 group-hover:-translate-y-1">
+                    <span className="absolute bottom-3 h-9 w-16 rounded-full bg-brand/24 blur-xl" />
+                    <Image src={badge.icon} alt={badge.title} width={88} height={88} className="relative z-10 h-20 w-20 object-contain drop-shadow-[0_16px_22px_rgba(34,28,8,0.16)]" />
+                  </div>
+                  <p className="mt-2 text-xs font-black leading-4">{badge.title}</p>
                 </div>
               ))}
             </CardContent>

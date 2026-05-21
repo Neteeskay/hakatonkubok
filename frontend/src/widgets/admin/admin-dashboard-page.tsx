@@ -73,7 +73,7 @@ function QuickActions() {
         Фонды
         <ArrowRight className="size-4" />
       </Link>
-      <Link href="/admin/moderation/tasks" className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.07)]">Задания</Link>
+      <Link href="/admin/moderation/tasks" className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.07)]">Модерация заданий</Link>
       <Link href="/admin/hours" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.07)]">
         <Bell className="size-4" />
         Часы

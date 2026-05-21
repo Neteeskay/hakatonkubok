@@ -3,18 +3,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, Bell, CheckCircle2, Download, FileBarChart, Search, Star, XCircle } from "lucide-react";
+import { ArrowRight, Award, Bell, CheckCircle2, Clock3, Download, FileBarChart, MapPin, Search, Star, XCircle } from "lucide-react";
 import {
   adminHourCases,
   adminNotifications,
   adminVolunteers,
   analyticsBars,
   applicationStatusConfig,
-  type AdminHourCase
+  type AdminHourCase,
+  type AdminVolunteer
 } from "@/widgets/admin/admin-data";
 import { AdminKpiCard } from "@/widgets/admin/ui/admin-kpi-card";
+import { AdminDetailOverlay } from "@/widgets/admin/ui/admin-detail-overlay";
 import { AdminPageShell } from "@/widgets/admin/ui/admin-page-shell";
 import { AdminStatusBadge, AdminSoftSurface } from "@/widgets/admin/ui/admin-status-badge";
+import { achievementDefinitions } from "@/widgets/volunteer-achievements/achievement-data";
 
 export function AdminHoursPage() {
   const [cases, setCases] = useState<AdminHourCase[]>(adminHourCases);
@@ -38,6 +41,7 @@ export function AdminHoursPage() {
 
 export function AdminVolunteersPage() {
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<AdminVolunteer | null>(null);
   const visible = useMemo(() => adminVolunteers.filter((item) => `${item.name} ${item.city} ${item.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [query]);
 
   return (
@@ -45,7 +49,7 @@ export function AdminVolunteersPage() {
       <SearchInput value={query} onChange={setQuery} placeholder="Искать волонтёра, город или навык" />
       <section className="grid gap-4 xl:grid-cols-3">
         {visible.map((volunteer) => (
-          <article key={volunteer.id} className="rounded-[1.6rem] bg-white p-5 shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+          <article key={volunteer.id} className="rounded-[1.6rem] bg-white p-5 shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_rgba(34,28,8,0.075)]">
             <div className="flex items-start gap-4">
               <Image src={volunteer.avatar} alt={volunteer.name} width={72} height={72} className="size-16 rounded-[1.25rem] object-cover" />
               <div>
@@ -61,13 +65,18 @@ export function AdminVolunteersPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               {volunteer.skills.map((skill) => <span key={skill} className="rounded-full bg-[#f4f3ee] px-3 py-1.5 text-xs font-black text-black/54">{skill}</span>)}
             </div>
-            <button className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-black text-black">
+            <button onClick={() => setSelected(volunteer)} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-black text-black">
               Открыть профиль
               <ArrowRight className="size-4" />
             </button>
           </article>
         ))}
       </section>
+      {selected ? (
+        <AdminDetailOverlay eyebrow="Профиль волонтёра" title={selected.name} description="Публичный профиль участника: навыки, вклад, бейджи и история участия." onClose={() => setSelected(null)}>
+          <VolunteerProfilePreview volunteer={selected} />
+        </AdminDetailOverlay>
+      ) : null}
     </AdminPageShell>
   );
 }
@@ -214,6 +223,107 @@ function Metric({ value, label }: { value: string; label: string }) {
     <div className="rounded-[1.1rem] bg-[#fffdf7] p-3">
       <p className="text-2xl font-black">{value}</p>
       <p className="mt-1 text-xs font-black text-black/38">{label}</p>
+    </div>
+  );
+}
+
+function VolunteerProfilePreview({ volunteer }: { volunteer: AdminVolunteer }) {
+  const badgeImages = volunteer.badges
+    .map((title) => achievementDefinitions.find((achievement) => achievement.title === title))
+    .filter((achievement): achievement is NonNullable<typeof achievement> => Boolean(achievement));
+
+  return (
+    <div className="space-y-5">
+      <section className="relative overflow-hidden rounded-[1.55rem] bg-[#fffdf7] p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+        <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[url('/backTaskVolounteer.png')] bg-cover bg-center opacity-35 md:block" />
+        <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center">
+          <Image src={volunteer.avatar} alt={volunteer.name} width={132} height={132} className="size-32 rounded-[1.8rem] object-cover shadow-[0_20px_50px_rgba(34,28,8,0.12)]" />
+          <div className="min-w-0 flex-1">
+            <AdminStatusBadge tone={volunteer.status === "active" ? "success" : "wait"}>{volunteer.status === "active" ? "Активен" : "Новый"}</AdminStatusBadge>
+            <h3 className="mt-3 text-4xl font-black leading-tight text-black">{volunteer.name}</h3>
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold text-black/56">
+              <span>{volunteer.role}</span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin className="size-4" />{volunteer.city}</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <ProfileMetric icon={Clock3} value={`${volunteer.hours}`} label="волонтёрских часов" />
+        <ProfileMetric icon={CheckCircle2} value={`${volunteer.activities}`} label="заданий завершено" />
+        <ProfileMetric icon={Award} value={`${volunteer.badges.length}`} label="бейджа получено" />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <div className="rounded-[1.55rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+          <h3 className="text-xl font-black">Навыки и интересы</h3>
+          <ChipGroup title="Интересы" items={volunteer.interests} />
+          <ChipGroup title="Навыки" items={volunteer.skills} />
+          <ChipGroup title="Pro bono" items={volunteer.proSkills} />
+        </div>
+        <div className="rounded-[1.55rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+          <h3 className="text-xl font-black">Бейджи</h3>
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            {badgeImages.map((badge) => (
+              <div key={badge.id} className="text-center">
+                <div className="relative mx-auto flex h-24 items-center justify-center">
+                  <span className="absolute bottom-3 h-9 w-16 rounded-full bg-brand/24 blur-xl" />
+                  <Image src={badge.icon} alt={badge.title} width={88} height={88} className="relative z-10 h-20 w-20 object-contain drop-shadow-[0_16px_22px_rgba(34,28,8,0.16)]" />
+                </div>
+                <p className="mt-2 text-xs font-black leading-4">{badge.title}</p>
+              </div>
+            ))}
+          </div>
+          <h3 className="mt-6 text-xl font-black">История участия</h3>
+          <div className="mt-4 space-y-2">
+            {volunteer.history.map((item) => (
+              <div key={item} className="rounded-[1rem] bg-[#fffdf7] px-4 py-3 text-sm font-black text-black/62">{item}</div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[1.55rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+        <h3 className="text-xl font-black">Участие по категориям</h3>
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {volunteer.categories.map((category) => (
+            <div key={category.label} className="rounded-[1.15rem] bg-[#fffdf7] p-4">
+              <div className="flex items-center justify-between gap-3 text-sm font-black">
+                <span>{category.label}</span>
+                <span>{category.value}%</span>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-black/8">
+                <div className="h-full rounded-full bg-brand" style={{ width: `${category.value}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProfileMetric({ icon: Icon, value, label }: { icon: typeof Clock3; value: string; label: string }) {
+  return (
+    <div className="rounded-[1.35rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+      <span className="grid size-12 place-items-center rounded-2xl bg-brand">
+        <Icon className="size-5" />
+      </span>
+      <p className="mt-4 text-3xl font-black">{value}</p>
+      <p className="mt-1 text-sm font-bold text-black/46">{label}</p>
+    </div>
+  );
+}
+
+function ChipGroup({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="mt-5">
+      <p className="mb-2 text-sm font-black text-black/44">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => <span key={item} className="rounded-full bg-[#f4f3ee] px-3 py-1.5 text-xs font-black text-black/56">{item}</span>)}
+      </div>
     </div>
   );
 }

@@ -42,7 +42,6 @@ export const roleNavigation = {
     { label: "Dashboard", href: "/admin", icon: BarChart3 },
     { label: "Фонды", href: "/admin/foundations", icon: Building2 },
     { label: "Модерация фондов", href: "/admin/moderation/foundations", icon: ShieldCheck },
-    { label: "Задания", href: "/admin/tasks", icon: ListChecks },
     { label: "Модерация заданий", href: "/admin/moderation/tasks", icon: CheckCircle2 },
     { label: "Волонтёры", href: "/admin/volunteers", icon: UsersRound },
     { label: "Начисление часов", href: "/admin/hours", icon: Clock },

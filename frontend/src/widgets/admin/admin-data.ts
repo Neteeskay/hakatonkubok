@@ -39,6 +39,10 @@ export interface AdminFoundation {
   phone: string;
   website: string;
   socials: string;
+  telegram?: string;
+  whatsapp?: string;
+  legalAddress?: string;
+  cover?: string;
   plannedActivities: string[];
   documents: { title: string; status: "uploaded" | "verified" | "replace"; fileName: string }[];
   status: AdminFoundationStatus;
@@ -53,6 +57,9 @@ export interface AdminTask {
   id: string;
   title: string;
   description: string;
+  image: string;
+  goal: string;
+  volunteerActions: string[];
   foundationId: string;
   foundation: string;
   category: string;
@@ -66,6 +73,9 @@ export interface AdminTask {
   proBono: boolean;
   requirements: string[];
   materials: string[];
+  instruction: string;
+  location: string;
+  communication: string;
   contacts: string;
   status: AdminTaskStatus;
   moderatorComment?: string;
@@ -93,6 +103,10 @@ export interface AdminVolunteer {
   city: string;
   role: string;
   skills: string[];
+  interests: string[];
+  proSkills: string[];
+  badges: string[];
+  categories: { label: string; value: number }[];
   hours: number;
   activities: number;
   status: "active" | "new" | "pause";
@@ -120,7 +134,7 @@ export const adminToneStyles: Record<AdminTone, { badge: string; surface: string
 };
 
 export const foundationStatusConfig: Record<AdminFoundationStatus, { label: string; tone: AdminTone; icon: LucideIcon; helper: string }> = {
-  pending: { label: "На проверке", tone: "review", icon: Clock3, helper: "Ожидает решения администратора" },
+  pending: { label: "На проверке", tone: "brand", icon: Clock3, helper: "Ожидает решения администратора" },
   approved: { label: "Одобрен", tone: "success", icon: CheckCircle2, helper: "Может публиковать задания" },
   revision: { label: "На доработке", tone: "revision", icon: RotateCcw, helper: "Фонд видит комментарий" },
   rejected: { label: "Отклонён", tone: "danger", icon: XCircle, helper: "Публикация недоступна" },
@@ -163,6 +177,10 @@ export const adminFoundations: AdminFoundation[] = [
     phone: "+7 495 120-45-67",
     website: "sport-dobro.ru",
     socials: "@sportdobro",
+    telegram: "@sportdobro",
+    whatsapp: "+7 495 120-45-67",
+    legalAddress: "Москва, ул. Добрых дел, 12",
+    cover: "/backTaskVolounteer.png",
     plannedActivities: ["События", "Логистика", "Наставничество"],
     documents: [
       { title: "Регистрация организации", status: "verified", fileName: "registration.pdf" },
@@ -189,9 +207,14 @@ export const adminFoundations: AdminFoundation[] = [
     phone: "+7 916 200-10-30",
     website: "lapadobra.ru",
     socials: "@lapadobra",
+    telegram: "@lapadobra",
+    whatsapp: "+7 916 200-10-30",
+    legalAddress: "Москва, ул. Приютская, 8",
+    cover: "/tasks/1.jpg",
     plannedActivities: ["Выезды", "Фасовка", "Фото и контент"],
     documents: [
       { title: "Регистрация организации", status: "uploaded", fileName: "reg-lapa.pdf" },
+      { title: "Устав", status: "uploaded", fileName: "charter-lapa.pdf" },
       { title: "Связь контактного лица", status: "uploaded", fileName: "contact-order.pdf" }
     ],
     status: "pending",
@@ -215,6 +238,10 @@ export const adminFoundations: AdminFoundation[] = [
     phone: "+7 812 300-44-11",
     website: "dobrye-ruki.ru",
     socials: "@dobrye_ruki",
+    telegram: "@dobrye_ruki",
+    whatsapp: "+7 812 300-44-11",
+    legalAddress: "Санкт-Петербург, Невский проспект, 44",
+    cover: "/heart.png",
     plannedActivities: ["Pro bono", "Образование", "Сопровождение"],
     documents: [
       { title: "Регистрация организации", status: "replace", fileName: "scan-old.pdf" },
@@ -234,6 +261,9 @@ export const adminTasks: AdminTask[] = [
     id: "task-001",
     title: "Сопровождение семейного спортивного дня",
     description: "Волонтёры встречают семьи, помогают с регистрацией, навигацией и детскими активностями.",
+    image: "/tasks/3.jpg",
+    goal: "Помочь семьям быстро ориентироваться на площадке и сделать событие спокойным для детей и родителей.",
+    volunteerActions: ["Встречать участников", "Помогать на регистрации", "Сопровождать семьи между зонами", "Передавать вопросы координатору"],
     foundationId: "fond-001",
     foundation: "Фонд спорта и добрых дел",
     category: "События",
@@ -247,6 +277,9 @@ export const adminTasks: AdminTask[] = [
     proBono: false,
     requirements: ["Коммуникабельность", "Пунктуальность", "Опыт событий"],
     materials: ["Бриф координатора", "Схема площадки"],
+    instruction: "Координатор отправит чек-лист и схему площадки за день до события.",
+    location: "Москва, семейный спортивный кластер",
+    communication: "Telegram-чат команды и телефон координатора после принятия заявки",
     contacts: "Telegram-чат после принятия заявки",
     status: "moderation"
   },
@@ -254,6 +287,9 @@ export const adminTasks: AdminTask[] = [
     id: "task-002",
     title: "Создание презентации для фонда",
     description: "Нужно оформить презентацию о деятельности фонда для грантового конкурса.",
+    image: "/tasks/2.jpg",
+    goal: "Собрать понятную визуальную историю фонда для грантовой заявки.",
+    volunteerActions: ["Собрать структуру презентации", "Оформить 12-15 слайдов", "Подготовить финальный файл", "Передать рекомендации по стилю"],
     foundationId: "fond-003",
     foundation: "Добрые руки",
     category: "Pro bono",
@@ -267,6 +303,9 @@ export const adminTasks: AdminTask[] = [
     proBono: true,
     requirements: ["PowerPoint", "Storytelling", "Визуальная структура"],
     materials: ["Черновик текста", "Фото фонда"],
+    instruction: "Фонд передаст текст, фото и примеры презентаций после принятия отклика.",
+    location: "Онлайн, рабочий чат фонда",
+    communication: "Email координатора и Telegram",
     contacts: "Email координатора и Telegram",
     status: "returned",
     moderatorComment: "Уточните итоговый формат файла и контакт для передачи материалов."
@@ -275,6 +314,9 @@ export const adminTasks: AdminTask[] = [
     id: "task-003",
     title: "Фасовка продуктовых наборов",
     description: "Помощь в сортировке и подготовке наборов для семей.",
+    image: "/tasks/4.jpg",
+    goal: "Быстро собрать продуктовые наборы для семей, которым нужна адресная помощь.",
+    volunteerActions: ["Сортировать продукты", "Собирать наборы по списку", "Маркировать коробки", "Помогать координатору на складе"],
     foundationId: "fond-003",
     foundation: "Добрые руки",
     category: "Адресная помощь",
@@ -288,6 +330,9 @@ export const adminTasks: AdminTask[] = [
     proBono: false,
     requirements: ["Готовность к физической работе", "Аккуратность"],
     materials: ["Инструкция фасовки"],
+    instruction: "На месте будет короткий инструктаж и распределение по зонам.",
+    location: "Санкт-Петербург, склад фонда",
+    communication: "Телефон координатора после принятия",
     contacts: "Телефон координатора после принятия",
     status: "published"
   },
@@ -295,6 +340,9 @@ export const adminTasks: AdminTask[] = [
     id: "task-004",
     title: "Онлайн-уроки для школьников",
     description: "Помощь школьникам по математике и английскому в онлайн-формате.",
+    image: "/tasks/2.jpg",
+    goal: "Дать школьникам регулярную поддержку по предметам и помочь закрыть пробелы.",
+    volunteerActions: ["Проводить онлайн-занятия", "Готовить простые задания", "Отмечать прогресс", "Передавать обратную связь координатору"],
     foundationId: "fond-003",
     foundation: "Добрые руки",
     category: "Образование",
@@ -308,6 +356,9 @@ export const adminTasks: AdminTask[] = [
     proBono: true,
     requirements: ["Предметная экспертиза", "Опыт объяснения"],
     materials: ["Программа занятий", "Список тем"],
+    instruction: "Перед стартом фонд проведёт короткий звонок и выдаст учебные материалы.",
+    location: "Онлайн, платформа видеосвязи",
+    communication: "Внутренний чат платформы",
     contacts: "Внутренний чат платформы",
     status: "completed"
   }
@@ -345,9 +396,9 @@ export const adminHourCases: AdminHourCase[] = [
 ];
 
 export const adminVolunteers: AdminVolunteer[] = [
-  { id: "vol-001", name: "Анна Соколова", avatar: "/avatars/avatar-anna.png", city: "Москва", role: "Продуктовый дизайнер", skills: ["Figma", "Презентации", "UX/UI"], hours: 56, activities: 12, status: "active", history: ["Презентация для фонда", "Онлайн-уроки"] },
-  { id: "vol-002", name: "Илья Мельников", avatar: "/avatars/avatar-ilya.png", city: "Москва", role: "Event-координатор", skills: ["Логистика", "События"], hours: 34, activities: 7, status: "active", history: ["Семейный спортивный день"] },
-  { id: "vol-003", name: "Мария Титова", avatar: "/avatars/avatar-maria.png", city: "Онлайн", role: "Аналитик", skills: ["BI", "Data Analysis"], hours: 82, activities: 18, status: "active", history: ["Аудит анкеты", "Отчётность фонда"] }
+  { id: "vol-001", name: "Анна Соколова", avatar: "/avatars/avatar-anna.png", city: "Москва", role: "Продуктовый дизайнер", skills: ["Figma", "Презентации", "UX/UI"], interests: ["Помощь детям", "Образование", "Pro bono"], proSkills: ["Product Design", "Figma", "Storytelling"], badges: ["Первые шаги", "Командный игрок", "Мастер помощи"], categories: [{ label: "Образование", value: 38 }, { label: "Pro bono", value: 32 }, { label: "Животные", value: 18 }], hours: 56, activities: 12, status: "active", history: ["Презентация для фонда", "Онлайн-уроки"] },
+  { id: "vol-002", name: "Илья Мельников", avatar: "/avatars/avatar-ilya.png", city: "Москва", role: "Event-координатор", skills: ["Логистика", "События"], interests: ["Спорт", "События", "Дети"], proSkills: ["Event management", "Навигация", "Коммуникации"], badges: ["Надёжный волонтёр", "Офлайн-герой"], categories: [{ label: "События", value: 46 }, { label: "Спорт", value: 24 }, { label: "Дети", value: 18 }], hours: 34, activities: 7, status: "active", history: ["Семейный спортивный день"] },
+  { id: "vol-003", name: "Мария Титова", avatar: "/avatars/avatar-maria.png", city: "Онлайн", role: "Аналитик", skills: ["BI", "Data Analysis"], interests: ["Экология", "Образование", "Pro bono"], proSkills: ["BI", "Data Analysis", "Research"], badges: ["PRO Bono Expert", "10 часов помощи", "Онлайн-волонтёр"], categories: [{ label: "Pro bono", value: 52 }, { label: "Экология", value: 18 }, { label: "Образование", value: 12 }], hours: 82, activities: 18, status: "active", history: ["Аудит анкеты", "Отчётность фонда"] }
 ];
 
 export const adminNotifications: AdminNotification[] = [
