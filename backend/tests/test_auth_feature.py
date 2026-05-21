@@ -102,6 +102,9 @@ async def test_register_volunteer(client: AsyncClient, monkeypatch: pytest.Monke
 
     assert response.status_code == 201
     body = response.json()
+    assert body["access_token"]
+    assert body["refresh_token"]
+    assert body["token_type"] == "bearer"
     assert body["user"]["role"] == "volunteer"
     assert body["user"]["email"] == "volunteer@example.com"
     assert body["user"]["employee_id"] == "EMP-42"
@@ -215,6 +218,9 @@ async def test_register_fund_creates_pending_review_fund(
 
     assert response.status_code == 201
     body = response.json()
+    assert body["access_token"]
+    assert body["refresh_token"]
+    assert body["token_type"] == "bearer"
     assert body["user"]["role"] == "fund"
     assert body["fund"]["status"] == "pending_review"
 

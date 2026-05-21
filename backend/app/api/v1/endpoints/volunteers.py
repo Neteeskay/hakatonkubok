@@ -1,6 +1,7 @@
 from datetime import datetime
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.db.session import get_session
 from app.models.domain import User
 from app.models.enums import UserRole
 from app.schemas.auth import UserResponse
+from app.schemas.notifications import NotificationResponse
 from app.schemas.volunteers import (
     VolunteerAchievementResponse,
     VolunteerAchievementsOverviewResponse,
@@ -19,6 +21,11 @@ from app.services.achievement_service import (
     get_volunteer_achievement_overview,
     list_volunteer_achievement_statuses,
     sync_volunteer_achievements,
+)
+from app.services.notification_service import (
+    NotificationNotFoundError,
+    list_user_notifications,
+    mark_notification_read,
 )
 from app.services.report_service import build_volunteer_year_statistics_pdf
 from app.services.volunteer_history_service import list_volunteer_history
@@ -81,6 +88,42 @@ async def get_my_achievement_overview(
     await sync_volunteer_achievements(session, current_user.id)
     overview = await get_volunteer_achievement_overview(session, current_user.id)
     return VolunteerAchievementsOverviewResponse.model_validate(overview)
+
+
+@router.get("/me/notifications", response_model=list[NotificationResponse])
+async def get_my_notifications(
+    unread_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[NotificationResponse]:
+    notifications = await list_user_notifications(
+        session,
+        current_user,
+        unread_only=unread_only,
+        limit=limit,
+        offset=offset,
+    )
+    return [NotificationResponse.model_validate(notification) for notification in notifications]
+
+
+@router.patch(
+    "/me/notifications/{notification_id}/read",
+    response_model=NotificationResponse,
+)
+async def read_my_notification(
+    notification_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationResponse:
+    try:
+        notification = await mark_notification_read(session, current_user, notification_id)
+    except NotificationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="notification not found"
+        ) from exc
+    return NotificationResponse.model_validate(notification)
 
 
 @router.get("/me/statistics.pdf")

@@ -1,18 +1,27 @@
 import re
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.models.domain import Fund, FundDocument, Notification, User
+from app.models.domain import (
+    Fund,
+    FundDocument,
+    Notification,
+    TaskApplication,
+    User,
+    VolunteerHourLedger,
+    VolunteerTask,
+)
+from app.models.enums import ApplicationStatus, FundStatus, TaskStatus
+from app.schemas.funds import FundDashboardSummary, FundUpdateRequest
 from app.services.email_sender import send_email
-from app.models.enums import FundStatus
-from app.schemas.funds import FundUpdateRequest
 from app.services.status_transitions import FUND_TRANSITIONS, can_transition
 
 
@@ -50,9 +59,7 @@ def fund_load_options() -> tuple[object, object]:
 
 async def get_fund_by_representative(session: AsyncSession, user: User) -> Fund:
     result = await session.execute(
-        select(Fund)
-        .options(*fund_load_options())
-        .where(Fund.representative_user_id == user.id)
+        select(Fund).options(*fund_load_options()).where(Fund.representative_user_id == user.id)
     )
     fund = result.scalar_one_or_none()
     if fund is None:
@@ -62,14 +69,75 @@ async def get_fund_by_representative(session: AsyncSession, user: User) -> Fund:
 
 async def get_fund_by_id(session: AsyncSession, fund_id: UUID) -> Fund:
     result = await session.execute(
-        select(Fund)
-        .options(*fund_load_options())
-        .where(Fund.id == fund_id)
+        select(Fund).options(*fund_load_options()).where(Fund.id == fund_id)
     )
     fund = result.scalar_one_or_none()
     if fund is None:
         raise FundNotFoundError
     return fund
+
+
+async def get_fund_dashboard_summary(
+    session: AsyncSession,
+    current_user: User,
+) -> FundDashboardSummary:
+    fund = await get_fund_by_representative(session, current_user)
+
+    task_counts = await _count_by_status(
+        session,
+        select(VolunteerTask.status, func.count(VolunteerTask.id))
+        .where(VolunteerTask.fund_id == fund.id)
+        .group_by(VolunteerTask.status),
+    )
+
+    application_counts = await _count_by_status(
+        session,
+        select(TaskApplication.status, func.count(TaskApplication.id))
+        .join(VolunteerTask, VolunteerTask.id == TaskApplication.task_id)
+        .where(VolunteerTask.fund_id == fund.id)
+        .group_by(TaskApplication.status),
+    )
+
+    completions_waiting_hours = await session.scalar(
+        select(func.count(TaskApplication.id))
+        .join(VolunteerTask, VolunteerTask.id == TaskApplication.task_id)
+        .where(VolunteerTask.fund_id == fund.id)
+        .where(TaskApplication.status == ApplicationStatus.COMPLETION_CONFIRMED)
+        .where(
+            ~select(VolunteerHourLedger.id)
+            .where(VolunteerHourLedger.application_id == TaskApplication.id)
+            .exists()
+        )
+    )
+
+    awarded_hours_total = await session.scalar(
+        select(func.coalesce(func.sum(VolunteerHourLedger.hours), 0))
+        .join(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
+        .where(VolunteerTask.fund_id == fund.id)
+    )
+
+    return FundDashboardSummary(
+        fund_id=fund.id,
+        fund_name=fund.name,
+        fund_status=fund.status,
+        tasks_total=sum(task_counts.values()),
+        tasks_draft=task_counts.get(TaskStatus.DRAFT, 0),
+        tasks_pending_review=task_counts.get(TaskStatus.PENDING_REVIEW, 0),
+        tasks_published=task_counts.get(TaskStatus.PUBLISHED, 0),
+        tasks_needs_changes=task_counts.get(TaskStatus.NEEDS_CHANGES, 0),
+        tasks_rejected=task_counts.get(TaskStatus.REJECTED, 0),
+        tasks_closed=task_counts.get(TaskStatus.CLOSED, 0),
+        applications_total=sum(application_counts.values()),
+        applications_applied=application_counts.get(ApplicationStatus.APPLIED, 0),
+        applications_accepted=application_counts.get(ApplicationStatus.ACCEPTED, 0),
+        applications_rejected=application_counts.get(ApplicationStatus.REJECTED, 0),
+        applications_completion_confirmed=application_counts.get(
+            ApplicationStatus.COMPLETION_CONFIRMED, 0
+        ),
+        applications_hours_awarded=application_counts.get(ApplicationStatus.HOURS_AWARDED, 0),
+        completions_waiting_hours=int(completions_waiting_hours or 0),
+        awarded_hours_total=Decimal(awarded_hours_total or 0),
+    )
 
 
 async def list_funds(session: AsyncSession, status: FundStatus | None = None) -> list[Fund]:
@@ -78,6 +146,14 @@ async def list_funds(session: AsyncSession, status: FundStatus | None = None) ->
         statement = statement.where(Fund.status == status)
     result = await session.execute(statement)
     return list(result.scalars().all())
+
+
+async def _count_by_status(
+    session: AsyncSession,
+    statement: object,
+) -> dict[object, int]:
+    result = await session.execute(statement)
+    return {status: int(count or 0) for status, count in result.all()}
 
 
 async def update_fund_profile(

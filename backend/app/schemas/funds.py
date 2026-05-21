@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -58,6 +59,27 @@ class FundProfileResponse(BaseModel):
     documents: list[FundDocumentResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class FundDashboardSummary(BaseModel):
+    fund_id: UUID
+    fund_name: str
+    fund_status: FundStatus
+    tasks_total: int
+    tasks_draft: int
+    tasks_pending_review: int
+    tasks_published: int
+    tasks_needs_changes: int
+    tasks_rejected: int
+    tasks_closed: int
+    applications_total: int
+    applications_applied: int
+    applications_accepted: int
+    applications_rejected: int
+    applications_completion_confirmed: int
+    applications_hours_awarded: int
+    completions_waiting_hours: int
+    awarded_hours_total: Decimal
 
 
 class FundUpdateRequest(BaseModel):

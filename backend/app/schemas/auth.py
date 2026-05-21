@@ -119,10 +119,16 @@ class FundResponse(BaseModel):
 
 
 class VolunteerRegisterResponse(BaseModel):
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str = "bearer"
     user: UserResponse
 
 
 class FundRegisterResponse(BaseModel):
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str = "bearer"
     user: UserResponse
     fund: FundResponse
 

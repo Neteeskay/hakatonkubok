@@ -7,11 +7,17 @@ from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import User
 from app.models.enums import UserRole
-from app.schemas.funds import FundDocumentResponse, FundProfileResponse, FundUpdateRequest
+from app.schemas.funds import (
+    FundDashboardSummary,
+    FundDocumentResponse,
+    FundProfileResponse,
+    FundUpdateRequest,
+)
 from app.services.fund_service import (
     EmptyFundDocumentError,
     FundNotFoundError,
     add_fund_document,
+    get_fund_dashboard_summary,
     get_fund_by_id,
     get_fund_by_representative,
     update_fund_profile,
@@ -73,6 +79,17 @@ async def upload_my_fund_document(
     except EmptyFundDocumentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file") from exc
     return FundDocumentResponse.model_validate(document)
+
+
+@router.get("/me/dashboard", response_model=FundDashboardSummary)
+async def get_my_fund_dashboard(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundDashboardSummary:
+    try:
+        return await get_fund_dashboard_summary(session, current_user)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
 
 
 @router.get("/{fund_id}", response_model=FundProfileResponse)

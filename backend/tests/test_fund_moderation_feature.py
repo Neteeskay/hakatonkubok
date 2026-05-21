@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -155,11 +156,60 @@ async def test_fund_updates_profile_and_resubmits_after_changes(
 
 
 @pytest.mark.asyncio
+async def test_fund_gets_dashboard_summary(
+    fund_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_get_fund_dashboard_summary(
+        session: object,
+        current_user: object,
+    ) -> SimpleNamespace:
+        assert current_user.role == UserRole.FUND
+        return SimpleNamespace(
+            fund_id=uuid4(),
+            fund_name="Test Fund",
+            fund_status=FundStatus.APPROVED,
+            tasks_total=3,
+            tasks_draft=1,
+            tasks_pending_review=0,
+            tasks_published=2,
+            tasks_needs_changes=0,
+            tasks_rejected=0,
+            tasks_closed=0,
+            applications_total=4,
+            applications_applied=1,
+            applications_accepted=1,
+            applications_rejected=0,
+            applications_completion_confirmed=1,
+            applications_hours_awarded=1,
+            completions_waiting_hours=1,
+            awarded_hours_total=Decimal("7.50"),
+        )
+
+    monkeypatch.setattr(
+        funds_endpoint,
+        "get_fund_dashboard_summary",
+        fake_get_fund_dashboard_summary,
+    )
+
+    response = await fund_client.get("/api/v1/funds/me/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fund_status"] == "approved"
+    assert body["tasks_published"] == 2
+    assert body["applications_hours_awarded"] == 1
+    assert body["awarded_hours_total"] == "7.50"
+
+
+@pytest.mark.asyncio
 async def test_admin_lists_funds_by_status(
     admin_client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_list_funds(session: object, status: FundStatus | None = None) -> list[SimpleNamespace]:
+    async def fake_list_funds(
+        session: object, status: FundStatus | None = None
+    ) -> list[SimpleNamespace]:
         assert status == FundStatus.PENDING_REVIEW
         return [make_fund(FundStatus.PENDING_REVIEW)]
 

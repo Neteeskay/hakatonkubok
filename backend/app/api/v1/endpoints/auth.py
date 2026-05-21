@@ -52,7 +52,9 @@ async def create_volunteer(
     try:
         user = await register_volunteer(session, payload)
     except DuplicateEmailError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already exists") from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="email already exists"
+        ) from exc
     except DuplicateEmployeeIdError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -63,7 +65,11 @@ async def create_volunteer(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="user is not exists in database",
         ) from exc
-    return VolunteerRegisterResponse(user=user)
+    return VolunteerRegisterResponse(
+        access_token=issue_user_token(user),
+        refresh_token=issue_user_refresh_token(user),
+        user=user,
+    )
 
 
 @router.post(
@@ -78,8 +84,15 @@ async def create_fund(
     try:
         user, fund = await register_fund(session, payload)
     except DuplicateEmailError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already exists") from exc
-    return FundRegisterResponse(user=user, fund=fund)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="email already exists"
+        ) from exc
+    return FundRegisterResponse(
+        access_token=issue_user_token(user),
+        refresh_token=issue_user_refresh_token(user),
+        user=user,
+        fund=fund,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
