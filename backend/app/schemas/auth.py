@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator, field_validator
 
+from app.core.demo_accounts import is_login_password_valid
 from app.models.enums import FundStatus, UserRole
 
 
@@ -15,7 +16,7 @@ def normalize_email(value: str) -> str:
 
 class VolunteerRegisterRequest(BaseModel):
     email: str = Field(max_length=320)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
     full_name: str | None = Field(default=None, min_length=2, max_length=255)
     city: str | None = Field(default=None, max_length=120)
     phone: str | None = Field(default=None, max_length=40)
@@ -33,7 +34,7 @@ class VolunteerRegisterRequest(BaseModel):
 
 class FundRegisterRequest(BaseModel):
     email: str = Field(max_length=320)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
     representative_full_name: str = Field(min_length=2, max_length=255)
     representative_phone: str | None = Field(default=None, max_length=40)
 
@@ -73,6 +74,12 @@ class LoginRequest(BaseModel):
     @classmethod
     def normalize_login(cls, value: str) -> str:
         return value.strip().lower()
+
+    @model_validator(mode="after")
+    def validate_password_policy(self) -> "LoginRequest":
+        if not is_login_password_valid(self.login, self.password):
+            raise ValueError("password must be at least 6 characters")
+        return self
 
 
 class RefreshTokenRequest(BaseModel):

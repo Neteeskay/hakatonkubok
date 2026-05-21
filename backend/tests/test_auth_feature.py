@@ -11,7 +11,7 @@ from app.core.deps import get_current_user
 from app.db.session import get_session
 from app.main import app
 from app.models.enums import FundStatus, UserRole
-from app.schemas.auth import VolunteerRegisterRequest
+from app.schemas.auth import LoginRequest, VolunteerRegisterRequest
 from app.services import auth_service
 from app.services.auth_service import (
     DuplicateEmailError,
@@ -187,7 +187,9 @@ async def test_register_fund_creates_pending_review_fund(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_register_fund(session: object, payload: object) -> tuple[SimpleNamespace, SimpleNamespace]:
+    async def fake_register_fund(
+        session: object, payload: object
+    ) -> tuple[SimpleNamespace, SimpleNamespace]:
         assert payload.email == "fund@example.org"
         assert payload.name == "Test Fund"
         user = make_user(UserRole.FUND)
@@ -239,6 +241,42 @@ async def test_login_returns_token(client: AsyncClient, monkeypatch: pytest.Monk
     assert body["access_token"] == "test-token"
     assert body["token_type"] == "bearer"
     assert body["user"]["email"] == "volunteer@example.com"
+
+
+def test_login_request_rejects_short_password_except_default_admin() -> None:
+    admin_payload = LoginRequest(login="admin", password="admin")
+    admin_email_payload = LoginRequest(login="admin@stoloto.local", password="admin")
+
+    assert admin_payload.login == "admin"
+    assert admin_email_payload.login == "admin@stoloto.local"
+
+    with pytest.raises(ValueError, match="password must be at least 6 characters"):
+        LoginRequest(login="volunteer@example.com", password="admin")
+
+    with pytest.raises(ValueError, match="password must be at least 6 characters"):
+        LoginRequest(login="admin", password="root")
+
+
+@pytest.mark.asyncio
+async def test_login_endpoint_rejects_short_non_admin_password(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_authenticate_user(
+        session: object,
+        login: str,
+        password: str,
+    ) -> SimpleNamespace:
+        raise AssertionError("authenticate_user must not be called for invalid payload")
+
+    monkeypatch.setattr(auth_endpoint, "authenticate_user", fake_authenticate_user)
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "volunteer@example.com", "password": "admin"},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
