@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Award, Bell, CheckCircle2, Clock3, Download, FileBarChart, MapPin, Search, Star, XCircle } from "lucide-react";
-import { adminService, volunteersService } from "@/shared/api";
+import { adminService, reportsService, volunteersService } from "@/shared/api";
+import type { PlatformAnalyticsReport } from "@/shared/api/types";
 import { mapAdminCompletionItem, mapAdminNotification, mapAdminVolunteerDirectoryItem } from "@/widgets/admin/admin-api-mappers";
 import {
   adminHourCases,
@@ -148,12 +149,29 @@ export function AdminVolunteersPage() {
 }
 
 export function AdminAnalyticsPage() {
-  const metrics = [
-    { label: "Фонды", value: "200+", helper: "42 активны в мае", icon: FileBarChart, tone: "review" as const },
-    { label: "Волонтёры", value: "10 000+", helper: "342 активны за месяц", icon: Star, tone: "brand" as const },
-    { label: "Задания", value: "118", helper: "48 опубликовано", icon: CheckCircle2, tone: "success" as const },
-    { label: "Конверсия отклика", value: "67%", helper: "в принятие", icon: ArrowRight, tone: "done" as const }
-  ];
+  const [metrics, setMetrics] = useState(buildAnalyticsMetrics());
+  const [bars, setBars] = useState(analyticsBars);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAnalytics() {
+      try {
+        const report = await reportsService.getPlatformAnalyticsReport();
+        if (!active) return;
+        setMetrics(buildAnalyticsMetrics(report));
+        setBars(buildAnalyticsBars(report));
+      } catch {
+        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadAnalytics();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <AdminPageShell eyebrow="Аналитика" title="Пульс платформы" description="Ключевые показатели по фондам, заданиям, откликам, категориям и подтверждённым часам.">
@@ -164,7 +182,7 @@ export function AdminAnalyticsPage() {
         <div>
           <h2 className="text-2xl font-black">Динамика по контуру</h2>
           <div className="mt-7 flex h-64 items-end gap-5 rounded-[1.35rem] bg-[#fffdf7] p-5">
-            {analyticsBars.map((item) => (
+            {bars.map((item) => (
               <div key={item.label} className="flex flex-1 flex-col items-center gap-3">
                 <div className="w-full rounded-t-xl bg-brand transition hover:brightness-95" style={{ height: `${item.value * 2}px` }} />
                 <span className="text-xs font-black text-black/54">{item.label}</span>
@@ -173,7 +191,7 @@ export function AdminAnalyticsPage() {
           </div>
         </div>
         <div className="space-y-3">
-          {analyticsBars.map((item) => (
+          {bars.map((item) => (
             <div key={item.label} className="rounded-[1.2rem] bg-[#fffdf7] p-4">
               <div className="flex items-center justify-between text-sm font-black">
                 <span>{item.label}</span>
@@ -298,6 +316,82 @@ function HourCaseCard({ item, onApprove }: { item: AdminHourCase; onApprove: (id
       </div>
     </article>
   );
+}
+
+function numberValue(value: number | string | null | undefined) {
+  const numeric = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(numeric) ? Number(numeric) : 0;
+}
+
+function formatAnalyticsNumber(value: number | string | null | undefined) {
+  return new Intl.NumberFormat("ru-RU").format(numberValue(value));
+}
+
+function percentValue(value: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / total) * 100)));
+}
+
+function buildAnalyticsMetrics(report?: PlatformAnalyticsReport) {
+  if (!report) {
+    return [
+      { label: "Фонды", value: "200+", helper: "42 активны в мае", icon: FileBarChart, tone: "review" as const },
+      { label: "Волонтёры", value: "10 000+", helper: "342 активны за месяц", icon: Star, tone: "brand" as const },
+      { label: "Задания", value: "118", helper: "48 опубликовано", icon: CheckCircle2, tone: "success" as const },
+      { label: "Конверсия отклика", value: "67%", helper: "в принятие", icon: ArrowRight, tone: "done" as const }
+    ];
+  }
+
+  const applicationsTotal = numberValue(report.applications_total);
+  const acceptedApplications = numberValue(report.accepted_applications);
+  const conversion = percentValue(acceptedApplications, applicationsTotal);
+
+  return [
+    {
+      label: "Фонды",
+      value: formatAnalyticsNumber(report.funds_total),
+      helper: `${formatAnalyticsNumber(report.funds_approved)} одобрено · ${formatAnalyticsNumber(report.funds_pending_review)} на проверке`,
+      icon: FileBarChart,
+      tone: "review" as const
+    },
+    {
+      label: "Волонтёры",
+      value: formatAnalyticsNumber(report.volunteers_total),
+      helper: `${formatAnalyticsNumber(report.applications_total)} откликов всего`,
+      icon: Star,
+      tone: "brand" as const
+    },
+    {
+      label: "Задания",
+      value: formatAnalyticsNumber(report.tasks_published),
+      helper: `${formatAnalyticsNumber(report.tasks_closed)} завершено · ${formatAnalyticsNumber(report.tasks_pending_review)} на проверке`,
+      icon: CheckCircle2,
+      tone: "success" as const
+    },
+    {
+      label: "Конверсия отклика",
+      value: `${conversion}%`,
+      helper: `${formatAnalyticsNumber(acceptedApplications)} подтверждено · ${formatAnalyticsNumber(report.awarded_hours_total)} ч начислено`,
+      icon: ArrowRight,
+      tone: "done" as const
+    }
+  ];
+}
+
+function buildAnalyticsBars(report: PlatformAnalyticsReport) {
+  const fundsTotal = numberValue(report.funds_total);
+  const tasksTotal = numberValue(report.tasks_total);
+  const applicationsTotal = numberValue(report.applications_total);
+  const awardedHours = numberValue(report.awarded_hours_total);
+  const waitingHoursItems = numberValue(report.completions_waiting_hours);
+
+  return [
+    { label: "Фонды", value: percentValue(numberValue(report.funds_approved), fundsTotal), caption: `${formatAnalyticsNumber(report.funds_approved)} из ${formatAnalyticsNumber(fundsTotal)}` },
+    { label: "Волонтёры", value: numberValue(report.volunteers_total) > 0 ? 100 : 0, caption: `${formatAnalyticsNumber(report.volunteers_total)} всего` },
+    { label: "Задания", value: percentValue(numberValue(report.tasks_published), tasksTotal), caption: `${formatAnalyticsNumber(report.tasks_published)} опубликовано` },
+    { label: "Отклики", value: percentValue(numberValue(report.accepted_applications), applicationsTotal), caption: `${formatAnalyticsNumber(report.accepted_applications)} из ${formatAnalyticsNumber(applicationsTotal)}` },
+    { label: "Часы", value: awardedHours > 0 ? percentValue(awardedHours, awardedHours + waitingHoursItems) : 0, caption: `${formatAnalyticsNumber(awardedHours)} ч подтверждено` }
+  ];
 }
 
 function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
