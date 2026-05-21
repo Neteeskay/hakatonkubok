@@ -90,9 +90,12 @@ class UserResponse(BaseModel):
     email: str
     full_name: str | None
     city: str | None
+    phone: str | None
     employee_id: str | None
     department: str | None
     position: str | None
+    interests: list[str] | None
+    skills: list[str] | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

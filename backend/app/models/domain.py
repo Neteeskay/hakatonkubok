@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -57,7 +58,13 @@ class TimestampMixin:
 
 class User(Base, TimestampMixin):
     __tablename__ = "app_user"
-    __table_args__ = (Index("app_user_role_idx", "role"),)
+    __table_args__ = (
+        CheckConstraint(
+            "role <> 'volunteer' OR employee_id IS NOT NULL",
+            name="app_user_volunteer_employee_required",
+        ),
+        Index("app_user_role_idx", "role"),
+    )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     role: Mapped[UserRole] = mapped_column(
@@ -77,8 +84,26 @@ class User(Base, TimestampMixin):
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"), nullable=False)
 
-    fund: Mapped["Fund | None"] = relationship(back_populates="representative")
-    applications: Mapped[list["TaskApplication"]] = relationship(back_populates="volunteer")
+    fund: Mapped["Fund | None"] = relationship(
+        back_populates="representative",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    applications: Mapped[list["TaskApplication"]] = relationship(
+        back_populates="volunteer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    volunteer_hour_ledgers: Mapped[list["VolunteerHourLedger"]] = relationship(
+        back_populates="volunteer",
+        foreign_keys="VolunteerHourLedger.volunteer_id",
+        overlaps="application,hour_ledger",
+        passive_deletes=True,
+    )
+    awarded_hour_ledgers: Mapped[list["VolunteerHourLedger"]] = relationship(
+        back_populates="awarder",
+        foreign_keys="VolunteerHourLedger.awarded_by",
+    )
     achievements: Mapped[list["UserAchievement"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
@@ -107,12 +132,23 @@ class StolotoEmployee(Base, TimestampMixin):
 
 class Fund(Base, TimestampMixin):
     __tablename__ = "fund"
-    __table_args__ = (Index("fund_status_idx", "status"),)
+    __table_args__ = (
+        CheckConstraint(
+            "status <> 'approved' OR approved_at IS NOT NULL",
+            name="fund_approved_at_required",
+        ),
+        CheckConstraint(
+            "status NOT IN ('needs_changes', 'rejected') "
+            "OR (moderation_comment IS NOT NULL AND btrim(moderation_comment) <> '')",
+            name="fund_moderation_comment_required",
+        ),
+        Index("fund_status_idx", "status"),
+    )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     representative_user_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("app_user.id"),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
@@ -143,7 +179,11 @@ class Fund(Base, TimestampMixin):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    tasks: Mapped[list["VolunteerTask"]] = relationship(back_populates="fund")
+    tasks: Mapped[list["VolunteerTask"]] = relationship(
+        back_populates="fund",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class FundDocument(Base, TimestampMixin):
@@ -179,7 +219,16 @@ class VolunteerTask(Base, TimestampMixin):
             name="task_published_dates_required",
         ),
         CheckConstraint(
-            "participation_format = 'online' OR city IS NOT NULL",
+            "status <> 'closed' OR closed_at IS NOT NULL",
+            name="task_closed_at_required",
+        ),
+        CheckConstraint(
+            "status NOT IN ('needs_changes', 'rejected') "
+            "OR (moderation_comment IS NOT NULL AND btrim(moderation_comment) <> '')",
+            name="task_moderation_comment_required",
+        ),
+        CheckConstraint(
+            "participation_format = 'online' OR (city IS NOT NULL AND btrim(city) <> '')",
             name="task_offline_city_required",
         ),
         Index(
@@ -195,7 +244,11 @@ class VolunteerTask(Base, TimestampMixin):
     )
 
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    fund_id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("fund.id"), nullable=False)
+    fund_id: Mapped[PyUUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("fund.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     title: Mapped[str] = mapped_column(String(220), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[HelpCategory] = mapped_column(
@@ -244,11 +297,22 @@ class VolunteerTask(Base, TimestampMixin):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    hour_ledgers: Mapped[list["VolunteerHourLedger"]] = relationship(
+        back_populates="task",
+        overlaps="application,hour_ledger",
+        passive_deletes=True,
+    )
 
 
 class TaskApplication(Base, TimestampMixin):
     __tablename__ = "task_application"
     __table_args__ = (
+        UniqueConstraint(
+            "id",
+            "volunteer_id",
+            "task_id",
+            name="task_application_identity_user_task_key",
+        ),
         CheckConstraint(
             "status <> 'canceled' OR canceled_at IS NOT NULL",
             name="task_application_canceled_at_required",
@@ -282,7 +346,7 @@ class TaskApplication(Base, TimestampMixin):
     )
     volunteer_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("app_user.id"),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
         nullable=False,
     )
     status: Mapped[ApplicationStatus] = mapped_column(
@@ -303,6 +367,7 @@ class TaskApplication(Base, TimestampMixin):
     hour_ledger: Mapped["VolunteerHourLedger | None"] = relationship(
         back_populates="application",
         cascade="all, delete-orphan",
+        overlaps="hour_ledgers,volunteer_hour_ledgers",
         passive_deletes=True,
     )
 
@@ -310,6 +375,12 @@ class TaskApplication(Base, TimestampMixin):
 class VolunteerHourLedger(Base, TimestampMixin):
     __tablename__ = "volunteer_hour_ledger"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["application_id", "volunteer_id", "task_id"],
+            ["task_application.id", "task_application.volunteer_id", "task_application.task_id"],
+            ondelete="CASCADE",
+            name="volunteer_hour_ledger_application_consistency_fkey",
+        ),
         CheckConstraint("hours > 0", name="hour_ledger_hours_positive"),
         Index("hour_ledger_volunteer_idx", "volunteer_id"),
         Index("hour_ledger_volunteer_awarded_idx", "volunteer_id", "awarded_at"),
@@ -318,13 +389,12 @@ class VolunteerHourLedger(Base, TimestampMixin):
     id: Mapped[PyUUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     application_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("task_application.id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
     volunteer_id: Mapped[PyUUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("app_user.id"),
+        ForeignKey("app_user.id", ondelete="CASCADE"),
         nullable=False,
     )
     task_id: Mapped[PyUUID] = mapped_column(
@@ -345,7 +415,23 @@ class VolunteerHourLedger(Base, TimestampMixin):
     )
     admin_comment: Mapped[str | None] = mapped_column(Text)
 
-    application: Mapped[TaskApplication] = relationship(back_populates="hour_ledger")
+    application: Mapped[TaskApplication] = relationship(
+        back_populates="hour_ledger",
+        overlaps="hour_ledgers,volunteer_hour_ledgers",
+    )
+    volunteer: Mapped[User] = relationship(
+        back_populates="volunteer_hour_ledgers",
+        foreign_keys=[volunteer_id],
+        overlaps="application,hour_ledger",
+    )
+    task: Mapped[VolunteerTask] = relationship(
+        back_populates="hour_ledgers",
+        overlaps="application,hour_ledger",
+    )
+    awarder: Mapped[User] = relationship(
+        back_populates="awarded_hour_ledgers",
+        foreign_keys=[awarded_by],
+    )
 
 
 class UserAchievement(Base, TimestampMixin):

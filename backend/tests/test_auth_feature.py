@@ -28,9 +28,12 @@ def make_user(role: UserRole = UserRole.VOLUNTEER) -> SimpleNamespace:
         email="user@example.com",
         full_name="Test User",
         city="Nizhny Novgorod",
+        phone="+70000000000",
         employee_id="EMP-1" if role == UserRole.VOLUNTEER else None,
         department="IT" if role == UserRole.VOLUNTEER else None,
         position="Developer" if role == UserRole.VOLUNTEER else None,
+        interests=["ecology"] if role == UserRole.VOLUNTEER else None,
+        skills=["python"] if role == UserRole.VOLUNTEER else None,
         created_at=datetime.now(UTC),
     )
 
@@ -277,6 +280,7 @@ async def test_me_returns_current_user(client: AsyncClient) -> None:
     body = response.json()
     assert body["role"] == "admin"
     assert body["email"] == "admin@example.com"
+    assert body["phone"] == "+70000000000"
 
 
 @pytest.mark.asyncio

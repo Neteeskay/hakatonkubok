@@ -10,6 +10,8 @@ from openpyxl import load_workbook
 from app.models.enums import HelpCategory, ParticipationFormat, TaskType, UserRole
 from app.schemas.reports import ParticipantReportRow, PlatformAnalyticsReport
 from app.services.report_service import (
+    _format_best_month_label,
+    _format_volunteer_display_name,
     build_volunteer_year_statistics_pdf,
     build_analytics_csv,
     build_full_report_xlsx_bytes,
@@ -80,6 +82,18 @@ def test_full_report_export_contains_workbook_bytes() -> None:
     assert "Аналитика" in workbook.sheetnames
     assert workbook["Аналитика"]["A2"].value == "Сводная аналитика платформы"
     assert workbook["Аналитика"]["A4"].value == "Всего волонтеров"
+
+
+def test_format_best_month_label_returns_russian_month_name() -> None:
+    label = _format_best_month_label({8: Decimal("8.00"), 2: Decimal("2.00")})
+
+    assert label == "Август"
+
+
+def test_format_volunteer_display_name_prefers_full_name() -> None:
+    volunteer = SimpleNamespace(full_name="Иван Петров", email="ivan@stoloto.local")
+
+    assert _format_volunteer_display_name(volunteer) == "Иван Петров"
 
 
 @pytest.mark.asyncio

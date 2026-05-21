@@ -36,8 +36,28 @@ def make_volunteer() -> SimpleNamespace:
         username=None,
         email="volunteer@stoloto.local",
         full_name="Test Volunteer",
+        city="Nizhny Novgorod",
+        phone="+70000000000",
+        employee_id="EMP-1",
+        department="IT",
+        position="Developer",
+        interests=["ecology"],
+        skills=["python"],
+        created_at=datetime.now(UTC),
         is_active=True,
     )
+
+
+class FakeProfileSession:
+    def __init__(self) -> None:
+        self.committed = False
+        self.refreshed: object | None = None
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def refresh(self, instance: object) -> None:
+        self.refreshed = instance
 
 
 @pytest_asyncio.fixture
@@ -84,6 +104,51 @@ def test_build_achievement_states_marks_completed_medals() -> None:
     assert AchievementCode.PRO_BONO_EXPERT in completed_codes
     assert AchievementCode.ECO_HERO in completed_codes
     assert AchievementCode.GOOD_MARATHON not in completed_codes
+
+
+def test_build_achievement_states_exposes_progress_payload() -> None:
+    states = build_achievement_states(
+        AchievementStats(
+            applications_count=3,
+            fast_response_count=0,
+            active_applications_count=2,
+            completed_tasks_count=4,
+            total_hours=Decimal("7.50"),
+            online_completed_count=2,
+            offline_completed_count=1,
+            pro_bono_completed_count=0,
+            ecology_completed_count=1,
+            children_completed_count=1,
+            support_completed_count=0,
+            team_completed_count=1,
+            weekly_streak_weeks=2,
+            daily_activity_streak_days=6,
+            reliable_success_ratio_percent=Decimal("80.00"),
+            long_term_progress_percent=Decimal("25.00"),
+            canceled_applications_count=1,
+            controlled_participations_count=5,
+            activity_span_days=30,
+        )
+    )
+
+    hours_10 = next(state for state in states if state.code == AchievementCode.HOURS_10)
+    reliable = next(state for state in states if state.code == AchievementCode.RELIABLE_VOLUNTEER)
+    legend = next(state for state in states if state.code == AchievementCode.PROSTO_LEGEND)
+
+    assert hours_10.unit == "hours"
+    assert hours_10.progress_percent == Decimal("75.00")
+    assert hours_10.remaining == Decimal("2.50")
+    assert hours_10.criteria[0].key == "total_hours"
+    assert reliable.criteria[0].key == "completed_tasks_count"
+    assert reliable.criteria[1].key == "reliable_success_ratio_percent"
+    assert legend.progress_percent == Decimal("25.00")
+    assert {criterion.key for criterion in legend.criteria} == {
+        "total_hours",
+        "completed_tasks_count",
+        "activity_span_days",
+        "reliable_success_ratio_percent",
+        "weekly_streak_weeks",
+    }
 
 
 def test_active_participant_counts_only_active_accepted_tasks() -> None:
@@ -163,6 +228,91 @@ async def test_get_my_achievements_returns_medals(
 
 
 @pytest.mark.asyncio
+async def test_get_my_achievement_overview_returns_stats_and_progress(
+    volunteer_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_sync(session: object, volunteer_id: object) -> list[object]:
+        return []
+
+    async def fake_overview(session: object, volunteer_id: object) -> SimpleNamespace:
+        achievement = SimpleNamespace(
+            code=AchievementCode.HOURS_10,
+            title="10 hours",
+            description="Reach 10 confirmed hours",
+            category="hours",
+            category_label="Hours",
+            unit="hours",
+            unit_label="hours",
+            sort_order=3,
+            is_awarded=False,
+            awarded_at=None,
+            progress_current=Decimal("7.50"),
+            progress_target=Decimal("10.00"),
+            progress_percent=Decimal("75.00"),
+            remaining=Decimal("2.50"),
+            is_completed=False,
+            criteria=[
+                SimpleNamespace(
+                    key="total_hours",
+                    title="Progress",
+                    current=Decimal("7.50"),
+                    target=Decimal("10.00"),
+                    unit="hours",
+                    unit_label="hours",
+                    progress_percent=Decimal("75.00"),
+                    remaining=Decimal("2.50"),
+                    is_completed=False,
+                    metadata={},
+                )
+            ],
+            metadata={},
+        )
+        stats = SimpleNamespace(
+            applications_count=3,
+            fast_response_count=1,
+            active_applications_count=1,
+            completed_tasks_count=2,
+            total_hours=Decimal("7.50"),
+            online_completed_count=1,
+            offline_completed_count=1,
+            pro_bono_completed_count=0,
+            ecology_completed_count=0,
+            children_completed_count=1,
+            support_completed_count=0,
+            team_completed_count=0,
+            weekly_streak_weeks=1,
+            daily_activity_streak_days=2,
+            reliable_success_ratio_percent=Decimal("0.00"),
+            long_term_progress_percent=Decimal("0.00"),
+            canceled_applications_count=0,
+            controlled_participations_count=2,
+            activity_span_days=10,
+        )
+        return SimpleNamespace(
+            stats=stats,
+            achievements=[achievement],
+            next_achievement=achievement,
+            total_count=1,
+            awarded_count=0,
+            in_progress_count=1,
+            overall_progress_percent=Decimal("0.00"),
+        )
+
+    monkeypatch.setattr(volunteers_endpoint, "sync_volunteer_achievements", fake_sync)
+    monkeypatch.setattr(volunteers_endpoint, "get_volunteer_achievement_overview", fake_overview)
+
+    response = await volunteer_client.get("/api/v1/volunteers/me/achievements/overview")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["stats"]["total_hours"] == "7.50"
+    assert body["next_achievement"]["code"] == "hours_10"
+    assert body["next_achievement"]["progress_percent"] == "75.00"
+    assert body["next_achievement"]["criteria"][0]["remaining"] == "2.50"
+
+
+@pytest.mark.asyncio
 async def test_get_my_history_returns_lk_events(
     volunteer_client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -213,3 +363,38 @@ async def test_get_my_history_returns_lk_events(
     assert body[0]["event_type"] == "hours_awarded"
     assert body[0]["task"]["id"] == str(task_id)
     assert body[0]["hours"] == "5.00"
+
+
+@pytest.mark.asyncio
+async def test_update_my_profile_persists_volunteer_fields() -> None:
+    user = make_volunteer()
+    session = FakeProfileSession()
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.patch(
+            "/api/v1/volunteers/me",
+            json={
+                "full_name": "Updated Volunteer",
+                "city": "Kazan",
+                "phone": "+79990000000",
+                "interests": ["ecology", "ecology", "children"],
+                "skills": ["python", "analytics"],
+            },
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert session.committed is True
+    assert session.refreshed is user
+    assert body["full_name"] == "Updated Volunteer"
+    assert body["city"] == "Kazan"
+    assert body["phone"] == "+79990000000"
+    assert body["interests"] == ["ecology", "children"]
+    assert body["skills"] == ["python", "analytics"]
