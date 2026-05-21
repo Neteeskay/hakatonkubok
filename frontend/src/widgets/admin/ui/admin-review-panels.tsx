@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -67,7 +66,7 @@ export function FoundationReviewPanel({
         <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-cover bg-center opacity-35 md:block" style={{ backgroundImage: `url(${foundation.cover ?? foundation.logo})` }} />
         <div className="relative z-10 grid gap-5 md:grid-cols-[104px_1fr_auto] md:items-start">
           <div className="relative size-24 overflow-hidden rounded-[1.45rem] bg-white shadow-[0_16px_38px_rgba(34,28,8,0.08)]">
-            <Image src={foundation.logo} alt={foundation.name} fill sizes="96px" className="object-cover" />
+            <img src={foundation.logo} alt={foundation.name} className="h-full w-full object-cover" />
           </div>
           <div>
             <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
@@ -284,7 +283,7 @@ function FoundationMiniCard({ foundation }: { foundation: AdminFoundation }) {
     <Link href={`/preview/foundations/${foundation.id}`} target="_blank" className="group block rounded-[1.55rem] bg-[#fffdf7] p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_46px_rgba(34,28,8,0.07)]">
       <div className="flex gap-4">
         <div className="relative size-16 shrink-0 overflow-hidden rounded-[1.15rem] bg-white">
-          <Image src={foundation.logo} alt={foundation.name} fill sizes="64px" className="object-cover" />
+          <img src={foundation.logo} alt={foundation.name} className="h-full w-full object-cover" />
         </div>
         <div>
           <p className="text-xs font-black uppercase tracking-[0.12em] text-black/36">Фонд-организатор</p>

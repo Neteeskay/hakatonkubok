@@ -35,6 +35,8 @@ class AdminFundListItem(AdminOrmModel):
     id: UUID
     name: str
     status: FundStatus
+    logo_url: str | None = None
+    cover_url: str | None = None
     inn: str | None = None
     ogrn: str | None = None
     region: str | None = None

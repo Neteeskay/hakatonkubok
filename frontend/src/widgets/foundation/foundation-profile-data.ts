@@ -17,9 +17,11 @@ export interface FoundationProfileForm {
   contactRole: string;
   categories: string[];
   activityTypes: string[];
+  coverUrl?: string | null;
   coverFile?: File;
   coverFileName?: string;
   logoUploaded: boolean;
+  logoUrl?: string | null;
   logoFile?: File;
   logoFileName?: string;
   coverUploaded: boolean;

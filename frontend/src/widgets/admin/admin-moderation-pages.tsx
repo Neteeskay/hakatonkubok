@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, Mail, MapPin, Phone } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -178,7 +177,7 @@ function FoundationModerationCard({ foundation, onOpen }: { foundation: AdminFou
       <div className="pointer-events-none absolute -right-16 -top-16 size-44 rounded-full bg-brand/14 blur-3xl" />
       <div className="relative grid gap-4 md:grid-cols-[84px_1fr] md:items-start">
         <div className="relative size-20 overflow-hidden rounded-[1.35rem] bg-[#fffdf7] shadow-[0_14px_34px_rgba(34,28,8,0.07)]">
-          <Image src={foundation.logo} alt={foundation.name} fill sizes="80px" className="object-cover" />
+          <img src={foundation.logo} alt={foundation.name} className="h-full w-full object-cover" />
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-2">

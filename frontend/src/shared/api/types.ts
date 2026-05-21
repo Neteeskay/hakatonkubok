@@ -622,9 +622,11 @@ export interface AdminFundListItemResponse {
   approved_at: DateTimeString | null;
   contact_email: string | null;
   contact_person: string | null;
+  cover_url: string | null;
   created_at: DateTimeString | null;
   id: Uuid;
   inn: string | null;
+  logo_url: string | null;
   moderation_comment: string | null;
   name: string;
   ogrn: string | null;

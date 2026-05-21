@@ -238,8 +238,10 @@ export function mapFundProfileToProfileForm(profile: FundProfileResponse): Found
     contactRole: profile.contact_position || "",
     categories: mapHelpCategories(profile.help_categories),
     activityTypes: splitPlannedHelp(profile.planned_help),
+    logoUrl: profile.logo_url,
     logoUploaded: Boolean(profile.logo_url),
     logoFileName: profile.logo_url?.split("/").pop(),
+    coverUrl: profile.cover_url,
     coverUploaded: Boolean(profile.cover_url),
     coverFileName: profile.cover_url?.split("/").pop()
   };

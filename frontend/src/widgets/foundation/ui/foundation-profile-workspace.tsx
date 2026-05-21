@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, Mail, MapPin, MessageCircle, Pencil, Phone, Save, Sparkles, X, type LucideIcon } from "lucide-react";
 import { getApiErrorMessage } from "@/shared/api";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import { cn } from "@/shared/lib/utils";
 import {
   foundationCategoryOptions,
@@ -55,6 +56,8 @@ export function FoundationProfileWorkspace({
   const [documents, setDocuments] = useState<FoundationDocumentItem[]>(initialDocuments);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const publicTasks = useMemo(() => tasks.filter((task) => task.status === "published" || task.status === "completed"), [tasks]);
+  const logoSrc = resolveApiFileUrl(profile.logoUrl);
+  const coverSrc = resolveApiFileUrl(profile.coverUrl);
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -116,15 +119,15 @@ export function FoundationProfileWorkspace({
     setActionError(null);
     try {
       if (kind === "logo") {
-        await onUploadLogo?.(file);
-        setDraft((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name }));
-        setProfile((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name }));
+        const uploadedUrl = await onUploadLogo?.(file);
+        setDraft((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name, logoUrl: typeof uploadedUrl === "string" ? uploadedUrl : current.logoUrl }));
+        setProfile((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name, logoUrl: typeof uploadedUrl === "string" ? uploadedUrl : current.logoUrl }));
         return;
       }
 
-      await onUploadCover?.(file);
-      setDraft((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name }));
-      setProfile((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name }));
+      const uploadedUrl = await onUploadCover?.(file);
+      setDraft((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name, coverUrl: typeof uploadedUrl === "string" ? uploadedUrl : current.coverUrl }));
+      setProfile((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name, coverUrl: typeof uploadedUrl === "string" ? uploadedUrl : current.coverUrl }));
     } catch (error) {
       setActionError(toProfileActionMessage(error, "Не удалось загрузить изображение фонда. Попробуйте другой файл."));
     }
@@ -138,7 +141,7 @@ export function FoundationProfileWorkspace({
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[1.9rem] bg-white shadow-[0_26px_78px_rgba(34,28,8,0.065),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
         <div className="relative min-h-[420px] bg-[#fff9cf]">
-          <div className="absolute inset-0 bg-[url('/backTaskVolounteer.png')] bg-cover bg-center opacity-90" />
+          <div className="absolute inset-0 bg-cover bg-center opacity-90" style={{ backgroundImage: `url('${coverSrc ?? "/backTaskVolounteer.png"}')` }} />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_74%_18%,rgba(255,227,0,0.58),transparent_28%),linear-gradient(105deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0.88)_43%,rgba(255,255,255,0.26)_100%)]" />
           <div className="absolute -bottom-20 -left-16 size-64 rounded-full bg-brand/36 blur-3xl" />
           <div className="absolute right-8 top-8 hidden rounded-full bg-white/70 px-4 py-2 text-xs font-black text-black/52 backdrop-blur md:block">
@@ -168,7 +171,11 @@ export function FoundationProfileWorkspace({
 
               <div className="mt-16 grid gap-5 md:grid-cols-[128px_1fr] md:items-end lg:mt-0">
                 <div className="grid size-32 place-items-center overflow-hidden rounded-[2rem] bg-white shadow-[0_20px_56px_rgba(34,28,8,0.14)]">
-                  <Image src="/logo.png" alt="Логотип фонда" width={92} height={92} className="h-auto w-24 object-contain" />
+                  {logoSrc ? (
+                    <img src={logoSrc} alt="Логотип фонда" className="h-full w-full object-cover" />
+                  ) : (
+                    <Image src="/logo.png" alt="Логотип фонда" width={92} height={92} className="h-auto w-24 object-contain" />
+                  )}
                 </div>
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full bg-white/78 px-3 py-1.5 text-xs font-black text-black/52 backdrop-blur">

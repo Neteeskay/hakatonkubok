@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { adminService } from "@/shared/api";
@@ -57,7 +56,7 @@ export function AdminFoundationsPage() {
             <article key={foundation.id} className="rounded-[1.6rem] bg-white p-5 shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
               <div className="grid gap-4 md:grid-cols-[80px_1fr]">
                 <div className="relative size-20 overflow-hidden rounded-[1.35rem] bg-[#fffdf7]">
-                  <Image src={foundation.logo} alt={foundation.name} fill sizes="80px" className="object-cover" />
+                  <img src={foundation.logo} alt={foundation.name} className="h-full w-full object-cover" />
                 </div>
                 <div>
                   <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
