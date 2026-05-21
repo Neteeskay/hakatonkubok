@@ -1,13 +1,23 @@
 "use client";
 
 import { FileUp, Trash2 } from "lucide-react";
+import { useRef, type ChangeEvent } from "react";
 import { cn } from "@/shared/lib/utils";
 import { documentStatusConfig, type FoundationDocumentItem } from "@/widgets/foundation-registration/foundation-registration-data";
 
-export function FoundationDocumentCard({ document, onUpload, onRemove }: { document: FoundationDocumentItem; onUpload?: () => void; onRemove?: () => void }) {
+export function FoundationDocumentCard({ document, onUpload, onRemove }: { document: FoundationDocumentItem; onUpload?: (file: File) => void; onRemove?: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const status = documentStatusConfig[document.status];
   const Icon = status.icon;
   const uploaded = Boolean(document.fileName);
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) {
+      onUpload?.(file);
+    }
+    event.target.value = "";
+  }
 
   return (
     <article className="group rounded-[1.25rem] bg-white p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_16px_40px_rgba(34,28,8,0.045)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[inset_0_0_0_1px_rgba(24,20,7,0.07),0_20px_52px_rgba(34,28,8,0.07)]">
@@ -29,7 +39,8 @@ export function FoundationDocumentCard({ document, onUpload, onRemove }: { docum
             <span className="text-[11px] font-bold text-black/38">{status.helper}</span>
           </div>
           <div className="mt-4 flex gap-2">
-            <button type="button" onClick={onUpload} className="h-9 rounded-xl bg-brand px-3 text-xs font-black text-black">{uploaded ? "Заменить файл" : "Загрузить"}</button>
+            <input ref={inputRef} type="file" className="sr-only" onChange={handleFileChange} />
+            <button type="button" onClick={() => inputRef.current?.click()} className="h-9 rounded-xl bg-brand px-3 text-xs font-black text-black">{uploaded ? "Заменить файл" : "Загрузить"}</button>
             {uploaded ? (
               <button type="button" onClick={onRemove} className="grid size-9 place-items-center rounded-xl bg-[#fff1f1] text-[#c83c3c]">
                 <Trash2 className="size-4" />

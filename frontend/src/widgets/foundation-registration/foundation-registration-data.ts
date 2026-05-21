@@ -32,6 +32,7 @@ export interface FoundationDocumentItem {
   id: string;
   title: string;
   description: string;
+  file?: File;
   fileName?: string;
   status: FoundationDocumentStatus;
 }

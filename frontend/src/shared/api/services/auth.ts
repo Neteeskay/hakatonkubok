@@ -1,6 +1,7 @@
 import { apiClient } from "@/shared/api/client";
 import { clearStoredTokens, getRefreshToken, setStoredTokens } from "@/shared/api/token-storage";
 import type {
+  AuthTokenFields,
   FundRegisterRequest,
   FundRegisterResponse,
   LoginRequest,
@@ -12,7 +13,7 @@ import type {
   VolunteerRegisterResponse
 } from "@/shared/api/types";
 
-function persistTokenResponse(response: TokenResponse) {
+function persistTokenResponse(response: AuthTokenFields) {
   setStoredTokens({
     accessToken: response.access_token,
     refreshToken: response.refresh_token,
@@ -21,11 +22,15 @@ function persistTokenResponse(response: TokenResponse) {
 }
 
 export async function registerVolunteer(payload: VolunteerRegisterRequest) {
-  return apiClient.post<VolunteerRegisterResponse, VolunteerRegisterRequest>("/auth/register/volunteer", payload, { auth: false });
+  const response = await apiClient.post<VolunteerRegisterResponse, VolunteerRegisterRequest>("/auth/register/volunteer", payload, { auth: false });
+  persistTokenResponse(response);
+  return response;
 }
 
 export async function registerFund(payload: FundRegisterRequest) {
-  return apiClient.post<FundRegisterResponse, FundRegisterRequest>("/auth/register/fund", payload, { auth: false });
+  const response = await apiClient.post<FundRegisterResponse, FundRegisterRequest>("/auth/register/fund", payload, { auth: false });
+  persistTokenResponse(response);
+  return response;
 }
 
 export async function login(payload: LoginRequest) {
@@ -68,4 +73,3 @@ export const authService = {
   registerFund,
   registerVolunteer
 };
-

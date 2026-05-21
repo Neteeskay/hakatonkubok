@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, LockKeyhole, Mail, Phone, Send, ShieldCheck, Smartphone, UserRound, type LucideIcon } from "lucide-react";
 import { Logo } from "@/widgets/navigation/logo";
+import { ApiError, authService, fundsService, getApiErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
 import {
   foundationActivityOptions,
@@ -21,42 +22,139 @@ import { FoundationDocumentCard } from "@/widgets/foundation-registration/ui/fou
 import { MediaUploadCard } from "@/widgets/foundation-registration/ui/media-upload-card";
 import { FoundationStepper } from "@/widgets/foundation-registration/ui/stepper";
 
+function getFundRegisterErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.status === 409 && error.message === "email already exists") {
+    return "Пользователь с таким email уже зарегистрирован.";
+  }
+
+  return getApiErrorMessage(error);
+}
+
+function optionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function buildPlannedHelp(form: FoundationRegistrationForm) {
+  const lines = [
+    form.activityTypes.length ? `Виды помощи: ${form.activityTypes.join(", ")}` : "",
+    form.telegram.trim() ? `Telegram: ${form.telegram.trim()}` : "",
+    form.whatsapp.trim() ? `WhatsApp: ${form.whatsapp.trim()}` : "",
+    `Предпочтительный способ связи: ${form.preferredContact}`
+  ].filter(Boolean);
+
+  return lines.length ? lines.join("\n") : null;
+}
+
 export function FoundationRegistrationPage() {
   const [step, setStep] = useState<FoundationRegistrationStep>("main");
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<FoundationRegistrationForm>(initialFoundationForm);
   const [documents, setDocuments] = useState<FoundationDocumentItem[]>(initialFoundationDocuments);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const stepIndex = foundationSteps.findIndex((item) => item.id === step);
   const currentValid = validateFoundationStep(step, form);
   const uploadedCount = documents.filter((document) => document.fileName).length;
   const summaryReady = useMemo(() => validateFoundationStep("main", form) && validateFoundationStep("contacts", form), [form]);
 
   function update<K extends keyof FoundationRegistrationForm>(key: K, value: FoundationRegistrationForm[K]) {
+    setSubmitError(null);
+    setSubmitNotice(null);
     setForm((current) => ({ ...current, [key]: value }));
   }
 
   function toggleArray(key: "categories" | "activityTypes", value: string) {
+    setSubmitError(null);
+    setSubmitNotice(null);
     setForm((current) => {
       const list = current[key];
       return { ...current, [key]: list.includes(value) ? list.filter((item) => item !== value) : [...list, value] };
     });
   }
 
-  function uploadDocument(id: string) {
-    setDocuments((items) => items.map((item) => item.id === id ? { ...item, status: "uploaded", fileName: `${item.id}-document.pdf` } : item));
+  function uploadDocument(id: string, file: File) {
+    setSubmitError(null);
+    setSubmitNotice(null);
+    setDocuments((items) => items.map((item) => item.id === id ? { ...item, file, status: "uploaded", fileName: file.name } : item));
   }
 
   function removeDocument(id: string) {
-    setDocuments((items) => items.map((item) => item.id === id ? { ...item, status: "empty", fileName: undefined } : item));
+    setSubmitError(null);
+    setSubmitNotice(null);
+    setDocuments((items) => items.map((item) => item.id === id ? { ...item, file: undefined, status: "empty", fileName: undefined } : item));
+  }
+
+  async function submitRegistration() {
+    if (!currentValid || submitting) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitNotice(null);
+
+    const accountEmail = form.accountEmail.trim().toLowerCase();
+
+    try {
+      await authService.registerFund({
+        contact_email: optionalText(form.email),
+        contact_person: optionalText(form.contactName),
+        contact_phone: optionalText(form.phone),
+        contact_position: optionalText(form.contactRole),
+        description: optionalText(form.description),
+        email: accountEmail,
+        help_categories: form.categories,
+        inn: optionalText(form.inn),
+        name: form.name.trim(),
+        ogrn: optionalText(form.ogrn),
+        password: form.password,
+        planned_help: buildPlannedHelp(form),
+        region: optionalText(form.region),
+        representative_full_name: form.contactName.trim(),
+        representative_phone: optionalText(form.phone),
+        website_url: optionalText(form.website)
+      });
+
+      const documentsToUpload = documents.filter((document) => document.file);
+      let failedUploads = 0;
+
+      for (const document of documentsToUpload) {
+        if (!document.file) continue;
+
+        setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "uploading" } : item));
+
+        try {
+          await fundsService.uploadMyFundDocument({ documentType: document.id, file: document.file });
+          setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "uploaded" } : item));
+        } catch {
+          failedUploads += 1;
+          setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "error" } : item));
+        }
+      }
+
+      if (failedUploads > 0) {
+        setSubmitNotice("Фонд зарегистрирован, но часть документов не загрузилась. Их можно дозагрузить из профиля фонда.");
+      }
+
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(getFundRegisterErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function next() {
-    if (stepIndex < foundationSteps.length - 1) setStep(foundationSteps[stepIndex + 1].id);
-    else setSubmitted(true);
+    if (stepIndex < foundationSteps.length - 1) {
+      setStep(foundationSteps[stepIndex + 1].id);
+      return;
+    }
+
+    void submitRegistration();
   }
 
   if (submitted) {
-    return <FoundationPendingScreen form={form} documents={documents} onEdit={() => { setSubmitted(false); setStep("main"); }} />;
+    return <FoundationPendingScreen form={form} documents={documents} notice={submitNotice} onEdit={() => { setSubmitted(false); setStep("main"); }} />;
   }
 
   return (
@@ -101,11 +199,16 @@ export function FoundationRegistrationPage() {
 
           <div className="mt-6 flex flex-col gap-3 border-t border-black/5 pt-5 sm:flex-row sm:justify-between">
             <button disabled={stepIndex === 0} onClick={() => setStep(foundationSteps[stepIndex - 1].id)} className="h-12 rounded-xl bg-[#fffdf7] px-5 text-sm font-black text-black/58 disabled:opacity-40">Назад</button>
-            <button disabled={!currentValid} onClick={next} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)] disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none">
-              {step === "review" ? "Отправить заявку" : "Продолжить"}
+            <button disabled={!currentValid || submitting} onClick={next} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)] disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none">
+              {submitting ? "Отправляем..." : step === "review" ? "Отправить заявку" : "Продолжить"}
               <ArrowRight className="size-4" />
             </button>
           </div>
+          {submitError ? (
+            <p className="mt-4 rounded-2xl bg-[#fff1f1] p-4 text-sm font-bold leading-6 text-[#c83c3c]" role="alert">
+              {submitError}
+            </p>
+          ) : null}
         </section>
       </section>
     </main>
@@ -164,14 +267,14 @@ function ContactsStep({ form, update }: { form: FoundationRegistrationForm; upda
   );
 }
 
-function DocumentsStep({ form, update, documents, onUpload, onRemove }: { form: FoundationRegistrationForm; update: <K extends keyof FoundationRegistrationForm>(key: K, value: FoundationRegistrationForm[K]) => void; documents: FoundationDocumentItem[]; onUpload: (id: string) => void; onRemove: (id: string) => void }) {
+function DocumentsStep({ form, update, documents, onUpload, onRemove }: { form: FoundationRegistrationForm; update: <K extends keyof FoundationRegistrationForm>(key: K, value: FoundationRegistrationForm[K]) => void; documents: FoundationDocumentItem[]; onUpload: (id: string, file: File) => void; onRemove: (id: string) => void }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div>
         <h2 className="text-2xl font-black">Документы для проверки фонда</h2>
         <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-black/48">Загрузите доступные документы. Их можно заменить или дозагрузить позже из профиля фонда.</p>
         <div className="mt-5 grid gap-3">
-          {documents.map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={() => onUpload(document.id)} onRemove={() => onRemove(document.id)} />)}
+          {documents.map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={(file) => onUpload(document.id, file)} onRemove={() => onRemove(document.id)} />)}
         </div>
       </div>
       <div className="grid gap-4">
@@ -207,7 +310,7 @@ function ReviewStep({ form, documents }: { form: FoundationRegistrationForm; doc
   );
 }
 
-function FoundationPendingScreen({ form, documents, onEdit }: { form: FoundationRegistrationForm; documents: FoundationDocumentItem[]; onEdit: () => void }) {
+function FoundationPendingScreen({ form, documents, notice, onEdit }: { form: FoundationRegistrationForm; documents: FoundationDocumentItem[]; notice?: string | null; onEdit: () => void }) {
   return (
     <main className="min-h-screen bg-[#fffdf7] px-4 py-5 md:px-6">
       <section className="mx-auto max-w-[1120px]">
@@ -219,6 +322,7 @@ function FoundationPendingScreen({ form, documents, onEdit }: { form: Foundation
           <span className="inline-flex rounded-full bg-brand/18 px-4 py-2 text-xs font-black uppercase tracking-[0.14em]">Фонд на проверке</span>
           <h1 className="mt-5 text-4xl font-black leading-tight md:text-6xl">{form.name || "Заявка фонда"}</h1>
           <p className="mt-4 max-w-2xl text-base font-bold leading-7 text-black/58">Заявка отправлена. Пока она находится на проверке, публикация заданий недоступна.</p>
+          {notice ? <p className="mt-5 rounded-[1.15rem] bg-[#fff1f1] p-4 text-sm font-bold leading-6 text-[#c83c3c]">{notice}</p> : null}
           <div className="mt-7 grid gap-3 md:grid-cols-3">
             <MiniStat value={form.categories.length.toString()} label="категорий помощи" />
             <MiniStat value={documents.filter((document) => document.fileName).length.toString()} label="документов" />

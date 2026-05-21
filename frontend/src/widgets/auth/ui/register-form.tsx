@@ -46,7 +46,7 @@ export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const valid = useMemo(() => {
-    return form.firstName.length > 1 && form.lastName.length > 1 && form.email.includes("@") && form.password.length >= 8 && form.password === form.confirm && form.city.length > 1 && form.phone.length >= 7 && interests.length > 0 && agree;
+    return form.firstName.length > 1 && form.lastName.length > 1 && form.email.includes("@") && form.password.length >= 6 && form.password === form.confirm && form.city.length > 1 && form.phone.length >= 7 && interests.length > 0 && agree;
   }, [form, interests, agree]);
 
   function update(field: keyof typeof form, value: string) {
@@ -80,8 +80,7 @@ export function RegisterForm() {
         phone: form.phone.trim() || null,
         skills
       });
-      setSuccess("Профиль создан. Выполняем вход.");
-      await authService.login({ login: email, password: form.password });
+      setSuccess("Профиль создан. Открываем кабинет.");
       router.push("/volunteer/profile");
     } catch (submitError) {
       setError(getRegisterErrorMessage(submitError));
@@ -104,7 +103,7 @@ export function RegisterForm() {
         <AuthField label="Телефон" value={form.phone} onChange={(value) => update("phone", value)} placeholder="+7 999 000-00-00" type="tel" icon={Phone} />
         <AuthField label="Город" value={form.city} onChange={(value) => update("city", value)} placeholder="Москва" icon={MapPin} />
         <div />
-        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 8 символов" type="password" icon={LockKeyhole} invalid={form.password.length > 0 && form.password.length < 8} />
+        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" type="password" icon={LockKeyhole} invalid={form.password.length > 0 && form.password.length < 6} />
         <AuthField label="Подтверждение" value={form.confirm} onChange={(value) => update("confirm", value)} placeholder="Повторите пароль" type="password" icon={LockKeyhole} invalid={form.confirm.length > 0 && form.confirm !== form.password} />
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">

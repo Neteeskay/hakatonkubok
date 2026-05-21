@@ -12,6 +12,12 @@ export type TaskType = "regular" | "pro_bono";
 export type HelpCategory = "children" | "elderly" | "disability" | "ecology";
 export type TaskFeedSort = "published_at_desc" | "deadline_at_asc" | "expected_hours_desc" | "expected_hours_asc";
 
+export interface AuthTokenFields {
+  access_token: string;
+  refresh_token: string | null;
+  token_type: string;
+}
+
 export interface UserResponse {
   city: string | null;
   created_at: DateTimeString;
@@ -41,7 +47,7 @@ export interface VolunteerRegisterRequest {
   skills?: string[];
 }
 
-export interface VolunteerRegisterResponse {
+export interface VolunteerRegisterResponse extends AuthTokenFields {
   user: UserResponse;
 }
 
@@ -72,7 +78,7 @@ export interface FundResponse {
   status: FundStatus;
 }
 
-export interface FundRegisterResponse {
+export interface FundRegisterResponse extends AuthTokenFields {
   fund: FundResponse;
   user: UserResponse;
 }
@@ -90,10 +96,7 @@ export interface LogoutRequest {
   refresh_token?: string | null;
 }
 
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string | null;
-  token_type: string;
+export interface TokenResponse extends AuthTokenFields {
   user: UserResponse;
 }
 
@@ -327,4 +330,3 @@ export interface PlatformAnalyticsReport {
   tasks_total: number;
   volunteers_total: number;
 }
-
