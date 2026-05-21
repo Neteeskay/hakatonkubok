@@ -24,7 +24,7 @@ export function TaskCard({ task }: { task: VolunteerTask }) {
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap gap-2">
               {task.skills.map((skill) => (
-                <Badge key={skill} tone="brand">{skillNames[skill]}</Badge>
+                <Badge key={skill} tone="brand">{skillNames[skill as keyof typeof skillNames] ?? skill}</Badge>
               ))}
               {task.proBono ? <Badge tone="blue">Pro bono</Badge> : null}
             </div>

@@ -1,13 +1,14 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { impactSeries } from "@/shared/config/mock-data";
 
-export function ImpactChart() {
+const emptySeries = [{ month: "-", hours: 0, tasks: 0 }];
+
+export function ImpactChart({ data = emptySeries }: { data?: { month: string; hours: number; tasks: number }[] }) {
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={impactSeries} margin={{ left: -18, right: 8, top: 10, bottom: 0 }}>
+        <AreaChart data={data} margin={{ left: -18, right: 8, top: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 8" stroke="hsl(var(--foreground) / 0.08)" />
           <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
           <YAxis tickLine={false} axisLine={false} fontSize={12} />

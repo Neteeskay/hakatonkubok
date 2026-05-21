@@ -1,16 +1,25 @@
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
-import { categories, foundations } from "@/shared/config/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { taskApi } from "@/shared/api/services";
 import { Button } from "@/shared/ui/button";
 import { Select } from "@/shared/ui/form";
 import { cn } from "@/shared/lib/utils";
+
+const categories = ["children", "elderly", "disability", "ecology"];
 
 const formats = ["Онлайн", "Офлайн", "Гибрид"];
 const commitments = ["Разово", "Регулярно", "Долгий проект", "Pro bono"];
 const skills = ["События", "Логистика", "Дизайн", "Медиа", "Аналитика", "Наставничество"];
 
 export function FilterPanel() {
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["tasks", "feed", "filter-panel"],
+    queryFn: () => taskApi.listFeed()
+  });
+  const foundations = Array.from(new Set(tasks.map((task) => task.fund?.name).filter((name): name is string => Boolean(name))));
+
   return (
     <aside className="premium-surface space-y-5 rounded-[1.35rem] p-4 lg:sticky lg:top-24 lg:h-fit">
       <div className="flex items-center justify-between">
@@ -37,7 +46,7 @@ export function FilterPanel() {
         <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-foreground/45">Фонд</p>
         <Select defaultValue="Любой фонд">
           <option>Любой фонд</option>
-          {foundations.map((foundation) => <option key={foundation.id}>{foundation.name}</option>)}
+          {foundations.map((foundation) => <option key={foundation}>{foundation}</option>)}
         </Select>
       </div>
       <FilterGroup title="Навыки" items={skills} active={["Дизайн"]} />

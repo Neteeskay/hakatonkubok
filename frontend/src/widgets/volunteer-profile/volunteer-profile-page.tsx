@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Edit3, Mail, MapPin, Phone, Star } from "lucide-react";
+import { useAuthStore } from "@/shared/auth/auth-store";
 import { ProfileEditDrawer, type ProfileEditFocus, type ProfileSkillsSnapshot } from "@/widgets/volunteer-profile/profile-edit-drawer";
-import { hoursByMonth, profileAchievements, profileBadges, profileRows, profileStats, profileTimeline, profileVolunteer } from "@/widgets/volunteer-profile/profile-data";
+import { hoursByMonth, profileAchievements, profileBadges, profileRows, profileStats, profileTimeline } from "@/widgets/volunteer-profile/profile-data";
 import { ProfileCard, ProfileSectionTitle, RoundIcon, SoftBadge } from "@/widgets/volunteer-profile/profile-ui";
 import { SkillChip } from "@/widgets/volunteer-profile/ui/skill-chip";
 import { taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
 
 export function VolunteerProfilePage() {
+  const user = useAuthStore((state) => state.user);
   const [editing, setEditing] = useState(false);
   const [editFocus, setEditFocus] = useState<ProfileEditFocus>("basic");
   const [skillsSnapshot, setSkillsSnapshot] = useState<ProfileSkillsSnapshot>({
@@ -38,14 +40,14 @@ export function VolunteerProfilePage() {
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-4xl font-black leading-none md:text-5xl">{profileVolunteer.name}</h1>
+              <h1 className="text-4xl font-black leading-none md:text-5xl">{user?.full_name ?? user?.email ?? "Волонтер"}</h1>
               <SoftBadge tone="gold"><Star className="mr-1 size-3.5" />Уровень 3</SoftBadge>
             </div>
             <p className="mt-3 text-sm font-bold text-black/54">Волонтёр с июня 2023</p>
             <div className="mt-5 grid gap-2 text-sm font-bold text-black/62">
-              <span className="inline-flex items-center gap-2"><MapPin className="size-4" />Москва, Россия</span>
-              <span className="inline-flex items-center gap-2"><Mail className="size-4" />anna.smirnova@mail.ru</span>
-              <span className="inline-flex items-center gap-2"><Phone className="size-4" />+7 (999) 123-45-67</span>
+              <span className="inline-flex items-center gap-2"><MapPin className="size-4" />{user?.city ?? "Город не указан"}</span>
+              <span className="inline-flex items-center gap-2"><Mail className="size-4" />{user?.email ?? "-"}</span>
+              <span className="inline-flex items-center gap-2"><Phone className="size-4" />{user?.employee_id ?? "employee id не указан"}</span>
             </div>
             <button onClick={() => openEditor()} className="mt-7 inline-flex h-11 items-center gap-2 rounded-xl bg-white px-5 text-sm font-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.09),0_12px_28px_rgba(34,28,8,0.06)] transition hover:bg-brand/12">
               Редактировать профиль

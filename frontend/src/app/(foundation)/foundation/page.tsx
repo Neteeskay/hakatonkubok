@@ -1,15 +1,26 @@
+"use client";
+
+import Link from "next/link";
 import { Download, FileSpreadsheet, Plus, Users } from "lucide-react";
-import { applications, foundations, tasks } from "@/shared/config/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { applicationApi, fundApi, taskApi } from "@/shared/api/services";
+import { mapApiFundToFoundation } from "@/shared/api/mappers";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Input, Select, Textarea } from "@/shared/ui/form";
 import { StatCard } from "@/shared/ui/stat-card";
 import { Table, Td, Th } from "@/shared/ui/table";
 import { ImpactChart } from "@/widgets/dashboard/impact-chart";
 
 export default function FoundationDashboardPage() {
-  const foundation = foundations[0];
+  const fundQuery = useQuery({ queryKey: ["fund", "me"], queryFn: () => fundApi.me() });
+  const tasksQuery = useQuery({ queryKey: ["tasks", "foundation"], queryFn: () => taskApi.listMine() });
+  const applicationsQuery = useQuery({ queryKey: ["applications", "foundation"], queryFn: () => applicationApi.listFund() });
+  const tasks = tasksQuery.data ?? [];
+  const applications = applicationsQuery.data ?? [];
+  const foundation = fundQuery.data
+    ? mapApiFundToFoundation(fundQuery.data, tasks, applications)
+    : { name: "Фонд", focus: "Данные загружаются", curator: "", activeTasks: 0, volunteersNeeded: 0, responseRate: 0, reportsReady: 0 };
 
   return (
     <div className="space-y-6">
@@ -22,16 +33,16 @@ export default function FoundationDashboardPage() {
           </div>
           <div className="flex gap-2">
             <Button variant="ghost"><Download className="size-4" />CSV</Button>
-            <Button><Plus className="size-4" />Новая задача</Button>
+            <Button asChild><Link href="/foundation/create-task"><Plus className="size-4" />Новая задача</Link></Button>
           </div>
         </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Активных задач" value={foundation.activeTasks} delta="2 требуют набора" icon={Plus} tone="brand" />
-        <StatCard label="Нужны волонтёры" value={foundation.volunteersNeeded} delta="по текущим задачам" icon={Users} tone="blue" />
+        <StatCard label="Активных задач" value={foundation.activeTasks} delta="по backend" icon={Plus} tone="brand" />
+        <StatCard label="Нужны волонтеры" value={foundation.volunteersNeeded} delta="по текущим задачам" icon={Users} tone="blue" />
         <StatCard label="Отклики приняты" value={`${foundation.responseRate}%`} delta="средний показатель" icon={FileSpreadsheet} tone="green" />
-        <StatCard label="Готовые отчёты" value={foundation.reportsReady} delta="за квартал" icon={Download} />
+        <StatCard label="Документы" value={foundation.reportsReady} delta="загружено" icon={Download} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_26rem]">
@@ -40,12 +51,11 @@ export default function FoundationDashboardPage() {
           <CardContent><ImpactChart /></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Создать задачу</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Статус профиля</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="Название задачи" />
-            <Select><option>Спорт и события</option><option>Pro bono</option><option>Образование</option></Select>
-            <Textarea placeholder="Краткое описание для волонтёров" />
-            <Button className="w-full">Отправить на модерацию</Button>
+            <Badge tone={fundQuery.data?.status === "approved" ? "green" : "brand"}>{fundQuery.data?.status ?? "loading"}</Badge>
+            <p className="text-sm font-bold leading-6 text-black/58">{fundQuery.data?.moderation_comment ?? "Комментариев модерации нет"}</p>
+            <Button asChild className="w-full"><Link href="/foundation/profile">Открыть профиль</Link></Button>
           </CardContent>
         </Card>
       </div>
@@ -60,9 +70,9 @@ export default function FoundationDashboardPage() {
                 {tasks.slice(0, 4).map((task) => (
                   <tr key={task.id}>
                     <Td className="font-bold">{task.title}</Td>
-                    <Td>{task.deadline}</Td>
-                    <Td>{task.filled}/{task.spots}</Td>
-                    <Td><Badge tone={task.status === "open" ? "green" : "blue"}>{task.status === "open" ? "открыта" : "в работе"}</Badge></Td>
+                    <Td>{task.deadline_at ? new Date(task.deadline_at).toLocaleDateString("ru-RU") : "-"}</Td>
+                    <Td>{task.participant_limit ?? "-"}</Td>
+                    <Td><Badge tone={task.status === "published" ? "green" : "blue"}>{task.status}</Badge></Td>
                   </tr>
                 ))}
               </tbody>
@@ -72,7 +82,7 @@ export default function FoundationDashboardPage() {
         <Card>
           <CardHeader><CardTitle>Комментарии модерации</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {["Уточните точку встречи для спортивного дня", "Добавьте контакт координатора", "Отчёт за апрель готов к экспорту"].map((item) => (
+            {[fundQuery.data?.moderation_comment, ...tasks.map((task) => task.moderation_comment)].filter(Boolean).map((item) => (
               <div key={item} className="rounded-[1.15rem] bg-white/58 p-4 text-sm leading-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">{item}</div>
             ))}
           </CardContent>
@@ -81,22 +91,22 @@ export default function FoundationDashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Заявки волонтёров</CardTitle>
+          <CardTitle>Заявки волонтеров</CardTitle>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm"><FileSpreadsheet className="size-4" />XLSX</Button>
-            <Button variant="secondary" size="sm">Отчёт</Button>
+            <Button variant="secondary" size="sm">Отчет</Button>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <Table>
-            <thead><tr><Th>Волонтёр</Th><Th>Задача</Th><Th>Часы</Th><Th>Статус</Th></tr></thead>
+            <thead><tr><Th>Волонтер</Th><Th>Задача</Th><Th>Часы</Th><Th>Статус</Th></tr></thead>
             <tbody>
               {applications.map((application) => (
                 <tr key={application.id}>
-                  <Td className="font-bold">{application.volunteer}</Td>
-                  <Td>{application.task}</Td>
-                  <Td>{application.hours}</Td>
-                  <Td><Badge tone={application.status === "принята" ? "green" : "brand"}>{application.status}</Badge></Td>
+                  <Td className="font-bold">{application.volunteer?.full_name ?? application.volunteer?.email ?? application.volunteer_id}</Td>
+                  <Td>{application.task?.title ?? application.task_id}</Td>
+                  <Td>{application.task?.expected_hours ?? "-"}</Td>
+                  <Td><Badge tone={application.status === "accepted" ? "green" : "brand"}>{application.status}</Badge></Td>
                 </tr>
               ))}
             </tbody>

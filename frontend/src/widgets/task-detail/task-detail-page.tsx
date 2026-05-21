@@ -22,7 +22,7 @@ import {
 import type { Foundation } from "@/entities/foundation/model";
 import type { VolunteerTask } from "@/entities/task/model";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
-import { categoryLabels, commitmentLabels, formatLabels, skillLabels, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { categoryLabels, commitmentLabels, formatLabels, getSkillLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
 import {
   ctaLabels,
   getCtaState,
@@ -39,6 +39,10 @@ export function TaskDetailPage({
   related,
   applicationStatus,
   onApplicationStatusChange,
+  onApply,
+  onCancel,
+  isApplicationMutating,
+  applicationError,
   onTaskOpen,
   surface = "page"
 }: {
@@ -47,6 +51,10 @@ export function TaskDetailPage({
   related: VolunteerTask[];
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
+  onApply?: () => Promise<void> | void;
+  onCancel?: () => Promise<void> | void;
+  isApplicationMutating?: boolean;
+  applicationError?: string | null;
   onTaskOpen?: (task: VolunteerTask) => void;
   surface?: "page" | "modal";
 }) {
@@ -60,12 +68,22 @@ export function TaskDetailPage({
   const cta = ctaLabels[ctaState];
   const contactsUnlocked = ctaState === "accepted" || ctaState === "completed" || ctaState === "hours";
 
-  function handleApply() {
-    if (ctaState === "apply") setStatus("pending");
+  async function handleApply() {
+    if (ctaState !== "apply") return;
+    if (onApply) {
+      await onApply();
+      return;
+    }
+    setStatus("pending");
   }
 
-  function handleCancel() {
-    if (currentStatus === "pending" || currentStatus === "accepted") setStatus("idle");
+  async function handleCancel() {
+    if (currentStatus !== "pending" && currentStatus !== "accepted") return;
+    if (onCancel) {
+      await onCancel();
+      return;
+    }
+    setStatus("idle");
   }
 
   return (
@@ -100,16 +118,17 @@ export function TaskDetailPage({
             <div className="mt-3 flex justify-between text-xs font-bold text-black/48"><span>{recruitment.helper}</span><span>{recruitment.progress}%</span></div>
             <button
               onClick={handleApply}
-              disabled={ctaState !== "apply"}
+              disabled={ctaState !== "apply" || isApplicationMutating}
               className="mt-6 h-12 w-full rounded-2xl bg-brand text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.28)] transition hover:-translate-y-0.5 disabled:bg-[#efeee8] disabled:text-black/38 disabled:shadow-none"
             >
-              {cta.label}
+              {isApplicationMutating ? "Отправляем..." : cta.label}
             </button>
             {currentStatus === "pending" || currentStatus === "accepted" ? (
-              <button onClick={handleCancel} className="mt-2 h-11 w-full rounded-2xl bg-white text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12">
+              <button onClick={handleCancel} disabled={isApplicationMutating} className="mt-2 h-11 w-full rounded-2xl bg-white text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 disabled:opacity-50">
                 Отменить отклик
               </button>
             ) : null}
+            {applicationError ? <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-center text-xs font-bold leading-5 text-red-700">{applicationError}</p> : null}
             <p className="mt-3 text-center text-xs font-bold leading-5 text-black/46">{cta.helper}</p>
           </aside>
         </div>
@@ -149,7 +168,7 @@ export function TaskDetailPage({
               {task.proBono ? (
                 <div className="mt-5 rounded-[1.2rem] bg-[#f5f0ff] p-4">
                   <p className="text-sm font-black text-[#6b4de6]">Pro Bono навыки</p>
-                  <div className="mt-3 flex flex-wrap gap-2">{task.skills.map((skill) => <Pill key={skill} tone="violet">{skillLabels[skill]}</Pill>)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">{task.skills.map((skill) => <Pill key={skill} tone="violet">{getSkillLabel(skill)}</Pill>)}</div>
                 </div>
               ) : null}
             </DetailCard>

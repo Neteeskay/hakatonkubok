@@ -1,14 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, LogOut, MapPin, Menu, Search } from "lucide-react";
+import { useAuthStore } from "@/shared/auth/auth-store";
+import { roleLabels, type AppRole } from "@/shared/config/navigation";
 import { Button } from "@/shared/ui/button";
 import { Dropdown } from "@/shared/ui/overlays";
-import { roleLabels, type AppRole } from "@/shared/config/navigation";
 
 export function Topbar({ role }: { role: AppRole }) {
-  const initials = role === "volunteer" ? "АС" : role === "foundation" ? "ФД" : "АД";
-  const name = role === "volunteer" ? "Анна Соколова" : role === "foundation" ? "Фонд спорта" : "Мария, модератор";
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const name = user?.full_name ?? user?.email ?? (role === "foundation" ? "Фонд" : role === "admin" ? "Администратор" : "Волонтер");
+  const initials = getInitials(name);
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
 
   return (
     <header className="sticky top-0 z-30 mx-3 flex h-[86px] items-center justify-between gap-4 bg-[#fffdf7]/92 px-1 backdrop-blur-xl md:mx-6">
@@ -30,7 +40,7 @@ export function Topbar({ role }: { role: AppRole }) {
       <div className="flex shrink-0 items-center gap-3">
         <Button variant="quiet" size="icon" className="relative rounded-full bg-white shadow-[0_10px_24px_rgba(34,28,8,0.06)]" aria-label="Уведомления">
           <Bell className="size-5" />
-          <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-brand text-[10px] font-black text-black">3</span>
+          <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-brand text-[10px] font-black text-black">0</span>
         </Button>
         <Dropdown
           label={
@@ -44,11 +54,23 @@ export function Topbar({ role }: { role: AppRole }) {
           }
         >
           <div className="space-y-1 text-sm">
-            <Link className="block rounded-md px-3 py-2 hover:bg-surface-muted" href={role === "volunteer" ? "/volunteer/profile" : role === "foundation" ? "/foundation/profile" : "/admin"}>Профиль</Link>
-            <Link className="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-surface-muted" href="/login"><LogOut className="size-4" />Выйти</Link>
+            <Link className="block rounded-md px-3 py-2 hover:bg-surface-muted" href={role === "volunteer" ? "/volunteer/profile" : role === "foundation" ? "/foundation/profile" : "/admin"}>
+              Профиль
+            </Link>
+            <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-surface-muted" onClick={handleLogout}>
+              <LogOut className="size-4" />
+              Выйти
+            </button>
           </div>
         </Dropdown>
       </div>
     </header>
   );
+}
+
+function getInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "U";
+  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? "";
+  return `${first}${second}`.toUpperCase();
 }

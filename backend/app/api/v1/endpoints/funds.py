@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,7 @@ from app.services.fund_service import (
     EmptyFundDocumentError,
     FundNotFoundError,
     add_fund_document,
+    get_fund_by_id,
     get_fund_by_representative,
     update_fund_profile,
 )
@@ -70,3 +73,16 @@ async def upload_my_fund_document(
     except EmptyFundDocumentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file") from exc
     return FundDocumentResponse.model_validate(document)
+
+
+@router.get("/{fund_id}", response_model=FundProfileResponse)
+async def get_fund_profile(
+    fund_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.VOLUNTEER, UserRole.FUND, UserRole.ADMIN)),
+) -> FundProfileResponse:
+    try:
+        fund = await get_fund_by_id(session, fund_id)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    return FundProfileResponse.model_validate(fund)

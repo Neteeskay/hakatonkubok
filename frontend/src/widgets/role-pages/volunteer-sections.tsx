@@ -1,69 +1,70 @@
+"use client";
+
+import type { ReactNode } from "react";
 import { Award, Bell, Clock, History, Inbox, UserRound } from "lucide-react";
-import { applications, tasks, volunteers } from "@/shared/config/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { applicationApi, taskApi, volunteerApi } from "@/shared/api/services";
+import type { ApiAchievement, ApiApplication, ApiVolunteerHistoryItem } from "@/shared/api/types";
+import { useAuthStore } from "@/shared/auth/auth-store";
 import { EditorialList, MetricStrip, ProductPanel, RoleHero, StatusPill } from "@/widgets/role-pages/role-page-shell";
 
-const volunteer = volunteers[0];
-
 export function ApplicationsPage() {
+  const { applications, awardedHours, isLoading } = useVolunteerSectionData();
+  const active = applications.filter((item) => ["applied", "accepted", "completion_confirmed"].includes(item.status));
+
   return (
     <VolunteerSectionShell
       icon="Отклики"
       title="Мои отклики"
       description="Каждый отклик показывает, на каком шаге он находится и что нужно сделать дальше."
       metrics={[
-        { icon: Inbox, value: "4", label: "активных отклика" },
-        { icon: Clock, value: "13", label: "часов в ожидании" },
-        { icon: Award, value: "2", label: "принято фондом" },
-        { icon: Bell, value: "1", label: "требует ответа" }
+        { icon: Inbox, value: `${active.length}`, label: "активных отклика" },
+        { icon: Clock, value: `${awardedHours}`, label: "часов начислено" },
+        { icon: Award, value: `${applications.filter((item) => item.status === "accepted").length}`, label: "принято фондом" },
+        { icon: Bell, value: `${applications.filter((item) => item.status === "applied").length}`, label: "ожидают ответа" }
       ]}
     >
-      <EditorialList
-        items={[
-          { title: "Сопровождение семейного спортивного дня", meta: "pending", text: "Фонд проверяет состав команды. Ответ ожидается до 22 мая.", status: "ожидает решения" },
-          { title: "Медиакит для благотворительного забега", meta: "accepted", text: "Координатор отправил материалы и ждёт первый черновик.", status: "принято" },
-          { title: "Наставничество по digital-профессиям", meta: "in progress", text: "Назначены две встречи, часы будут подтверждены после финального отчёта.", status: "в работе" },
-          { title: "Сбор школьных наборов", meta: "hours added", text: "Участие подтверждено фондом и администратором. Часы начислены.", status: "часы начислены" }
-        ]}
-      />
+      <EditorialList items={applications.map(applicationToListItem)} />
+      {!applications.length ? <EmptyState isLoading={isLoading} /> : null}
     </VolunteerSectionShell>
   );
 }
 
 export function HistoryPage() {
+  const { history, awardedHours, isLoading } = useVolunteerSectionData();
+
   return (
     <VolunteerSectionShell
       icon="История"
       title="История помощи"
       description="Завершённые участия, подтверждения фондов и вклад по категориям."
       metrics={[
-        { icon: History, value: `${volunteer.completedTasks}`, label: "дел завершено" },
-        { icon: Clock, value: `${volunteer.hours}`, label: "часов подтверждено" },
-        { icon: Award, value: "3", label: "категории вклада" },
-        { icon: UserRound, value: "100%", label: "участий закрыто" }
+        { icon: History, value: `${history.length}`, label: "событий" },
+        { icon: Clock, value: `${awardedHours}`, label: "часов подтверждено" },
+        { icon: Award, value: `${new Set(history.map((item) => item.task?.category).filter(Boolean)).size}`, label: "категории вклада" },
+        { icon: UserRound, value: "100%", label: "данные из API" }
       ]}
     >
-      <EditorialList
-        items={volunteer.history.map((item) => ({
-          title: item.title,
-          meta: `${item.date} / ${item.hours} часов`,
-          text: "Фонд подтвердил участие, администратор добавил часы в личную статистику.",
-          status: item.status
-        }))}
-      />
+      <EditorialList items={history.map(historyToListItem)} />
+      {!history.length ? <EmptyState isLoading={isLoading} /> : null}
     </VolunteerSectionShell>
   );
 }
 
 export function HoursPage() {
+  const { applications, awardedHours } = useVolunteerSectionData();
+  const waitingFund = applications.filter((item) => item.status === "accepted").length;
+  const waitingAdmin = applications.filter((item) => item.status === "completion_confirmed").length;
+
   return (
     <VolunteerSectionShell
       icon="Часы"
       title="Волонтёрские часы"
       description="Часы не начисляются автоматически: фонд подтверждает участие, администратор проверяет и добавляет их в профиль."
       metrics={[
-        { icon: Clock, value: "46", label: "начислено" },
-        { icon: Inbox, value: "8", label: "ожидает фонда" },
-        { icon: Bell, value: "5", label: "ожидает админа" },
+        { icon: Clock, value: `${awardedHours}`, label: "начислено" },
+        { icon: Inbox, value: `${waitingFund}`, label: "ожидает фонда" },
+        { icon: Bell, value: `${waitingAdmin}`, label: "ожидает админа" },
         { icon: Award, value: "60", label: "цель квартала" }
       ]}
     >
@@ -81,85 +82,138 @@ export function HoursPage() {
 }
 
 export function AchievementsPage() {
+  const { achievements, awardedHours, isLoading } = useVolunteerSectionData();
+  const awarded = achievements.filter((achievement) => achievement.is_awarded);
+
   return (
     <VolunteerSectionShell
       icon="Достижения"
       title="Достижения"
-      description="Взрослая мотивация без игрового шума: статус, прогресс и значимые milestones."
+      description="Статус, прогресс и значимые milestones подтягиваются из backend."
       metrics={[
-        { icon: Award, value: volunteer.level, label: "статус" },
-        { icon: Clock, value: "77%", label: "цель квартала" },
-        { icon: UserRound, value: "3", label: "бейджа" },
-        { icon: Bell, value: "1", label: "новая цель" }
+        { icon: Award, value: `${awarded.length}`, label: "получено" },
+        { icon: Clock, value: `${awardedHours}`, label: "часов учтено" },
+        { icon: UserRound, value: `${achievements.length}`, label: "целей" },
+        { icon: Bell, value: `${achievements.filter((achievement) => !achievement.is_awarded).length}`, label: "в прогрессе" }
       ]}
     >
       <div className="grid gap-4 md:grid-cols-3">
-        {volunteer.achievements.map((achievement) => (
-          <div key={achievement} className="gold-panel rounded-[1.35rem] p-5">
+        {achievements.map((achievement) => (
+          <div key={achievement.code} className="gold-panel rounded-[1.35rem] p-5">
             <Award className="size-8" />
-            <h3 className="mt-5 text-xl font-black">{achievement}</h3>
-            <p className="mt-2 text-sm leading-6 text-black/62">Засчитывается в корпоративный вклад и личный профиль.</p>
+            <h3 className="mt-5 text-xl font-black">{achievement.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-black/62">{achievement.description}</p>
+            <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-black/42">
+              {achievement.progress_current}/{achievement.progress_target}
+            </p>
           </div>
         ))}
       </div>
+      {!achievements.length ? <EmptyState isLoading={isLoading} /> : null}
     </VolunteerSectionShell>
   );
 }
 
 export function NotificationsPage() {
+  const { applications, isLoading } = useVolunteerSectionData();
+  const notifications = applications.filter((item) => item.status !== "canceled");
+
   return (
     <VolunteerSectionShell
       icon="Уведомления"
       title="Уведомления"
       description="Только полезные статусы: решения фондов, подтверждения часов и важные дедлайны."
       metrics={[
-        { icon: Bell, value: "2", label: "новых" },
-        { icon: Inbox, value: "1", label: "по откликам" },
-        { icon: Clock, value: "1", label: "по часам" },
+        { icon: Bell, value: `${notifications.length}`, label: "новых" },
+        { icon: Inbox, value: `${applications.filter((item) => item.status === "applied").length}`, label: "по откликам" },
+        { icon: Clock, value: `${applications.filter((item) => item.status === "completion_confirmed").length}`, label: "по часам" },
         { icon: Award, value: "0", label: "без спама" }
       ]}
     >
-      <EditorialList
-        items={volunteer.notifications.map((item) => ({
-          title: item.title,
-          meta: "сегодня",
-          text: item.text,
-          status: "прочитать"
-        }))}
-      />
+      <EditorialList items={notifications.map(applicationToListItem)} />
+      {!notifications.length ? <EmptyState isLoading={isLoading} /> : null}
     </VolunteerSectionShell>
   );
 }
 
 export function ProfilePage() {
+  const user = useAuthStore((state) => state.user);
+  const { achievements, applications, tasks } = useVolunteerSectionData();
+  const skills = Array.from(new Set(tasks.flatMap((task) => task.required_skills ?? []))).slice(0, 8);
+  const initials = (user?.full_name ?? user?.email ?? "В").slice(0, 2).toUpperCase();
+
   return (
     <VolunteerSectionShell
       icon="Профиль"
       title="Профиль волонтёра"
-      description="Данные сотрудника подтянуты из demo-профиля. В кабинете можно менять город, навыки, интересы и контакты."
+      description="Данные сотрудника подтянуты из backend-профиля."
       metrics={[
-        { icon: UserRound, value: volunteer.city, label: "город" },
-        { icon: Clock, value: `${volunteer.hours}`, label: "часов" },
-        { icon: Award, value: volunteer.level, label: "статус" },
-        { icon: Inbox, value: `${volunteer.activeTaskIds.length}`, label: "активных задания" }
+        { icon: UserRound, value: user?.city ?? "Город", label: "город" },
+        { icon: Clock, value: `${applications.filter((item) => item.status === "hours_awarded").length}`, label: "начислений" },
+        { icon: Award, value: `${achievements.filter((achievement) => achievement.is_awarded).length}`, label: "достижений" },
+        { icon: Inbox, value: `${applications.length}`, label: "откликов" }
       ]}
     >
       <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-[1.35rem] bg-white p-6 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
-          <div className="grid size-20 place-items-center rounded-3xl bg-brand text-2xl font-black text-black">АС</div>
-          <h3 className="mt-5 text-2xl font-black text-black">{volunteer.name}</h3>
-          <p className="mt-1 text-black/58">{volunteer.role}, {volunteer.department}</p>
+          <div className="grid size-20 place-items-center rounded-3xl bg-brand text-2xl font-black text-black">{initials}</div>
+          <h3 className="mt-5 text-2xl font-black text-black">{user?.full_name ?? user?.email ?? "Волонтёр"}</h3>
+          <p className="mt-1 text-black/58">{[user?.position, user?.department].filter(Boolean).join(", ") || user?.email}</p>
         </div>
         <div className="rounded-[1.35rem] bg-white/68 p-5">
           <h3 className="text-xl font-black">Навыки и интересы</h3>
           <div className="mt-4 flex flex-wrap gap-2">
-            {volunteer.interests.map((interest) => <StatusPill key={interest}>{interest}</StatusPill>)}
-            {tasks[0].skills.map((skill) => <StatusPill key={skill} tone="muted">{skill}</StatusPill>)}
+            {skills.map((skill) => <StatusPill key={skill}>{skill}</StatusPill>)}
+            {!skills.length ? <StatusPill tone="muted">Пока нет данных</StatusPill> : null}
           </div>
         </div>
       </div>
     </VolunteerSectionShell>
   );
+}
+
+function useVolunteerSectionData() {
+  const applicationsQuery = useQuery({ queryKey: ["applications", "mine", "sections"], queryFn: () => applicationApi.listMine() });
+  const historyQuery = useQuery({ queryKey: ["volunteers", "history", "sections"], queryFn: () => volunteerApi.history() });
+  const achievementsQuery = useQuery({ queryKey: ["volunteers", "achievements", "sections"], queryFn: () => volunteerApi.achievements() });
+  const tasksQuery = useQuery({ queryKey: ["tasks", "feed", "sections"], queryFn: () => taskApi.listFeed() });
+
+  const history = historyQuery.data ?? [];
+
+  return {
+    applications: applicationsQuery.data ?? [],
+    history,
+    achievements: achievementsQuery.data ?? [],
+    tasks: tasksQuery.data ?? [],
+    awardedHours: history.reduce((sum, item) => sum + Number(item.hours ?? 0), 0),
+    isLoading: applicationsQuery.isLoading || historyQuery.isLoading || achievementsQuery.isLoading || tasksQuery.isLoading
+  };
+}
+
+function applicationToListItem(application: ApiApplication) {
+  return {
+    title: application.task?.title ?? `Заявка ${application.id.slice(0, 8)}`,
+    meta: application.status,
+    text: application.fund_comment ?? application.volunteer_comment ?? "Статус отклика получен из backend.",
+    status: application.status
+  };
+}
+
+function historyToListItem(item: ApiVolunteerHistoryItem) {
+  return {
+    title: item.title,
+    meta: `${formatDate(item.occurred_at)} / ${Number(item.hours ?? 0)} часов`,
+    text: item.description ?? item.task?.title ?? "Событие истории получено из backend.",
+    status: item.status ?? item.event_type
+  };
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(value));
+}
+
+function EmptyState({ isLoading }: { isLoading: boolean }) {
+  return <p className="mt-4 rounded-[1.1rem] bg-white/60 p-4 text-sm font-bold text-black/54">{isLoading ? "Загружаем данные..." : "Данных пока нет."}</p>;
 }
 
 function VolunteerSectionShell({
@@ -173,7 +227,7 @@ function VolunteerSectionShell({
   title: string;
   description: string;
   metrics: Parameters<typeof MetricStrip>[0]["items"];
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-6">

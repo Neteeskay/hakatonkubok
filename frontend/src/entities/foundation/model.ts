@@ -6,7 +6,7 @@ export interface Foundation {
   activeTasks: number;
   volunteersNeeded: number;
   responseRate: number;
-  moderationStatus: "approved" | "review" | "changes";
+  moderationStatus: "approved" | "review" | "changes" | "rejected" | "draft";
   curator: string;
   reportsReady: number;
 }

@@ -3,26 +3,36 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import type { VolunteerTask } from "@/entities/task/model";
-import { foundations, tasks } from "@/shared/config/mock-data";
+import { foundationFromTask } from "@/shared/api/mappers";
 import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
 import { TaskDetailPage } from "@/widgets/task-detail/task-detail-page";
 
 export function TaskDetailDrawer({
   task,
+  tasks,
   status,
   onStatusChange,
+  onApply,
+  onCancel,
+  isApplicationMutating,
+  applicationError,
   onClose,
   onTaskOpen
 }: {
   task: VolunteerTask | null;
+  tasks?: VolunteerTask[];
   status: ApplicationStatus;
   onStatusChange: (status: ApplicationStatus) => void;
+  onApply?: (task: VolunteerTask) => Promise<void> | void;
+  onCancel?: (task: VolunteerTask) => Promise<void> | void;
+  isApplicationMutating?: boolean;
+  applicationError?: string | null;
   onClose: () => void;
   onTaskOpen: (task: VolunteerTask) => void;
 }) {
-  const foundation = task ? foundations.find((item) => item.id === task.foundationId) : null;
+  const foundation = task ? foundationFromTask(task) : null;
   const related = task
-    ? tasks
+    ? (tasks ?? [])
         .filter((item) => item.id !== task.id && (item.category === task.category || item.foundationId === task.foundationId))
         .slice(0, 2)
     : [];
@@ -59,9 +69,13 @@ export function TaskDetailDrawer({
             </div>
 
             <TaskDetailPage
+              applicationError={applicationError}
               applicationStatus={status}
               foundation={foundation}
+              isApplicationMutating={isApplicationMutating}
               onApplicationStatusChange={onStatusChange}
+              onApply={onApply ? () => onApply(task) : undefined}
+              onCancel={onCancel ? () => onCancel(task) : undefined}
               onTaskOpen={onTaskOpen}
               related={related}
               surface="modal"

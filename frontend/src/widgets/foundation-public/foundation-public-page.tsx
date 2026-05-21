@@ -17,21 +17,35 @@ import {
 } from "lucide-react";
 import type { Foundation } from "@/entities/foundation/model";
 import type { VolunteerTask } from "@/entities/task/model";
-import { getFoundationDetails } from "@/widgets/foundation-public/model/foundation-public-data";
 import { FoundationActivityCard } from "@/widgets/foundation-public/ui/foundation-activity-card";
 import { FoundationStat } from "@/widgets/foundation-public/ui/foundation-stat";
 import { DetailCard, IconBubble, Pill } from "@/widgets/task-detail/ui/detail-card";
 
+export interface FoundationPublicDetails {
+  verified: boolean;
+  logo: string;
+  description: string;
+  site: string;
+  icons: LucideIcon[];
+  mission: string;
+  activityTypes: string[];
+  categories: string[];
+  email: string;
+  phone: string;
+  inn: string;
+}
+
 export function FoundationPublicPage({
   foundation,
   activeTasks,
-  completedTasks
+  completedTasks,
+  details = buildFoundationDetails(foundation, activeTasks)
 }: {
   foundation: Foundation;
   activeTasks: VolunteerTask[];
   completedTasks: VolunteerTask[];
+  details?: FoundationPublicDetails;
 }) {
-  const details = getFoundationDetails(foundation.id);
   const totalHours = [...activeTasks, ...completedTasks].reduce((sum, task) => sum + task.hours * Math.max(task.filled, 1), foundation.reportsReady * 18);
   const volunteers = [...activeTasks, ...completedTasks].reduce((sum, task) => sum + task.filled, foundation.volunteersNeeded);
 
@@ -198,4 +212,22 @@ function ContactRow({ icon: Icon, label, value }: { icon: LucideIcon; label: str
       </div>
     </div>
   );
+}
+
+function buildFoundationDetails(foundation: Foundation, tasks: VolunteerTask[]): FoundationPublicDetails {
+  const categories = Array.from(new Set(tasks.map((task) => task.category))).slice(0, 6);
+
+  return {
+    verified: foundation.moderationStatus === "approved",
+    logo: foundation.name.slice(0, 2).toUpperCase(),
+    description: foundation.focus,
+    site: "example.org",
+    icons: [ShieldCheck, BadgeCheck, UsersRound],
+    mission: foundation.focus,
+    activityTypes: tasks.length ? tasks.slice(0, 4).map((task) => task.title) : [foundation.focus],
+    categories: categories.length ? categories : [foundation.focus],
+    email: "contacts@example.org",
+    phone: "Контакты уточняются",
+    inn: "Не указан"
+  };
 }

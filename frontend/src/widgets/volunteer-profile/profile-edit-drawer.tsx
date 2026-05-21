@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, X } from "lucide-react";
-import { profileVolunteer } from "@/widgets/volunteer-profile/profile-data";
 import { SoftBadge } from "@/widgets/volunteer-profile/profile-ui";
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
 
@@ -19,10 +18,10 @@ interface ProfileDraft {
 }
 
 const initialDraft: ProfileDraft = {
-  name: profileVolunteer.name,
-  city: profileVolunteer.city,
-  email: "anna.smirnova@mail.ru",
-  phone: "+7 (999) 123-45-67",
+  name: "",
+  city: "",
+  email: "",
+  phone: "",
   about: "Помогаю фондам с событиями, визуальными материалами и наставничеством. Люблю проекты, где результат быстро виден людям.",
   interests: ["Помощь животным", "Экология", "Образование", "Дети", "Пожилые люди", "Культура и искусство"],
   skills: ["Маркетинг", "SMM", "Копирайтинг", "Презентации", "Аналитика", "Дизайн", "Планирование"],
@@ -105,7 +104,7 @@ export function ProfileEditDrawer({
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-black/38">Edit mode</p>
                 <h2 className="mt-2 text-3xl font-black">Редактировать профиль</h2>
-                <p className="mt-2 max-w-md text-sm leading-6 text-black/56">Изменения сохраняются локально в mock-сценарии, без backend.</p>
+                <p className="mt-2 max-w-md text-sm leading-6 text-black/56">Изменения сохраняются в текущем профиле.</p>
               </div>
               <button onClick={onClose} className="grid size-11 place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]" aria-label="Закрыть">
                 <X className="size-5" />
@@ -123,7 +122,7 @@ export function ProfileEditDrawer({
                 </div>
                 <div>
                   <p className="font-black">Фото профиля</p>
-                  <p className="mt-1 text-sm text-black/54">PNG/JPG, mock upload state.</p>
+                  <p className="mt-1 text-sm text-black/54">PNG/JPG.</p>
                   {avatar ? <SoftBadge tone="green">uploaded</SoftBadge> : null}
                 </div>
               </div>

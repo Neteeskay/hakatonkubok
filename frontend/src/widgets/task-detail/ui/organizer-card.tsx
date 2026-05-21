@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, BriefcaseBusiness, MapPin, ShieldCheck } from "lucide-react";
 import type { Foundation } from "@/entities/foundation/model";
-import { getFoundationDetails } from "@/widgets/foundation-public/model/foundation-public-data";
 import { Pill } from "@/widgets/task-detail/ui/detail-card";
 
 export function OrganizerCard({ foundation }: { foundation: Foundation }) {
-  const details = getFoundationDetails(foundation.id);
+  const verified = foundation.moderationStatus === "approved";
 
   return (
     <Link
@@ -21,23 +20,20 @@ export function OrganizerCard({ foundation }: { foundation: Foundation }) {
       </div>
 
       <div className="mt-5 flex gap-4">
-        <div className="grid size-16 shrink-0 place-items-center rounded-[1.2rem] bg-brand text-xl font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)]">{details.logo}</div>
+        <div className="grid size-16 shrink-0 place-items-center rounded-[1.2rem] bg-brand text-xl font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)]">{getInitials(foundation.name)}</div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-black leading-tight transition group-hover:text-black/72">{foundation.name}</h3>
-            {details.verified ? <Pill tone="green"><BadgeCheck className="mr-1 size-3.5" />проверен</Pill> : <Pill tone="gold">на проверке</Pill>}
+            {verified ? <Pill tone="green"><BadgeCheck className="mr-1 size-3.5" />проверен</Pill> : <Pill tone="gold">на проверке</Pill>}
           </div>
-          <p className="mt-2 text-sm leading-6 text-black/58">{details.description}</p>
+          <p className="mt-2 text-sm leading-6 text-black/58">{foundation.focus}</p>
           <p className="mt-3 flex items-center gap-2 text-sm font-bold text-black/56"><MapPin className="size-4" />{foundation.city}</p>
         </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {details.categories.slice(0, 4).map((category) => (
-          <span key={category} className="rounded-full bg-brand/12 px-3 py-1.5 text-xs font-black text-black/62">
-            {category}
-          </span>
-        ))}
+        <span className="rounded-full bg-brand/12 px-3 py-1.5 text-xs font-black text-black/62">{foundation.curator}</span>
+        <span className="rounded-full bg-brand/12 px-3 py-1.5 text-xs font-black text-black/62">{foundation.moderationStatus}</span>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -54,4 +50,9 @@ export function OrganizerCard({ foundation }: { foundation: Foundation }) {
       </div>
     </Link>
   );
+}
+
+function getInitials(value: string) {
+  const words = value.trim().split(/\s+/);
+  return `${words[0]?.[0] ?? "Ф"}${words[1]?.[0] ?? ""}`.toUpperCase();
 }

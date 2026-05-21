@@ -1,7 +1,7 @@
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
 from app.models.domain import Fund, StolotoEmployee, User
 from app.models.enums import FundStatus, UserRole
 from app.schemas.auth import FundRegisterRequest, VolunteerRegisterRequest
@@ -142,3 +142,7 @@ async def authenticate_user(session: AsyncSession, login: str, password: str) ->
 
 def issue_user_token(user: User) -> str:
     return create_access_token(str(user.id), {"role": user.role.value})
+
+
+def issue_user_refresh_token(user: User) -> str:
+    return create_refresh_token(str(user.id), {"role": user.role.value})

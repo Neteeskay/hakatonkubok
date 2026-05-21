@@ -46,12 +46,36 @@ def verify_password(password: str, password_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def create_access_token(subject: str, claims: dict[str, Any] | None = None) -> str:
-    expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload: dict[str, Any] = {"sub": subject, "exp": expires_at}
+def create_token(
+    subject: str,
+    *,
+    expires_delta: timedelta,
+    token_type: str,
+    claims: dict[str, Any] | None = None,
+) -> str:
+    expires_at = datetime.now(UTC) + expires_delta
+    payload: dict[str, Any] = {"sub": subject, "exp": expires_at, "typ": token_type}
     if claims:
         payload.update(claims)
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def create_access_token(subject: str, claims: dict[str, Any] | None = None) -> str:
+    return create_token(
+        subject,
+        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
+        token_type="access",
+        claims=claims,
+    )
+
+
+def create_refresh_token(subject: str, claims: dict[str, Any] | None = None) -> str:
+    return create_token(
+        subject,
+        expires_delta=timedelta(days=settings.refresh_token_expire_days),
+        token_type="refresh",
+        claims=claims,
+    )
 
 
 def decode_access_token(token: str) -> dict[str, Any]:

@@ -1,23 +1,43 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownUp, Search } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { applicationItems, statusFilters, type VolunteerApplicationItem } from "@/widgets/volunteer-activity/activity-data";
+import { applicationApi } from "@/shared/api/services";
+import { formatDateTime, mapApiTaskToVolunteerTask, mapApplicationStatus } from "@/shared/api/mappers";
+import { statusFilters, type VolunteerApplicationItem, type VolunteerApplicationStage } from "@/widgets/volunteer-activity/activity-data";
 import { ApplicationCard } from "@/widgets/volunteer-activity/ui/application-card";
 import { ApplicationStatusFlow } from "@/widgets/volunteer-activity/ui/application-status-flow";
 import { TaskDetailDrawer } from "@/widgets/volunteer-feed/task-detail-drawer";
-import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
 
 type FilterValue = (typeof statusFilters)[number]["value"];
 
 export function VolunteerApplicationsPage() {
+  const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<VolunteerApplicationItem | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, ApplicationStatus>>(
-    Object.fromEntries(applicationItems.map((item) => [item.task.id, item.detailStatus]))
+  const [applicationError, setApplicationError] = useState<string | null>(null);
+
+  const applicationsQuery = useQuery({
+    queryKey: ["applications", "my"],
+    queryFn: () => applicationApi.listMine()
+  });
+
+  const applicationItems = useMemo(
+    () => (applicationsQuery.data ?? []).filter((item) => item.task).map((item) => mapApplicationItem(item)),
+    [applicationsQuery.data]
   );
+
+  const cancelMutation = useMutation({
+    mutationFn: (applicationId: string) => applicationApi.cancel(applicationId),
+    onSuccess: async () => {
+      setApplicationError(null);
+      await queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
+    },
+    onError: (error) => setApplicationError(error instanceof Error ? error.message : "Не удалось отменить отклик")
+  });
 
   const filteredApplications = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -26,7 +46,7 @@ export function VolunteerApplicationsPage() {
       const haystack = [item.task.title, item.task.foundation, item.task.city, item.statusLabel, item.stageLabel, item.message, item.nextAction].join(" ").toLowerCase();
       return matchesFilter && (!normalized || haystack.includes(normalized));
     });
-  }, [activeFilter, query]);
+  }, [activeFilter, applicationItems, query]);
 
   const counts = useMemo(() => {
     const byStage = applicationItems.reduce<Record<string, number>>((acc, item) => {
@@ -35,7 +55,7 @@ export function VolunteerApplicationsPage() {
       return acc;
     }, { all: applicationItems.length });
     return byStage;
-  }, []);
+  }, [applicationItems]);
 
   return (
     <section className="rounded-[1.55rem] bg-white p-4 shadow-[0_20px_70px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-5">
@@ -79,12 +99,16 @@ export function VolunteerApplicationsPage() {
       </div>
 
       <div className="mt-4 space-y-3">
-        {filteredApplications.map((application) => (
-          <ApplicationCard key={application.id} application={application} onOpen={setSelected} />
-        ))}
+        {applicationsQuery.isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-[1.35rem] bg-[#fffdf7]" />)
+        ) : (
+          filteredApplications.map((application) => (
+            <ApplicationCard key={application.id} application={application} onOpen={setSelected} />
+          ))
+        )}
       </div>
 
-      {filteredApplications.length === 0 ? (
+      {!applicationsQuery.isLoading && filteredApplications.length === 0 ? (
         <section className="mt-4 rounded-[1.35rem] bg-[#fffdf7] p-8 text-center">
           <p className="text-2xl font-black">Откликов с такими параметрами нет</p>
           <p className="mt-3 text-sm font-medium text-black/54">Попробуйте изменить фильтр или поисковый запрос.</p>
@@ -92,18 +116,103 @@ export function VolunteerApplicationsPage() {
       ) : null}
 
       <TaskDetailDrawer
-        task={selected?.task ?? null}
-        status={selected ? statuses[selected.task.id] ?? selected.detailStatus : "idle"}
-        onStatusChange={(status) => {
-          if (!selected) return;
-          setStatuses((current) => ({ ...current, [selected.task.id]: status }));
+        applicationError={applicationError}
+        isApplicationMutating={cancelMutation.isPending}
+        onCancel={async (task) => {
+          const item = applicationItems.find((application) => application.task.id === task.id);
+          if (item) {
+            await cancelMutation.mutateAsync(item.id);
+          }
         }}
         onClose={() => setSelected(null)}
+        onStatusChange={() => undefined}
         onTaskOpen={(task) => {
           const next = applicationItems.find((item) => item.task.id === task.id);
           if (next) setSelected(next);
         }}
+        status={selected?.detailStatus ?? "idle"}
+        task={selected?.task ?? null}
+        tasks={applicationItems.map((item) => item.task)}
       />
     </section>
   );
+}
+
+function mapApplicationItem(application: NonNullable<Awaited<ReturnType<typeof applicationApi.listMine>>[number]>): VolunteerApplicationItem {
+  const task = mapApiTaskToVolunteerTask(application.task!, [application]);
+  const stage = mapStage(application.status);
+  const detailStatus = mapApplicationStatus(application.status);
+
+  return {
+    id: application.id,
+    task,
+    stage,
+    detailStatus,
+    title: statusTitle(application.status),
+    statusLabel: statusTitle(application.status),
+    stageLabel: application.fund_comment ?? "Статус обновляется фондом",
+    eventDate: task.date,
+    appliedAt: formatDateTime(application.created_at),
+    deadline: task.deadline,
+    progress: progressByStage(stage),
+    nextAction: nextAction(application.status),
+    message: application.fund_comment ?? application.volunteer_comment ?? "Заявка отправлена в фонд.",
+    foundationComment: application.fund_comment ?? undefined,
+    contactUnlocked: application.status === "accepted" || application.status === "completion_confirmed" || application.status === "hours_awarded",
+    contact: {
+      name: task.contact.name,
+      role: task.contact.role,
+      email: "Контакты доступны у фонда",
+      phone: task.contact.phone,
+      telegram: "-",
+      whatsapp: "-",
+      chat: task.title,
+      instruction: application.completion_comment ?? "Свяжитесь с координатором после принятия заявки."
+    }
+  };
+}
+
+function mapStage(status: string): VolunteerApplicationStage {
+  if (status === "applied") return "pending";
+  if (status === "accepted") return "accepted";
+  if (status === "completion_confirmed") return "completed";
+  if (status === "hours_awarded") return "hours";
+  if (status === "rejected") return "rejected";
+  return "pending";
+}
+
+function progressByStage(stage: VolunteerApplicationStage) {
+  const values: Record<VolunteerApplicationStage, number> = {
+    pending: 30,
+    accepted: 58,
+    "in-progress": 72,
+    completed: 88,
+    hours: 100,
+    rejected: 100
+  };
+  return values[stage];
+}
+
+function statusTitle(status: string) {
+  const titles: Record<string, string> = {
+    applied: "Ожидается решение фонда",
+    accepted: "Вы приняты к участию",
+    rejected: "Отклик не принят",
+    canceled: "Отклик отменен",
+    completion_confirmed: "Участие подтверждено",
+    hours_awarded: "Часы начислены"
+  };
+  return titles[status] ?? status;
+}
+
+function nextAction(status: string) {
+  const actions: Record<string, string> = {
+    applied: "Пока ничего делать не нужно",
+    accepted: "Свяжитесь с координатором и подготовьтесь к участию",
+    rejected: "Можно откликнуться на другие задания",
+    canceled: "Отклик отменен",
+    completion_confirmed: "Ожидается начисление часов",
+    hours_awarded: "Часы уже добавлены в профиль"
+  };
+  return actions[status] ?? "Следите за обновлениями";
 }

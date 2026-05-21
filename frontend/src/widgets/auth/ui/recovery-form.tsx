@@ -12,7 +12,7 @@ export function RecoveryForm() {
   return (
     <section>
       <h2 className="text-3xl font-black">Восстановление доступа</h2>
-      <p className="mt-2 text-sm leading-6 text-black/56">Отправим mock-ссылку для входа на корпоративную почту.</p>
+      <p className="mt-2 text-sm leading-6 text-black/56">Отправим ссылку для входа на корпоративную почту.</p>
       <div className="mt-6">
         <AuthField label="Email" value={email} onChange={(value) => { setEmail(value); setSent(false); }} placeholder="corporate@email.ru" type="email" icon={Mail} invalid={email.length > 0 && !valid} />
       </div>

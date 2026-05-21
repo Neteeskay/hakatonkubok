@@ -1,16 +1,18 @@
 import { MapPin } from "lucide-react";
-import { cityContribution, monthlyActivity } from "@/widgets/volunteer-activity/history-data";
+import type { VolunteerHistoryEntry } from "@/widgets/volunteer-activity/history-data";
 
-export function HistoryActivityPanel() {
-  const maxMonth = Math.max(...monthlyActivity.map((item) => item.hours));
-  const maxCity = Math.max(...cityContribution.map((item) => item.hours));
+export function HistoryActivityPanel({ entries }: { entries: VolunteerHistoryEntry[] }) {
+  const monthlyActivity = buildMonthlyActivity(entries);
+  const cityContribution = buildCityContribution(entries);
+  const maxMonth = Math.max(1, ...monthlyActivity.map((item) => item.hours));
+  const maxCity = Math.max(1, ...cityContribution.map((item) => item.hours));
 
   return (
     <section className="grid gap-8 rounded-[1.25rem] bg-[#fffdf7] p-5 md:grid-cols-[1fr_1fr]">
       <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black">Ваша активность по месяцам</h2>
-          <p className="text-xs font-bold text-black/48">За всё время</p>
+          <p className="text-xs font-bold text-black/48">За все время</p>
         </div>
         <div className="mt-7 flex h-44 items-end gap-5">
           <div className="flex h-full flex-col justify-between pb-7 text-xs font-bold text-black/38">
@@ -54,4 +56,22 @@ export function HistoryActivityPanel() {
       </div>
     </section>
   );
+}
+
+function buildMonthlyActivity(entries: VolunteerHistoryEntry[]) {
+  const buckets = new Map<string, number>();
+  for (const entry of entries) {
+    buckets.set(entry.date, (buckets.get(entry.date) ?? 0) + entry.hours);
+  }
+  const values = Array.from(buckets, ([month, hours]) => ({ month, hours }));
+  return values.length ? values.slice(0, 6) : [{ month: "-", hours: 0 }];
+}
+
+function buildCityContribution(entries: VolunteerHistoryEntry[]) {
+  const buckets = new Map<string, number>();
+  for (const entry of entries) {
+    buckets.set(entry.task.city, (buckets.get(entry.task.city) ?? 0) + entry.hours);
+  }
+  const values = Array.from(buckets, ([city, hours]) => ({ city, hours }));
+  return values.length ? values.slice(0, 5) : [{ city: "-", hours: 0 }];
 }

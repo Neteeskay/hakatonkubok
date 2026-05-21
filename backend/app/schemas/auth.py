@@ -75,6 +75,14 @@ class LoginRequest(BaseModel):
         return value.strip().lower()
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=1)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 class UserResponse(BaseModel):
     id: UUID
     role: UserRole
@@ -111,5 +119,6 @@ class FundRegisterResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     user: UserResponse

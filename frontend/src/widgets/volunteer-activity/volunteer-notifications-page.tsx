@@ -1,22 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { VolunteerTask } from "@/entities/task/model";
+import { applicationApi } from "@/shared/api/services";
+import { formatDateTime, mapApiTaskToVolunteerTask } from "@/shared/api/mappers";
 import { cn } from "@/shared/lib/utils";
 import {
+  notificationIcons,
   notificationSettings,
   notificationStatusCards,
   notificationTabs,
-  volunteerNotifications,
+  type NotificationTone,
   type VolunteerNotification
 } from "@/widgets/volunteer-activity/notification-data";
 import { NotificationFeaturedCard } from "@/widgets/volunteer-activity/ui/notification-featured-card";
 import { NotificationListItem } from "@/widgets/volunteer-activity/ui/notification-list-item";
 import { NotificationStatusCard } from "@/widgets/volunteer-activity/ui/notification-status-card";
 import { TaskDetailDrawer } from "@/widgets/volunteer-feed/task-detail-drawer";
-import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
 
 type TabValue = (typeof notificationTabs)[number]["value"];
 
@@ -24,14 +27,42 @@ export function VolunteerNotificationsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabValue>("all");
   const [selectedTask, setSelectedTask] = useState<VolunteerTask | null>(null);
-  const [taskStatuses, setTaskStatuses] = useState<Record<string, ApplicationStatus>>({});
+
+  const applicationsQuery = useQuery({
+    queryKey: ["applications", "my"],
+    queryFn: () => applicationApi.listMine()
+  });
+
+  const volunteerNotifications = useMemo(
+    () =>
+      (applicationsQuery.data ?? [])
+        .filter((application) => application.task)
+        .map((application): VolunteerNotification => {
+          const task = mapApiTaskToVolunteerTask(application.task!, [application]);
+          const tone = notificationTone(application.status);
+          return {
+            id: application.id,
+            title: notificationTitle(application.status),
+            text: application.fund_comment ?? application.volunteer_comment ?? `${task.foundation}: ${task.title}`,
+            time: formatDateTime(application.updated_at),
+            dateLabel: "Сегодня",
+            unread: application.status === "applied" || application.status === "accepted",
+            tone,
+            icon: notificationIcon(tone),
+            target: "application",
+            task,
+            actionLabel: "Открыть отклик"
+          };
+        }),
+    [applicationsQuery.data]
+  );
 
   const unreadCount = volunteerNotifications.filter((item) => item.unread).length;
   const filteredNotifications = useMemo(() => {
     if (activeTab === "unread") return volunteerNotifications.filter((item) => item.unread);
     if (activeTab === "archive") return volunteerNotifications.filter((item) => !item.unread);
     return volunteerNotifications;
-  }, [activeTab]);
+  }, [activeTab, volunteerNotifications]);
 
   const groupedNotifications = useMemo(() => {
     return filteredNotifications.reduce<Record<VolunteerNotification["dateLabel"], VolunteerNotification[]>>(
@@ -43,6 +74,8 @@ export function VolunteerNotificationsPage() {
     );
   }, [filteredNotifications]);
 
+  const featured = volunteerNotifications.find((item) => item.tone === "accepted") ?? volunteerNotifications[0] ?? null;
+
   return (
     <section className="rounded-[1.55rem] bg-white p-4 shadow-[0_20px_70px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-5">
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -50,9 +83,9 @@ export function VolunteerNotificationsPage() {
           <h1 className="text-3xl font-black leading-none md:text-4xl">Уведомления</h1>
           <div className="mt-4 h-1 w-10 rounded-full bg-brand" />
         </div>
-        <button className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 md:self-auto">
+        <button onClick={() => void applicationsQuery.refetch()} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 md:self-auto">
           <RefreshCw className="size-4" />
-          Отметить все как прочитанные
+          Обновить
         </button>
       </div>
 
@@ -71,7 +104,7 @@ export function VolunteerNotificationsPage() {
       </div>
 
       <div className="mt-6">
-        <NotificationFeaturedCard onOpenTask={setSelectedTask} />
+        <NotificationFeaturedCard notification={featured} onOpenTask={setSelectedTask} />
       </div>
 
       <div className="mt-9">
@@ -88,9 +121,6 @@ export function VolunteerNotificationsPage() {
             ) : null
           )}
         </div>
-        <button className="mt-5 h-11 w-full rounded-full bg-[#fbfaf4] text-sm font-black text-black/58 transition hover:bg-brand/12">
-          Показать все уведомления
-        </button>
       </div>
 
       <div className="mt-9">
@@ -114,15 +144,42 @@ export function VolunteerNotificationsPage() {
       </div>
 
       <TaskDetailDrawer
-        task={selectedTask}
-        status={selectedTask ? taskStatuses[selectedTask.id] ?? "accepted" : "idle"}
-        onStatusChange={(status) => {
-          if (!selectedTask) return;
-          setTaskStatuses((current) => ({ ...current, [selectedTask.id]: status }));
-        }}
         onClose={() => setSelectedTask(null)}
+        onStatusChange={() => undefined}
         onTaskOpen={setSelectedTask}
+        status="accepted"
+        task={selectedTask}
+        tasks={volunteerNotifications.map((item) => item.task).filter(Boolean) as VolunteerTask[]}
       />
     </section>
   );
+}
+
+function notificationTone(status: string): NotificationTone {
+  if (status === "applied") return "review";
+  if (status === "accepted") return "accepted";
+  if (status === "rejected") return "rejected";
+  if (status === "completion_confirmed") return "completed";
+  if (status === "hours_awarded") return "hours";
+  return "system";
+}
+
+function notificationIcon(tone: NotificationTone) {
+  if (tone === "accepted") return notificationIcons.CheckCircle2;
+  if (tone === "rejected") return notificationIcons.XCircle;
+  if (tone === "hours") return notificationIcons.Star;
+  if (tone === "review") return notificationIcons.Clock3;
+  return notificationIcons.Bell;
+}
+
+function notificationTitle(status: string) {
+  const titles: Record<string, string> = {
+    applied: "Ожидайте решения фонда",
+    accepted: "Ваш отклик принят",
+    rejected: "Ваш отклик не принят",
+    canceled: "Отклик отменен",
+    completion_confirmed: "Участие подтверждено",
+    hours_awarded: "Часы начислены"
+  };
+  return titles[status] ?? "Обновление статуса";
 }

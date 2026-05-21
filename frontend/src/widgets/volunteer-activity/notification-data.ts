@@ -1,6 +1,5 @@
-import { Bell, CalendarClock, CheckCircle2, Clock3, Flag, MessageCircle, PencilLine, Star, XCircle, type LucideIcon } from "lucide-react";
+import { Bell, CalendarClock, CheckCircle2, Clock3, Flag, PencilLine, Star, XCircle, type LucideIcon } from "lucide-react";
 import type { VolunteerTask } from "@/entities/task/model";
-import { tasks } from "@/shared/config/mock-data";
 
 export type NotificationTone = "review" | "accepted" | "work" | "completed" | "hours" | "rejected" | "system";
 export type NotificationTarget = "task" | "application" | "profile" | "hours";
@@ -25,110 +24,19 @@ export const notificationTabs = [
   { label: "Архив", value: "archive" }
 ] as const;
 
-export const featuredNotification = {
-  title: "Ваш отклик принят!",
-  label: "Радостная новость!",
-  text: "Поздравляем! Фонд «Добрые руки» принял вас на задание «Создание презентации для фонда».",
-  task: tasks[1],
-  timeAgo: "5 мин назад",
-  date: "15 мая 2026",
-  time: "10:00 - 14:00",
-  format: "Онлайн"
-};
-
-export const volunteerNotifications: VolunteerNotification[] = [
-  {
-    id: "notif-pending",
-    title: "Ожидайте решения фонда",
-    text: "Фонд «Лапа добра» рассматривает ваш отклик на задание «Помощь в приюте для животных». Мы сообщим вам в течение 2-3 дней.",
-    time: "20 мая, 12:30",
-    dateLabel: "Сегодня",
-    unread: true,
-    tone: "review",
-    icon: MessageCircle,
-    target: "application",
-    task: tasks[0],
-    actionLabel: "Открыть отклик"
-  },
-  {
-    id: "notif-rejected",
-    title: "Ваш отклик не принят",
-    text: "К сожалению, фонд «Старость в радость» не смог принять вас на задание «Помощь пожилым людям». Есть комментарий фонда.",
-    time: "18 мая, 09:15",
-    dateLabel: "Вчера",
-    unread: true,
-    tone: "rejected",
-    icon: XCircle,
-    target: "application",
-    task: tasks[4],
-    actionLabel: "Посмотреть причину"
-  },
-  {
-    id: "notif-changed",
-    title: "Изменения в задании",
-    text: "В задании «Субботник в парке» изменилось время проведения. Новая дата: 1 июня 2026, 11:00 - 15:00.",
-    time: "17 мая, 16:45",
-    dateLabel: "Вчера",
-    unread: true,
-    tone: "work",
-    icon: CalendarClock,
-    target: "task",
-    task: tasks[2],
-    actionLabel: "Смотреть задание"
-  },
-  {
-    id: "notif-contacts",
-    title: "Контакты организатора доступны",
-    text: "Фонд добавил Telegram, WhatsApp и инструкцию по началу работы над презентацией. Можно связаться с координатором.",
-    time: "16 мая, 14:20",
-    dateLabel: "Ранее",
-    unread: false,
-    tone: "accepted",
-    icon: CheckCircle2,
-    target: "application",
-    task: tasks[1],
-    actionLabel: "Открыть контакты"
-  },
-  {
-    id: "notif-hours",
-    title: "Часы начислены",
-    text: "4 волонтёрских часа добавлены за участие в сортировке наборов. Они уже отображаются в профиле и отчётах.",
-    time: "15 мая, 18:00",
-    dateLabel: "Ранее",
-    unread: false,
-    tone: "hours",
-    icon: Star,
-    target: "hours",
-    task: tasks[3],
-    actionLabel: "Мои часы"
-  },
-  {
-    id: "notif-profile",
-    title: "Добавьте pro bono навыки",
-    text: "Заполните профессиональные навыки, чтобы получать больше заданий по дизайну, аналитике, презентациям и юридической помощи.",
-    time: "14 мая, 11:10",
-    dateLabel: "Ранее",
-    unread: false,
-    tone: "system",
-    icon: PencilLine,
-    target: "profile",
-    actionLabel: "Заполнить профиль"
-  }
-];
-
 export const notificationStatusCards = [
-  { title: "На рассмотрении", text: "Фонд получил ваш отклик и рассматривает вашу кандидатуру. Ожидайте ответ в течение 1-3 дней.", tone: "review", icon: Clock3 },
-  { title: "Принят", text: "Поздравляем! Вас приняли к участию в задании. Скоро появится вся организационная информация.", tone: "accepted", icon: CheckCircle2 },
-  { title: "В работе", text: "Вы участвуете в задании. Следите за обновлениями в карточке задания и сообщениях.", tone: "work", icon: CalendarClock },
-  { title: "Завершён", text: "Задание успешно выполнено. Ожидайте подтверждение от фонда и начисление часов.", tone: "completed", icon: Flag },
-  { title: "Часы начислены", text: "Волонтёрские часы начислены на ваш счёт. Спасибо за вашу помощь!", tone: "hours", icon: Star }
+  { title: "На рассмотрении", text: "Фонд получил ваш отклик и рассматривает вашу кандидатуру.", tone: "review", icon: Clock3 },
+  { title: "Принят", text: "Вас приняли к участию в задании. Организационная информация открыта.", tone: "accepted", icon: CheckCircle2 },
+  { title: "В работе", text: "Вы участвуете в задании. Следите за обновлениями в карточке.", tone: "work", icon: CalendarClock },
+  { title: "Завершен", text: "Задание выполнено. Ожидается подтверждение от фонда.", tone: "completed", icon: Flag },
+  { title: "Часы начислены", text: "Волонтерские часы начислены на ваш счет.", tone: "hours", icon: Star }
 ] satisfies { title: string; text: string; tone: NotificationTone; icon: LucideIcon }[];
 
 export const notificationSettings = [
   { title: "Отклики и статусы", enabled: true },
   { title: "Комментарии фондов", enabled: true },
   { title: "Изменения заданий", enabled: true },
-  { title: "Волонтёрские часы", enabled: true },
+  { title: "Волонтерские часы", enabled: true },
   { title: "Системные подсказки", enabled: false }
 ];
 
@@ -142,4 +50,4 @@ export const notificationToneStyles: Record<NotificationTone, { icon: string; su
   system: { icon: "bg-[#f1f0eb] text-black/62", surface: "bg-[#fbfaf5]", dot: "bg-black/38", text: "text-black/62" }
 };
 
-export const notificationIcons = { Bell };
+export const notificationIcons = { Bell, CheckCircle2, Clock3, Star, XCircle, PencilLine };

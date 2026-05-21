@@ -2,6 +2,8 @@ import type { TaskCategory, TaskCommitment, TaskFormat, TaskSkill, TaskStatus } 
 
 export const categoryLabels: Record<TaskCategory, string> = {
   children: "Помощь детям",
+  elderly: "Помощь пожилым",
+  disability: "Инклюзия",
   sport: "Спорт",
   ecology: "Экология",
   education: "Образование",
@@ -28,8 +30,15 @@ export const skillLabels: Record<TaskSkill, string> = {
   logistics: "Логистика",
   mentoring: "Наставничество",
   design: "Дизайн",
-  analytics: "Аналитика"
+  analytics: "Аналитика",
+  communication: "Коммуникации",
+  python: "Python",
+  content: "Контент"
 };
+
+export function getSkillLabel(skill: string) {
+  return skillLabels[skill] ?? skill;
+}
 
 export const taskStatusLabels: Record<TaskStatus, string> = {
   open: "Набор открыт",

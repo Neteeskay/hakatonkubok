@@ -2,9 +2,8 @@
 
 import type { ReactNode } from "react";
 import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
-import { categories, foundations } from "@/shared/config/mock-data";
 import { useTaskFilters } from "@/features/task-filters/store";
-import { categoryLabels, skillLabels } from "@/widgets/volunteer-feed/task-dictionaries";
+import { categoryLabels, getSkillLabel, skillLabels } from "@/widgets/volunteer-feed/task-dictionaries";
 import { cn } from "@/shared/lib/utils";
 
 const formatOptions = ["Любой формат", "Онлайн", "Офлайн", "Гибрид"];
@@ -13,7 +12,8 @@ const deadlineOptions = ["Любой дедлайн", "До 3 дней", "До �
 const hoursOptions = ["Любые часы", "До 2 часов", "3-5 часов", "6+ часов"];
 const statusOptions = ["Любой статус", "Набор открыт", "В работе"];
 const sortOptions = ["Сначала новые", "По дедлайну", "Больше часов", "Меньше часов"];
-const categoryOptions = Array.from(new Set(["Все категории", ...categories, ...Object.values(categoryLabels)]));
+const cityOptions = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород", "Онлайн"];
+const categoryOptions = ["Все категории", ...Object.values(categoryLabels)];
 
 export function FeedFilters({ resultCount }: { resultCount: number }) {
   const {
@@ -67,7 +67,7 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <SelectPill label="Категория помощи" value={category} onChange={setCategory} options={categoryOptions} />
         <SelectPill label="Формат" value={format} onChange={setFormat} options={formatOptions} />
-        <SelectPill label="Город" value={city} onChange={setCity} options={["Все города", "Москва", "Санкт-Петербург", "Казань", "Онлайн"]} />
+        <SelectPill label="Город" value={city} onChange={setCity} options={cityOptions} />
         <SelectPill label="Дата" value={deadline} onChange={setDeadline} options={[...dateOptions, ...deadlineOptions]} />
         <SelectPill label="Часы" value={hours} onChange={setHours} options={hoursOptions} />
       </div>
@@ -75,7 +75,7 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <FilterChip active={!proBono} onClick={() => setProBono(false)}>Все задания <span>{resultCount}</span></FilterChip>
         <FilterChip active={proBono} onClick={() => setProBono(true)}>Pro bono</FilterChip>
-        <SelectChip value={skill} onChange={setSkill} options={["Любые навыки", ...Object.values(skillLabels)]} />
+        <SelectChip value={skill} onChange={setSkill} options={["Любые навыки", ...Object.keys(skillLabels).map(getSkillLabel)]} />
         <SelectChip value={status} onChange={setStatus} options={statusOptions} />
         <FilterChip active={format === "Онлайн"} onClick={() => setFormat(format === "Онлайн" ? "Любой формат" : "Онлайн")}>Онлайн</FilterChip>
         <FilterChip active={format === "Офлайн"} onClick={() => setFormat(format === "Офлайн" ? "Любой формат" : "Офлайн")}>Офлайн</FilterChip>
@@ -85,11 +85,12 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
 }
 
 function SelectPill({ label, value, options, onChange, icon }: { label: string; value: string; options: string[]; onChange: (value: string) => void; icon?: ReactNode }) {
+  const safeValue = options.includes(value) ? value : options[0];
   return (
     <label className="relative block">
       <span className="sr-only">{label}</span>
       <select
-        value={value}
+        value={safeValue}
         onChange={(event) => onChange(event.target.value)}
         className="h-12 w-full appearance-none rounded-xl bg-white px-4 pr-9 text-sm font-bold text-black/72 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none transition hover:bg-[#fffdf2] focus:shadow-[inset_0_0_0_2px_rgba(255,227,0,0.85)]"
       >
@@ -101,10 +102,11 @@ function SelectPill({ label, value, options, onChange, icon }: { label: string; 
 }
 
 function SelectChip({ value, options, onChange }: { value: string; options: string[]; onChange: (value: string) => void }) {
+  const safeValue = options.includes(value) ? value : options[0];
   return (
     <label className="relative">
       <select
-        value={value}
+        value={safeValue}
         onChange={(event) => onChange(event.target.value)}
         className="h-10 appearance-none rounded-full bg-white px-4 pr-8 text-sm font-bold text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] outline-none hover:bg-brand/12"
       >
