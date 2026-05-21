@@ -1,7 +1,9 @@
-import type { TaskCategory, TaskCommitment, TaskFormat, TaskSkill, TaskStatus } from "@/entities/task/model";
+import type { TaskCommitment, TaskFormat, TaskStatus } from "@/entities/task/model";
 
-export const categoryLabels: Record<TaskCategory, string> = {
+export const categoryLabels: Record<string, string> = {
   children: "Помощь детям",
+  elderly: "Помощь пожилым",
+  disability: "Инклюзия",
   sport: "Спорт",
   ecology: "Экология",
   education: "Образование",
@@ -22,7 +24,7 @@ export const commitmentLabels: Record<TaskCommitment, string> = {
   "long-term": "Долгосрочно"
 };
 
-export const skillLabels: Record<TaskSkill, string> = {
+export const skillLabels: Record<string, string> = {
   events: "События",
   media: "Медиа",
   logistics: "Логистика",
@@ -30,6 +32,14 @@ export const skillLabels: Record<TaskSkill, string> = {
   design: "Дизайн",
   analytics: "Аналитика"
 };
+
+export function getCategoryLabel(category: string) {
+  return categoryLabels[category] ?? category;
+}
+
+export function getSkillLabel(skill: string) {
+  return skillLabels[skill] ?? skill;
+}
 
 export const taskStatusLabels: Record<TaskStatus, string> = {
   open: "Набор открыт",

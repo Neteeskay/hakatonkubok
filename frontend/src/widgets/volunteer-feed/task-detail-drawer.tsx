@@ -6,23 +6,35 @@ import type { VolunteerTask } from "@/entities/task/model";
 import { foundations, tasks } from "@/shared/config/mock-data";
 import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
 import { TaskDetailPage } from "@/widgets/task-detail/task-detail-page";
+import { mapTaskToFoundation } from "@/widgets/volunteer-feed/task-api-mappers";
 
 export function TaskDetailDrawer({
   task,
+  allTasks,
   status,
+  applicationError,
+  applicationSubmitting,
+  onApply,
+  onCancelApplication,
   onStatusChange,
   onClose,
   onTaskOpen
 }: {
   task: VolunteerTask | null;
+  allTasks?: VolunteerTask[];
   status: ApplicationStatus;
+  applicationError?: string | null;
+  applicationSubmitting?: boolean;
+  onApply?: (task: VolunteerTask) => Promise<void> | void;
+  onCancelApplication?: (task: VolunteerTask) => Promise<void> | void;
   onStatusChange: (status: ApplicationStatus) => void;
   onClose: () => void;
   onTaskOpen: (task: VolunteerTask) => void;
 }) {
-  const foundation = task ? foundations.find((item) => item.id === task.foundationId) : null;
+  const foundation = task ? foundations.find((item) => item.id === task.foundationId) ?? mapTaskToFoundation(task) : null;
+  const relatedSource = allTasks?.length ? allTasks : tasks;
   const related = task
-    ? tasks
+    ? relatedSource
         .filter((item) => item.id !== task.id && (item.category === task.category || item.foundationId === task.foundationId))
         .slice(0, 2)
     : [];
@@ -60,7 +72,11 @@ export function TaskDetailDrawer({
 
             <TaskDetailPage
               applicationStatus={status}
+              applicationError={applicationError}
+              applicationSubmitting={applicationSubmitting}
               foundation={foundation}
+              onApply={onApply}
+              onCancelApplication={onCancelApplication}
               onApplicationStatusChange={onStatusChange}
               onTaskOpen={onTaskOpen}
               related={related}

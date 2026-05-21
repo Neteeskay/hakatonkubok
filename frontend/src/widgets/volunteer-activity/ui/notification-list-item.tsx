@@ -4,15 +4,28 @@ import type { VolunteerTask } from "@/entities/task/model";
 import { cn } from "@/shared/lib/utils";
 import { notificationToneStyles, type VolunteerNotification } from "@/widgets/volunteer-activity/notification-data";
 
-export function NotificationListItem({ item, onOpenTask, onOpenRoute }: { item: VolunteerNotification; onOpenTask: (task: VolunteerTask) => void; onOpenRoute: (href: string) => void }) {
+export function NotificationListItem({
+  item,
+  onOpenTask,
+  onOpenRoute,
+  onRead
+}: {
+  item: VolunteerNotification;
+  onOpenTask: (task: VolunteerTask) => void;
+  onOpenRoute: (href: string) => void;
+  onRead?: (item: VolunteerNotification) => void;
+}) {
   const tone = notificationToneStyles[item.tone];
   const Icon = item.icon;
 
   const open = () => {
+    onRead?.(item);
+
     if (item.task && (item.target === "task" || item.target === "application")) {
       onOpenTask(item.task);
       return;
     }
+    if (item.target === "application") onOpenRoute("/volunteer/applications");
     if (item.target === "profile") onOpenRoute("/volunteer/profile");
     if (item.target === "hours") onOpenRoute("/volunteer/hours");
   };

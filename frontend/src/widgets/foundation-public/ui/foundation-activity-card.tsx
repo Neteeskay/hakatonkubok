@@ -4,7 +4,7 @@ import { ArrowRight, Calendar, Clock, MapPin, UsersRound, type LucideIcon } from
 import type { VolunteerTask } from "@/entities/task/model";
 import { cn } from "@/shared/lib/utils";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
-import { categoryLabels, formatLabels, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { formatLabels, getCategoryLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
 import { TaskMiniBadge, VolunteerAvatars } from "@/widgets/volunteer-feed/ui/task-card-parts";
 
 export function FoundationActivityCard({ task, compact = false }: { task: VolunteerTask; compact?: boolean }) {
@@ -27,7 +27,7 @@ export function FoundationActivityCard({ task, compact = false }: { task: Volunt
 
         <div className="flex min-w-0 flex-col p-5">
           <div className="flex flex-wrap items-center gap-2 text-xs font-black text-black/45">
-            <span>{categoryLabels[task.category]}</span>
+            <span>{getCategoryLabel(task.category)}</span>
             <span className="size-1 rounded-full bg-black/18" />
             <span>{task.proBono ? "Pro bono" : "Волонтёрская активность"}</span>
           </div>

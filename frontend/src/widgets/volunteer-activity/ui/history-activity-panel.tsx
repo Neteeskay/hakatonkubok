@@ -1,9 +1,17 @@
 import { MapPin } from "lucide-react";
 import { cityContribution, monthlyActivity } from "@/widgets/volunteer-activity/history-data";
 
-export function HistoryActivityPanel() {
-  const maxMonth = Math.max(...monthlyActivity.map((item) => item.hours));
-  const maxCity = Math.max(...cityContribution.map((item) => item.hours));
+export function HistoryActivityPanel({
+  monthly = monthlyActivity,
+  cities = cityContribution
+}: {
+  monthly?: { month: string; hours: number }[];
+  cities?: { city: string; hours: number }[];
+}) {
+  const visibleMonths = monthly.length ? monthly : [{ month: "—", hours: 0 }];
+  const visibleCities = cities.length ? cities : [{ city: "Нет данных", hours: 0 }];
+  const maxMonth = Math.max(...visibleMonths.map((item) => item.hours), 1);
+  const maxCity = Math.max(...visibleCities.map((item) => item.hours), 1);
 
   return (
     <section className="grid gap-8 rounded-[1.25rem] bg-[#fffdf7] p-5 md:grid-cols-[1fr_1fr]">
@@ -20,7 +28,7 @@ export function HistoryActivityPanel() {
             <span>0</span>
           </div>
           <div className="flex h-full flex-1 items-end justify-between gap-4">
-            {monthlyActivity.map((item) => (
+            {visibleMonths.map((item) => (
               <div key={item.month} className="flex h-full flex-1 flex-col justify-end gap-3">
                 <div className="flex h-[136px] items-end">
                   <div className="w-full rounded-t-xl bg-brand transition hover:brightness-95" style={{ height: `${Math.max(20, (item.hours / maxMonth) * 128)}px` }} />
@@ -38,7 +46,7 @@ export function HistoryActivityPanel() {
           <p className="text-xs font-bold text-black/48">Все города</p>
         </div>
         <div className="mt-7 space-y-4">
-          {cityContribution.map((item) => (
+          {visibleCities.map((item) => (
             <div key={item.city} className="grid grid-cols-[130px_1fr_46px] items-center gap-4">
               <p className="flex items-center gap-2 text-sm font-bold text-black/64">
                 <MapPin className="size-4 text-[#6b4de6]" />

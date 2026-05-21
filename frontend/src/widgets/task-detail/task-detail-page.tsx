@@ -22,7 +22,7 @@ import {
 import type { Foundation } from "@/entities/foundation/model";
 import type { VolunteerTask } from "@/entities/task/model";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
-import { categoryLabels, commitmentLabels, formatLabels, skillLabels, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
 import {
   ctaLabels,
   getCtaState,
@@ -38,6 +38,10 @@ export function TaskDetailPage({
   foundation,
   related,
   applicationStatus,
+  applicationError,
+  applicationSubmitting,
+  onApply,
+  onCancelApplication,
   onApplicationStatusChange,
   onTaskOpen,
   surface = "page"
@@ -46,6 +50,10 @@ export function TaskDetailPage({
   foundation: Foundation;
   related: VolunteerTask[];
   applicationStatus?: ApplicationStatus;
+  applicationError?: string | null;
+  applicationSubmitting?: boolean;
+  onApply?: (task: VolunteerTask) => Promise<void> | void;
+  onCancelApplication?: (task: VolunteerTask) => Promise<void> | void;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
   onTaskOpen?: (task: VolunteerTask) => void;
   surface?: "page" | "modal";
@@ -60,12 +68,26 @@ export function TaskDetailPage({
   const cta = ctaLabels[ctaState];
   const contactsUnlocked = ctaState === "accepted" || ctaState === "completed" || ctaState === "hours";
 
-  function handleApply() {
-    if (ctaState === "apply") setStatus("pending");
+  async function handleApply() {
+    if (ctaState !== "apply" || applicationSubmitting) return;
+
+    if (onApply) {
+      await onApply(task);
+      return;
+    }
+
+    setStatus("pending");
   }
 
-  function handleCancel() {
-    if (currentStatus === "pending" || currentStatus === "accepted") setStatus("idle");
+  async function handleCancel() {
+    if (currentStatus !== "pending" && currentStatus !== "accepted") return;
+
+    if (onCancelApplication) {
+      await onCancelApplication(task);
+      return;
+    }
+
+    setStatus("idle");
   }
 
   return (
@@ -77,7 +99,7 @@ export function TaskDetailPage({
         <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_330px]">
           <div>
             <div className="flex flex-wrap gap-2">
-              <Pill tone="gold">{categoryLabels[task.category]}</Pill>
+              <Pill tone="gold">{getCategoryLabel(task.category)}</Pill>
               <Pill tone={recruitment.tone === "open" ? "green" : recruitment.tone === "almost" ? "gold" : "red"}>{recruitment.label}</Pill>
               <Pill>{formatLabels[task.format]}</Pill>
               {task.proBono ? <Pill tone="violet">Pro Bono</Pill> : null}
@@ -100,17 +122,18 @@ export function TaskDetailPage({
             <div className="mt-3 flex justify-between text-xs font-bold text-black/48"><span>{recruitment.helper}</span><span>{recruitment.progress}%</span></div>
             <button
               onClick={handleApply}
-              disabled={ctaState !== "apply"}
+              disabled={ctaState !== "apply" || applicationSubmitting}
               className="mt-6 h-12 w-full rounded-2xl bg-brand text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.28)] transition hover:-translate-y-0.5 disabled:bg-[#efeee8] disabled:text-black/38 disabled:shadow-none"
             >
-              {cta.label}
+              {applicationSubmitting && ctaState === "apply" ? "Отправляем..." : cta.label}
             </button>
             {currentStatus === "pending" || currentStatus === "accepted" ? (
-              <button onClick={handleCancel} className="mt-2 h-11 w-full rounded-2xl bg-white text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12">
+              <button onClick={handleCancel} disabled={applicationSubmitting} className="mt-2 h-11 w-full rounded-2xl bg-white text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 disabled:opacity-60">
                 Отменить отклик
               </button>
             ) : null}
             <p className="mt-3 text-center text-xs font-bold leading-5 text-black/46">{cta.helper}</p>
+            {applicationError ? <p className="mt-3 rounded-xl bg-[#fff1f1] p-3 text-center text-xs font-bold leading-5 text-[#c83c3c]">{applicationError}</p> : null}
           </aside>
         </div>
       </section>
@@ -149,7 +172,7 @@ export function TaskDetailPage({
               {task.proBono ? (
                 <div className="mt-5 rounded-[1.2rem] bg-[#f5f0ff] p-4">
                   <p className="text-sm font-black text-[#6b4de6]">Pro Bono навыки</p>
-                  <div className="mt-3 flex flex-wrap gap-2">{task.skills.map((skill) => <Pill key={skill} tone="violet">{skillLabels[skill]}</Pill>)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">{task.skills.map((skill) => <Pill key={skill} tone="violet">{getSkillLabel(skill)}</Pill>)}</div>
                 </div>
               ) : null}
             </DetailCard>
@@ -254,7 +277,7 @@ function RelatedTaskCard({ task, onOpen }: { task: VolunteerTask; onOpen?: (task
         <span className="absolute left-3 top-3 rounded-lg bg-brand px-2.5 py-1 text-[11px] font-black text-black">{visual.badge}</span>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Pill>{categoryLabels[task.category]}</Pill>
+        <Pill>{getCategoryLabel(task.category)}</Pill>
         <span className={`inline-flex min-h-8 items-center rounded-full px-3 py-1 text-xs font-black ${recruitmentToneClass(recruitment.tone)}`}>{recruitment.label}</span>
       </div>
       <h3 className="mt-3 text-xl font-black leading-tight">{task.title}</h3>

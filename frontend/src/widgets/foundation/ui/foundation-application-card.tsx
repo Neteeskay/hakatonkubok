@@ -4,7 +4,7 @@ import { Check, CheckCircle2, Clock3, MessageCircle, X } from "lucide-react";
 import { applicationStatusConfig, foundationToneStyles, type FoundationApplicationItem, type FoundationApplicationStatus } from "@/widgets/foundation/foundation-data";
 import { FoundationStatusBadge } from "@/widgets/foundation/ui/foundation-status-badge";
 
-export function FoundationApplicationCard({ item, onStatusChange }: { item: FoundationApplicationItem; onStatusChange?: (id: string, status: FoundationApplicationStatus) => void }) {
+export function FoundationApplicationCard({ item, onStatusChange }: { item: FoundationApplicationItem; onStatusChange?: (id: string, status: FoundationApplicationStatus) => Promise<void> | void }) {
   const status = applicationStatusConfig[item.status];
   const styles = foundationToneStyles[status.tone];
   const Icon = status.icon;

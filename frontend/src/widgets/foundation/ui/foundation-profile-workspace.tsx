@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Eye, Mail, MessageCircle, Pencil, Phone, Save, X, type LucideIcon } from "lucide-react";
+import { getApiErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
 import {
   foundationCategoryOptions,
@@ -16,31 +17,63 @@ import { MediaUploadCard } from "@/widgets/foundation-registration/ui/media-uplo
 import { FoundationMetricCard } from "@/widgets/foundation/ui/foundation-metric-card";
 import { FoundationStatusBadge } from "@/widgets/foundation/ui/foundation-status-badge";
 import { FoundationTaskCard } from "@/widgets/foundation/ui/foundation-task-card";
-import { currentFoundation, foundationMetrics, foundationTasks } from "@/widgets/foundation/foundation-data";
+import { currentFoundation, foundationMetrics, foundationTasks, type FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 import {
   foundationProfileDocuments,
   initialFoundationProfile,
   type FoundationProfileForm
 } from "@/widgets/foundation/foundation-profile-data";
 
-export function FoundationProfileWorkspace() {
-  const [profile, setProfile] = useState<FoundationProfileForm>(initialFoundationProfile);
-  const [draft, setDraft] = useState<FoundationProfileForm>(initialFoundationProfile);
+type FoundationProfileWorkspaceProps = {
+  foundation?: Pick<typeof currentFoundation, "id" | "trust">;
+  initialProfile?: FoundationProfileForm;
+  initialDocuments?: FoundationDocumentItem[];
+  metrics?: typeof foundationMetrics;
+  tasks?: FoundationTaskItem[];
+  onSaveProfile?: (form: FoundationProfileForm) => Promise<FoundationProfileForm | void> | FoundationProfileForm | void;
+  onUploadDocument?: (id: string, file: File) => Promise<FoundationDocumentItem | void> | FoundationDocumentItem | void;
+};
+
+export function FoundationProfileWorkspace({
+  foundation = currentFoundation,
+  initialProfile = initialFoundationProfile,
+  initialDocuments = foundationProfileDocuments,
+  metrics = foundationMetrics,
+  tasks = foundationTasks,
+  onSaveProfile,
+  onUploadDocument
+}: FoundationProfileWorkspaceProps) {
+  const [profile, setProfile] = useState<FoundationProfileForm>(initialProfile);
+  const [draft, setDraft] = useState<FoundationProfileForm>(initialProfile);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [documents, setDocuments] = useState<FoundationDocumentItem[]>(foundationProfileDocuments);
-  const publicTasks = useMemo(() => foundationTasks.filter((task) => task.status === "published" || task.status === "completed"), []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<FoundationDocumentItem[]>(initialDocuments);
+  const publicTasks = useMemo(() => tasks.filter((task) => task.status === "published" || task.status === "completed"), [tasks]);
+
+  useEffect(() => {
+    setProfile(initialProfile);
+    setDraft(initialProfile);
+    setDocuments(initialDocuments);
+  }, [initialDocuments, initialProfile]);
 
   function beginEdit() {
     setDraft(profile);
+    setActionError(null);
     setSaved(false);
     setEditing(true);
   }
 
-  function saveProfile() {
-    setProfile(draft);
-    setEditing(false);
-    setSaved(true);
+  async function saveProfile() {
+    setActionError(null);
+    try {
+      const savedProfile = await onSaveProfile?.(draft);
+      setProfile(savedProfile ?? draft);
+      setEditing(false);
+      setSaved(true);
+    } catch (error) {
+      setActionError(getApiErrorMessage(error));
+    }
   }
 
   function update<K extends keyof FoundationProfileForm>(key: K, value: FoundationProfileForm[K]) {
@@ -54,8 +87,17 @@ export function FoundationProfileWorkspace() {
     });
   }
 
-  function uploadDocument(id: string) {
-    setDocuments((items) => items.map((item) => item.id === id ? { ...item, status: "uploaded", fileName: `${item.id}-updated.pdf` } : item));
+  async function uploadDocument(id: string, file?: File) {
+    setActionError(null);
+    try {
+      const uploadedDocument = file && onUploadDocument ? await onUploadDocument(id, file) : undefined;
+      setDocuments((items) => items.map((item) => {
+        if (item.id !== id) return item;
+        return uploadedDocument ?? { ...item, status: "uploaded", fileName: file?.name ?? `${item.id}-updated.pdf` };
+      }));
+    } catch (error) {
+      setActionError(getApiErrorMessage(error));
+    }
   }
 
   function removeDocument(id: string) {
@@ -70,13 +112,13 @@ export function FoundationProfileWorkspace() {
           <div className="absolute inset-0 bg-gradient-to-r from-white via-white/82 to-white/12" />
           <div className="relative z-10 flex min-h-[260px] flex-col justify-between p-5 md:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <FoundationStatusBadge tone="green">{currentFoundation.trust}</FoundationStatusBadge>
+              <FoundationStatusBadge tone="green">{foundation.trust}</FoundationStatusBadge>
               <div className="flex flex-wrap gap-2">
                 <button onClick={beginEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(34,28,8,0.08)] transition hover:-translate-y-0.5">
                   <Pencil className="size-4" />
                   Редактировать
                 </button>
-                <Link href="/preview/foundations/fond-001" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.24)] transition hover:-translate-y-0.5">
+                <Link href={`/preview/foundations/${foundation.id}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.24)] transition hover:-translate-y-0.5">
                   <Eye className="size-4" />
                   Preview
                 </Link>
@@ -106,6 +148,12 @@ export function FoundationProfileWorkspace() {
         </div>
       ) : null}
 
+      {actionError ? (
+        <div className="rounded-[1.25rem] bg-[#fff6f6] px-5 py-4 text-sm font-black text-[#c83c3c]">
+          {actionError}
+        </div>
+      ) : null}
+
       {editing ? (
         <FoundationProfileEditor
           draft={draft}
@@ -120,12 +168,12 @@ export function FoundationProfileWorkspace() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {foundationMetrics.map((metric) => <FoundationMetricCard key={metric.label} {...metric} />)}
+        {metrics.map((metric) => <FoundationMetricCard key={metric.label} {...metric} />)}
       </div>
 
       <section className="grid gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
-          <ProfileBlock title="Публичные данные" action={<Link href="/preview/foundations/fond-001" className="text-sm font-black text-black/48 hover:text-black">Открыть →</Link>}>
+          <ProfileBlock title="Публичные данные" action={<Link href={`/preview/foundations/${foundation.id}`} className="text-sm font-black text-black/48 hover:text-black">Открыть →</Link>}>
             <div className="grid gap-3 md:grid-cols-2">
               <InfoPill label="Регион" value={profile.region} />
               <InfoPill label="Юридические данные" value={`ИНН ${profile.inn} / ОГРН ${profile.ogrn}`} />
@@ -156,7 +204,7 @@ export function FoundationProfileWorkspace() {
 
           <ProfileBlock title="Документы">
             <div className="space-y-3">
-              {documents.slice(0, 3).map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={() => uploadDocument(document.id)} onRemove={() => removeDocument(document.id)} />)}
+              {documents.slice(0, 3).map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={(file) => uploadDocument(document.id, file)} onRemove={() => removeDocument(document.id)} />)}
             </div>
           </ProfileBlock>
         </aside>
@@ -179,10 +227,10 @@ function FoundationProfileEditor({
   documents: FoundationDocumentItem[];
   update: <K extends keyof FoundationProfileForm>(key: K, value: FoundationProfileForm[K]) => void;
   toggleList: (key: "categories" | "activityTypes", value: string) => void;
-  onUploadDocument: (id: string) => void;
+  onUploadDocument: (id: string, file?: File) => Promise<void> | void;
   onRemoveDocument: (id: string) => void;
   onCancel: () => void;
-  onSave: () => void;
+  onSave: () => Promise<void> | void;
 }) {
   return (
     <section className="rounded-[1.8rem] bg-white p-5 shadow-[0_24px_72px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.055)] md:p-6">
@@ -193,7 +241,7 @@ function FoundationProfileEditor({
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#fffdf7] px-4 text-sm font-black text-black/56 transition hover:bg-[#f4f3ee]"><X className="size-4" />Отмена</button>
-          <button onClick={onSave} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.22)]"><Save className="size-4" />Сохранить</button>
+          <button onClick={() => void onSave()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.22)]"><Save className="size-4" />Сохранить</button>
         </div>
       </div>
 
@@ -227,7 +275,7 @@ function FoundationProfileEditor({
 
       <ProfileBlock title="Документы для модерации" className="mt-6">
         <div className="grid gap-3 lg:grid-cols-2">
-          {documents.map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={() => onUploadDocument(document.id)} onRemove={() => onRemoveDocument(document.id)} />)}
+          {documents.map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={(file) => void onUploadDocument(document.id, file)} onRemove={() => onRemoveDocument(document.id)} />)}
         </div>
       </ProfileBlock>
     </section>

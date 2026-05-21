@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, Link2, Mail, MessageCircle, Phone, Send, Smartphone, X, type LucideIcon } from "lucide-react";
+import { getApiErrorMessage } from "@/shared/api";
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
 import type { FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 
@@ -10,6 +11,28 @@ const categories = ["События", "Логистика", "IT / разрабо
 const formats = ["Онлайн", "Офлайн"];
 const periodicity = ["Разовое", "Регулярное", "По договорённости"];
 const cities = ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Онлайн"];
+
+export interface FoundationTaskFormValues {
+  capacity: string;
+  category: string;
+  chatLink: string;
+  city: string;
+  contactNote: string;
+  deadline: string;
+  description: string;
+  email: string;
+  format: "Онлайн" | "Офлайн";
+  hours: string;
+  instructions: string;
+  location: string;
+  periodicity: string;
+  phone: string;
+  requirements: string[];
+  skills: string[];
+  telegram: string;
+  title: string;
+  whatsapp: string;
+}
 
 export function CreateTaskForm({
   canPublish = true,
@@ -22,7 +45,7 @@ export function CreateTaskForm({
   moderationComment?: string;
   initialTask?: FoundationTaskItem;
   submitLabel?: string;
-  onSubmit?: (updates: Partial<FoundationTaskItem>) => void;
+  onSubmit?: (values: FoundationTaskFormValues) => Promise<void> | void;
 }) {
   const [title, setTitle] = useState(initialTask?.title ?? "");
   const [description, setDescription] = useState(initialTask?.description ?? "");
@@ -33,16 +56,60 @@ export function CreateTaskForm({
   const [category, setCategory] = useState(initialTask?.category ?? "События");
   const [city, setCity] = useState(initialTask?.city === "Онлайн" ? "Онлайн" : initialTask?.city ?? "Москва");
   const [period, setPeriod] = useState(initialTask?.period?.includes("Регуляр") ? "Регулярное" : "Разовое");
+  const [location, setLocation] = useState("");
+  const [deadline, setDeadline] = useState(initialTask?.deadline ?? "");
+  const [capacity, setCapacity] = useState(initialTask ? String(initialTask.capacity) : "");
+  const [hours, setHours] = useState(initialTask ? String(initialTask.hours) : "");
   const [telegram, setTelegram] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [chatLink, setChatLink] = useState("");
   const [contactNote, setContactNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const text = `${title} ${description} ${instructions} ${contactNote}`.toLowerCase();
   const fundraisingDetected = useMemo(() => forbiddenWords.some((word) => text.includes(word)), [text]);
-  const canSubmit = canPublish && !fundraisingDetected;
+  const canSubmit = canPublish && !fundraisingDetected && title.trim().length >= 3 && description.trim().length >= 10 && !submitting;
+
+  async function submitTask() {
+    if (!canSubmit) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
+    try {
+      await onSubmit?.({
+        capacity,
+        category,
+        chatLink,
+        city,
+        contactNote,
+        deadline,
+        description,
+        email,
+        format: format as "Онлайн" | "Офлайн",
+        hours,
+        instructions,
+        location,
+        periodicity: period,
+        phone,
+        requirements,
+        skills,
+        telegram,
+        title,
+        whatsapp
+      });
+      setSubmitSuccess(true);
+    } catch (error) {
+      setSubmitError(getApiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (!canPublish) {
     return <FoundationLockedState moderationComment={moderationComment} />;
@@ -57,11 +124,11 @@ export function CreateTaskForm({
           <TextField label="Описание" placeholder="Кратко опишите, что нужно сделать волонтёру" value={description} onChange={setDescription} className="md:col-span-2" />
           <SelectField label="Формат участия" value={format} onChange={(value) => setFormat(value as "Онлайн" | "Офлайн")} options={formats} />
           <SelectField label="Город" value={city} onChange={setCity} options={cities} />
-          <Field label="Адрес или ссылка" placeholder={format === "Онлайн" ? "Ссылка появится после принятия" : "Москва, парк Сокольники"} />
-          <Field label="Дедлайн отклика" placeholder="25 мая 2026" defaultValue={initialTask?.deadline} />
+          <Field label="Адрес или ссылка" placeholder={format === "Онлайн" ? "Ссылка появится после принятия" : "Москва, парк Сокольники"} value={location} onChange={setLocation} />
+          <Field label="Дедлайн отклика" placeholder="25 мая 2026" value={deadline} onChange={setDeadline} />
           <SelectField label="Периодичность" value={period} onChange={setPeriod} options={periodicity} />
-          <Field label="Количество участников" placeholder="12" defaultValue={initialTask ? String(initialTask.capacity) : undefined} />
-          <Field label="Волонтёрские часы" placeholder="4" defaultValue={initialTask ? String(initialTask.hours) : undefined} />
+          <Field label="Количество участников" placeholder="12" value={capacity} onChange={(value) => setCapacity(value.replace(/\D/g, ""))} />
+          <Field label="Волонтёрские часы" placeholder="4" value={hours} onChange={(value) => setHours(value.replace(/[^\d.,]/g, ""))} />
         </div>
       </section>
 
@@ -91,18 +158,22 @@ export function CreateTaskForm({
         <TextField label="Инструкции и материалы" placeholder="Опишите, какие материалы получит волонтёр и что будет результатом участия" value={instructions} onChange={setInstructions} />
         <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="min-h-6">
-            {fundraisingDetected ? (
+            {submitError ? (
+              <p className="inline-flex items-center gap-2 rounded-full bg-[#fff1f1] px-3 py-2 text-xs font-black text-[#c83c3c]"><X className="size-4" />{submitError}</p>
+            ) : fundraisingDetected ? (
               <p className="inline-flex items-center gap-2 rounded-full bg-[#fff1f1] px-3 py-2 text-xs font-black text-[#c83c3c]"><X className="size-4" />Уберите формулировки про сбор денег перед отправкой</p>
+            ) : submitSuccess ? (
+              <p className="inline-flex items-center gap-2 rounded-full bg-[#e8f8eb] px-3 py-2 text-xs font-black text-[#247a31]"><CheckCircle2 className="size-4" />Задание отправлено на модерацию</p>
             ) : (
               <p className="inline-flex items-center gap-2 rounded-full bg-[#e8f8eb] px-3 py-2 text-xs font-black text-[#247a31]"><CheckCircle2 className="size-4" />Задание можно отправить на модерацию</p>
             )}
           </div>
           <button
             disabled={!canSubmit}
-            onClick={() => onSubmit?.({ title, description, category, city, format: format as FoundationTaskItem["format"], status: "moderation", moderationComment: undefined })}
+            onClick={submitTask}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)] transition hover:brightness-95 disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none"
           >
-            {submitLabel}
+            {submitting ? "Отправляем..." : submitLabel}
             <ArrowRight className="size-4" />
           </button>
         </div>

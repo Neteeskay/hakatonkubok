@@ -12,6 +12,18 @@ export function TaskFeedEmpty() {
   );
 }
 
+export function TaskFeedError({ message }: { message: string }) {
+  return (
+    <div className="grid min-h-72 place-items-center rounded-[1.45rem] bg-white p-8 text-center shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
+      <div>
+        <Search className="mx-auto size-8 text-black/28" />
+        <h3 className="mt-4 text-2xl font-black">Не удалось загрузить задания</h3>
+        <p className="mt-2 max-w-md text-sm leading-6 text-black/54">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export function TaskFeedSkeleton() {
   return (
     <div className="grid gap-4 xl:grid-cols-2">

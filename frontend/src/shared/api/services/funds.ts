@@ -1,5 +1,5 @@
 import { apiClient } from "@/shared/api/client";
-import type { FundDocumentResponse, FundProfileResponse, FundUpdateRequest, Uuid } from "@/shared/api/types";
+import type { FundDashboardSummary, FundDocumentResponse, FundProfileResponse, FundUpdateRequest, Uuid } from "@/shared/api/types";
 
 export async function getMyFundProfile() {
   return apiClient.get<FundProfileResponse>("/funds/me");
@@ -7,6 +7,10 @@ export async function getMyFundProfile() {
 
 export async function updateMyFundProfile(payload: FundUpdateRequest) {
   return apiClient.patch<FundProfileResponse, FundUpdateRequest>("/funds/me", payload);
+}
+
+export async function getMyFundDashboard() {
+  return apiClient.get<FundDashboardSummary>("/funds/me/dashboard");
 }
 
 export async function uploadMyFundDocument(payload: { documentType: string; file: File }) {
@@ -23,8 +27,8 @@ export async function getFundProfile(fundId: Uuid) {
 
 export const fundsService = {
   getFundProfile,
+  getMyFundDashboard,
   getMyFundProfile,
   updateMyFundProfile,
   uploadMyFundDocument
 };
-

@@ -1,14 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Download } from "lucide-react";
+import { getApiErrorMessage, volunteersService } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
 import {
-  historyEntries,
   historyFilters,
-  historySummary,
   type VolunteerHistoryEntry
 } from "@/widgets/volunteer-activity/history-data";
+import {
+  buildCityContribution,
+  buildHistorySummary,
+  buildMonthlyActivity,
+  mapHistoryResponseToEntry
+} from "@/widgets/volunteer-activity/activity-api-mappers";
 import { HistoryActivityPanel } from "@/widgets/volunteer-activity/ui/history-activity-panel";
 import { HistorySummaryCard } from "@/widgets/volunteer-activity/ui/history-summary-card";
 import { HistoryTimelineItem } from "@/widgets/volunteer-activity/ui/history-timeline-item";
@@ -19,20 +24,75 @@ type FilterValue = (typeof historyFilters)[number]["value"];
 
 export function VolunteerHistoryPage() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
+  const [entries, setEntries] = useState<VolunteerHistoryEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<VolunteerHistoryEntry | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, ApplicationStatus>>(
-    Object.fromEntries(historyEntries.map((entry) => [entry.task.id, entry.detailStatus]))
-  );
+  const [statuses, setStatuses] = useState<Record<string, ApplicationStatus>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadHistory() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await volunteersService.getMyVolunteerHistory({ limit: 100 });
+        if (!mounted) return;
+
+        const nextEntries = response.map(mapHistoryResponseToEntry);
+        setEntries(nextEntries);
+        setStatuses(Object.fromEntries(nextEntries.map((entry) => [entry.task.id, entry.detailStatus])));
+      } catch (loadError) {
+        if (!mounted) return;
+        setError(getApiErrorMessage(loadError));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    void loadHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filteredEntries = useMemo(() => {
-    return historyEntries.filter((entry) => {
+    return entries.filter((entry) => {
       if (activeFilter === "all") return true;
       if (activeFilter === "completed") return entry.status === "completed" || entry.status === "hours";
       if (activeFilter === "hours") return entry.status === "hours";
       if (activeFilter === "pending") return entry.status === "pending" || entry.status === "accepted" || entry.status === "in-progress";
       return true;
     });
-  }, [activeFilter]);
+  }, [activeFilter, entries]);
+
+  const summary = useMemo(() => buildHistorySummary(entries), [entries]);
+  const monthly = useMemo(() => buildMonthlyActivity(entries), [entries]);
+  const cities = useMemo(() => buildCityContribution(entries), [entries]);
+  const allTasks = useMemo(() => entries.map((entry) => entry.task), [entries]);
+
+  async function downloadReport() {
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const blob = await volunteersService.downloadMyVolunteerStatistics(new Date().getFullYear());
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `volunteer-statistics-${new Date().getFullYear()}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(getApiErrorMessage(downloadError));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <section className="rounded-[1.55rem] bg-white p-4 shadow-[0_20px_70px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-5">
@@ -41,14 +101,14 @@ export function VolunteerHistoryPage() {
           <h1 className="text-3xl font-black leading-none md:text-4xl">История помощи</h1>
           <p className="mt-3 text-sm font-bold text-black/54">Ваш путь добрых дел</p>
         </div>
-        <button className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 md:self-auto">
-          Скачать отчёт
+        <button onClick={downloadReport} disabled={downloading} className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 disabled:opacity-60 md:self-auto">
+          {downloading ? "Готовим отчёт" : "Скачать отчёт"}
           <Download className="size-4" />
         </button>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {historySummary.map((item) => (
+        {summary.map((item) => (
           <HistorySummaryCard key={item.label} {...item} />
         ))}
       </div>
@@ -79,18 +139,33 @@ export function VolunteerHistoryPage() {
         </div>
 
         <div className="relative mt-5 before:absolute before:left-[72px] before:top-5 before:h-[calc(100%-2.5rem)] before:border-l before:border-dashed before:border-black/10">
-          {filteredEntries.map((entry) => (
+          {loading ? (
+            <section className="rounded-[1.35rem] bg-[#fffdf7] p-8 text-center">
+              <p className="text-2xl font-black">Загружаем историю...</p>
+            </section>
+          ) : error ? (
+            <section className="rounded-[1.35rem] bg-[#fffdf7] p-8 text-center">
+              <p className="text-2xl font-black">Не удалось загрузить историю</p>
+              <p className="mt-3 text-sm font-medium text-black/54">{error}</p>
+            </section>
+          ) : filteredEntries.length ? filteredEntries.map((entry) => (
             <HistoryTimelineItem key={entry.id} entry={entry} onOpen={setSelectedEntry} />
-          ))}
+          )) : (
+            <section className="rounded-[1.35rem] bg-[#fffdf7] p-8 text-center">
+              <p className="text-2xl font-black">История пока пустая</p>
+              <p className="mt-3 text-sm font-medium text-black/54">После участия в заданиях события появятся здесь.</p>
+            </section>
+          )}
         </div>
       </div>
 
       <div className="mt-6">
-        <HistoryActivityPanel />
+        <HistoryActivityPanel monthly={monthly} cities={cities} />
       </div>
 
       <TaskDetailDrawer
         task={selectedEntry?.task ?? null}
+        allTasks={allTasks}
         status={selectedEntry ? statuses[selectedEntry.task.id] ?? selectedEntry.detailStatus : "idle"}
         onStatusChange={(status) => {
           if (!selectedEntry) return;
@@ -98,7 +173,7 @@ export function VolunteerHistoryPage() {
         }}
         onClose={() => setSelectedEntry(null)}
         onTaskOpen={(task) => {
-          const next = historyEntries.find((entry) => entry.task.id === task.id);
+          const next = entries.find((entry) => entry.task.id === task.id);
           if (next) setSelectedEntry(next);
         }}
       />

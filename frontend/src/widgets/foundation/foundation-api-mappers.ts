@@ -1,0 +1,381 @@
+import { BarChart3, CheckCircle2, FileText, Inbox, RotateCcw, ShieldCheck, UsersRound, type LucideIcon } from "lucide-react";
+import type {
+  ApplicationResponse,
+  ApplicationStatus,
+  FundDashboardSummary,
+  FundProfileResponse,
+  FundStatus,
+  FundUpdateRequest,
+  HelpCategory,
+  TaskCreateRequest,
+  TaskResponse,
+  TaskStatus,
+  TaskUpdateRequest
+} from "@/shared/api/types";
+import type { FoundationDocumentItem } from "@/widgets/foundation-registration/foundation-registration-data";
+import type { FoundationProfileForm } from "@/widgets/foundation/foundation-profile-data";
+import type { FoundationApplicationItem, FoundationApplicationStatus, FoundationTaskItem, FoundationTaskStatus, FoundationTone } from "@/widgets/foundation/foundation-data";
+import type { FoundationTaskFormValues } from "@/widgets/foundation/ui/create-task-form";
+import { getCategoryLabel } from "@/widgets/volunteer-feed/task-dictionaries";
+
+function formatDate(value?: string | null, fallback = "дата не указана") {
+  if (!value) return fallback;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(date);
+}
+
+function formatPeriod(task: TaskResponse) {
+  if (task.starts_at && task.ends_at) {
+    return `${formatDate(task.starts_at)} - ${formatDate(task.ends_at)}`;
+  }
+
+  if (task.starts_at) return formatDate(task.starts_at);
+  if (task.published_at) return formatDate(task.published_at);
+  return "период не указан";
+}
+
+function taskStatus(status: TaskStatus): FoundationTaskStatus {
+  const statuses: Record<TaskStatus, FoundationTaskStatus> = {
+    closed: "completed",
+    draft: "draft",
+    needs_changes: "returned",
+    pending_review: "moderation",
+    published: "published",
+    rejected: "rejected"
+  };
+
+  return statuses[status];
+}
+
+function applicationStatus(status: ApplicationStatus): FoundationApplicationStatus {
+  const statuses: Record<ApplicationStatus, FoundationApplicationStatus> = {
+    accepted: "accepted",
+    applied: "review",
+    canceled: "rejected",
+    completion_confirmed: "completed",
+    hours_awarded: "confirmed",
+    rejected: "rejected"
+  };
+
+  return statuses[status];
+}
+
+function applicationsForTask(applications: ApplicationResponse[], taskId: string) {
+  return applications.filter((item) => item.task_id === taskId);
+}
+
+function participantsCount(applications: ApplicationResponse[]) {
+  return applications.filter((item) => item.status === "accepted" || item.status === "completion_confirmed" || item.status === "hours_awarded").length;
+}
+
+function taskFormat(task: TaskResponse): FoundationTaskItem["format"] {
+  return task.participation_format === "online" ? "Онлайн" : "Офлайн";
+}
+
+export function mapTaskResponseToFoundationTask(task: TaskResponse, applications: ApplicationResponse[] = []): FoundationTaskItem {
+  const taskApplications = applicationsForTask(applications, task.id);
+
+  return {
+    id: task.id,
+    taskId: task.id,
+    title: task.title,
+    description: task.description,
+    category: getCategoryLabel(task.category),
+    city: task.participation_format === "online" ? "Онлайн" : task.city ?? "Город не указан",
+    format: taskFormat(task),
+    deadline: task.deadline_at ? `до ${formatDate(task.deadline_at)}` : "без дедлайна",
+    period: formatPeriod(task),
+    participants: participantsCount(taskApplications),
+    capacity: task.participant_limit ?? 100,
+    responses: taskApplications.length,
+    hours: Number(task.expected_hours),
+    status: taskStatus(task.status),
+    moderationComment: task.moderation_comment ?? undefined
+  };
+}
+
+export function mapApplicationResponseToFoundationApplication(application: ApplicationResponse): FoundationApplicationItem {
+  const volunteer = application.volunteer;
+  const task = application.task;
+  const status = applicationStatus(application.status);
+
+  return {
+    id: application.id,
+    volunteer: volunteer?.full_name || volunteer?.email || "Волонтёр",
+    role: volunteer?.position || volunteer?.department || "Волонтёр",
+    city: volunteer?.city || "Город не указан",
+    avatar: "",
+    taskTitle: task?.title ?? "Задание",
+    skills: [],
+    proBonoSkills: task?.task_type === "pro_bono" ? task.required_skills ?? [] : [],
+    interests: task ? [getCategoryLabel(task.category)] : [],
+    hoursHistory: 0,
+    completedActivities: 0,
+    status,
+    comment: application.fund_comment || application.volunteer_comment || application.completion_comment || applicationCommentByStatus(status),
+    nextStep: applicationNextStepByStatus(status),
+    attendanceDecision: status === "confirmed" || status === "completed" ? "participated" : "pending",
+    taskId: application.task_id
+  };
+}
+
+export function mapDashboardToMetrics(summary: FundDashboardSummary) {
+  return [
+    {
+      label: "Активные задания",
+      value: String(summary.tasks_published),
+      helper: `${summary.tasks_pending_review} на модерации`,
+      icon: FileText,
+      tone: "gold"
+    },
+    {
+      label: "Отклики",
+      value: String(summary.applications_total),
+      helper: `${summary.applications_applied} требуют ответа`,
+      icon: Inbox,
+      tone: "blue"
+    },
+    {
+      label: "Принятые волонтёры",
+      value: String(summary.applications_accepted),
+      helper: "по заданиям фонда",
+      icon: UsersRound,
+      tone: "green"
+    },
+    {
+      label: "Подтверждённые часы",
+      value: String(summary.awarded_hours_total),
+      helper: "после закрытия активностей",
+      icon: ShieldCheck,
+      tone: "violet"
+    }
+  ] satisfies { label: string; value: string; helper: string; icon: LucideIcon; tone: FoundationTone }[];
+}
+
+export function mapDashboardToReportMetrics(summary: FundDashboardSummary) {
+  return [
+    { label: "Завершённые задания", value: String(summary.tasks_closed), helper: "закрытые задания", icon: CheckCircle2, tone: "green" },
+    { label: "Отклики", value: String(summary.applications_total), helper: "всего по фонду", icon: BarChart3, tone: "blue" },
+    { label: "Принятые участники", value: String(summary.applications_accepted), helper: "по активным заданиям", icon: UsersRound, tone: "gold" },
+    { label: "Ожидают подтверждения", value: String(summary.completions_waiting_hours), helper: "после активности", icon: RotateCcw, tone: "violet" }
+  ] satisfies { label: string; value: string; helper: string; icon: LucideIcon; tone: FoundationTone }[];
+}
+
+export function mapFundProfileToCurrentFoundation(profile: FundProfileResponse, summary?: FundDashboardSummary) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    focus: profile.help_categories?.join(", ") || "Направления помощи",
+    city: profile.region || "Регион не указан",
+    activeTasks: summary?.tasks_published ?? 0,
+    volunteersNeeded: summary?.applications_applied ?? 0,
+    responseRate: summary?.applications_total ? Math.round((summary.applications_accepted / summary.applications_total) * 100) : 0,
+    moderationStatus: profile.status === "approved" ? "approved" as const : profile.status === "needs_changes" ? "changes" as const : "review" as const,
+    curator: profile.contact_person || profile.representative?.full_name || "Координатор",
+    reportsReady: summary?.tasks_closed ?? 0,
+    description: profile.description || "Описание фонда пока не заполнено.",
+    legal: `ИНН ${profile.inn || "-"} / ОГРН ${profile.ogrn || "-"}`,
+    website: profile.website_url || "",
+    socials: "",
+    trust: fundTrustLabel(profile.status),
+    categories: profile.help_categories?.length ? profile.help_categories : ["Помощь"],
+    helpDirections: splitPlannedHelp(profile.planned_help)
+  };
+}
+
+export function mapFundProfileToProfileForm(profile: FundProfileResponse): FoundationProfileForm {
+  return {
+    name: profile.name,
+    description: profile.description || "",
+    region: profile.region || "",
+    inn: profile.inn || "",
+    ogrn: profile.ogrn || "",
+    email: profile.contact_email || profile.representative?.email || "",
+    phone: profile.contact_phone || profile.representative?.phone || "",
+    telegram: "",
+    whatsapp: "",
+    website: profile.website_url || "",
+    socials: "",
+    contactName: profile.contact_person || profile.representative?.full_name || "",
+    contactRole: profile.contact_position || "",
+    categories: profile.help_categories || [],
+    activityTypes: splitPlannedHelp(profile.planned_help),
+    logoUploaded: false,
+    coverUploaded: false
+  };
+}
+
+export function mapFundDocuments(profile: FundProfileResponse): FoundationDocumentItem[] {
+  return profile.documents.map((document) => ({
+    id: document.document_type,
+    title: document.document_type,
+    description: "Документ фонда",
+    fileName: document.file_url.split("/").pop() || document.file_url,
+    status: "uploaded"
+  }));
+}
+
+export function buildFundUpdateRequest(form: FoundationProfileForm): FundUpdateRequest {
+  return {
+    contact_email: form.email.trim() || null,
+    contact_person: form.contactName.trim() || null,
+    contact_phone: form.phone.trim() || null,
+    contact_position: form.contactRole.trim() || null,
+    description: form.description.trim() || null,
+    help_categories: form.categories,
+    inn: form.inn.trim() || null,
+    name: form.name.trim(),
+    ogrn: form.ogrn.trim() || null,
+    planned_help: [
+      ...form.activityTypes,
+      form.telegram.trim() ? `Telegram: ${form.telegram.trim()}` : "",
+      form.whatsapp.trim() ? `WhatsApp: ${form.whatsapp.trim()}` : "",
+      form.socials.trim() ? `Соцсети: ${form.socials.trim()}` : ""
+    ].filter(Boolean).join("\n") || null,
+    region: form.region.trim() || null,
+    website_url: form.website.trim() || null
+  };
+}
+
+export function buildTaskCreateRequest(values: FoundationTaskFormValues): TaskCreateRequest {
+  const participationFormat = values.format === "Онлайн" ? "online" : "offline";
+  const deadline = parseDateInput(values.deadline);
+  const startsAt = null;
+
+  return {
+    category: mapUiCategoryToBackend(values.category),
+    city: participationFormat === "offline" ? values.city : null,
+    deadline_at: deadline,
+    description: buildTaskDescription(values),
+    duration_type: mapUiDuration(values.periodicity),
+    expected_hours: Math.max(Number(values.hours) || 1, 1),
+    location: participationFormat === "offline" ? values.location.trim() || null : null,
+    materials_url: values.chatLink.trim() || null,
+    online_url: participationFormat === "online" ? values.location.trim() || null : null,
+    participant_limit: Number(values.capacity) || null,
+    participation_format: participationFormat,
+    required_skills: values.skills,
+    requirements: values.requirements.join("\n") || null,
+    starts_at: startsAt,
+    task_type: values.category.toLowerCase().includes("pro bono") || values.skills.length ? "pro_bono" : "regular",
+    title: values.title.trim()
+  };
+}
+
+export function buildTaskUpdateRequest(values: FoundationTaskFormValues): TaskUpdateRequest {
+  return buildTaskCreateRequest(values);
+}
+
+function buildTaskDescription(values: FoundationTaskFormValues) {
+  const details = [
+    values.description.trim(),
+    values.instructions.trim() ? `Инструкции: ${values.instructions.trim()}` : "",
+    values.telegram.trim() ? `Telegram: ${values.telegram.trim()}` : "",
+    values.whatsapp.trim() ? `WhatsApp: ${values.whatsapp.trim()}` : "",
+    values.email.trim() ? `Email: ${values.email.trim()}` : "",
+    values.phone.trim() ? `Телефон: ${values.phone.trim()}` : "",
+    values.contactNote.trim() ? `Комментарий: ${values.contactNote.trim()}` : ""
+  ].filter(Boolean);
+
+  return details.join("\n\n");
+}
+
+function mapUiCategoryToBackend(category: string): HelpCategory {
+  const lower = category.toLowerCase();
+  if (lower.includes("эко")) return "ecology";
+  if (lower.includes("пожил")) return "elderly";
+  if (lower.includes("овз") || lower.includes("инклю")) return "disability";
+  return "children";
+}
+
+function mapUiDuration(value: string): TaskCreateRequest["duration_type"] {
+  if (value === "Регулярное") return "regular";
+  if (value === "По договорённости") return "long_term";
+  return "one_time";
+}
+
+function parseDateInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const iso = new Date(trimmed);
+  if (!Number.isNaN(iso.getTime())) return iso.toISOString();
+
+  const numeric = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(trimmed);
+  if (numeric) {
+    const [, day, month, year] = numeric;
+    return new Date(Number(year), Number(month) - 1, Number(day), 12).toISOString();
+  }
+
+  const months: Record<string, number> = {
+    апреля: 3,
+    августа: 7,
+    декабря: 11,
+    июля: 6,
+    июня: 5,
+    марта: 2,
+    мая: 4,
+    ноября: 10,
+    октября: 9,
+    сентября: 8,
+    февраля: 1,
+    января: 0
+  };
+  const ru = /(\d{1,2})\s+([а-яё]+)\s+(\d{4})/i.exec(trimmed);
+  if (ru) {
+    const [, day, monthName, year] = ru;
+    const month = months[monthName.toLowerCase()];
+    if (month !== undefined) return new Date(Number(year), month, Number(day), 12).toISOString();
+  }
+
+  return null;
+}
+
+function splitPlannedHelp(value: string | null) {
+  return (value ?? "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function fundTrustLabel(status: FundStatus) {
+  const labels: Record<FundStatus, string> = {
+    approved: "Проверенная организация",
+    draft: "Черновик профиля",
+    needs_changes: "Нужны правки",
+    pending_review: "Фонд на проверке",
+    rejected: "Профиль отклонён"
+  };
+  return labels[status];
+}
+
+function applicationCommentByStatus(status: FoundationApplicationStatus) {
+  const comments: Record<FoundationApplicationStatus, string> = {
+    accepted: "Заявка принята. Контакты и инструкции доступны волонтёру.",
+    clarify: "Фонд запросил уточнение перед финальным решением.",
+    completed: "Участие отмечено как завершённое.",
+    confirmed: "Участие подтверждено фондом.",
+    rejected: "Заявка отклонена с комментарием фонда.",
+    review: "Заявка ожидает решения фонда."
+  };
+  return comments[status];
+}
+
+function applicationNextStepByStatus(status: FoundationApplicationStatus) {
+  const steps: Record<FoundationApplicationStatus, string> = {
+    accepted: "Дождитесь активности и подтвердите участие",
+    clarify: "Дождитесь ответа волонтёра",
+    completed: "Проверьте результат участия",
+    confirmed: "Участие закрыто",
+    rejected: "Заявка закрыта",
+    review: "Примите решение по заявке"
+  };
+  return steps[status];
+}

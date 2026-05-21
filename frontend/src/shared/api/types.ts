@@ -139,6 +139,27 @@ export interface FundProfileResponse {
   website_url: string | null;
 }
 
+export interface FundDashboardSummary {
+  applications_accepted: number;
+  applications_applied: number;
+  applications_completion_confirmed: number;
+  applications_hours_awarded: number;
+  applications_rejected: number;
+  applications_total: number;
+  awarded_hours_total: DecimalString;
+  completions_waiting_hours: number;
+  fund_id: Uuid;
+  fund_name: string;
+  fund_status: FundStatus;
+  tasks_closed: number;
+  tasks_draft: number;
+  tasks_needs_changes: number;
+  tasks_pending_review: number;
+  tasks_published: number;
+  tasks_rejected: number;
+  tasks_total: number;
+}
+
 export interface FundUpdateRequest {
   contact_email?: string | null;
   contact_person?: string | null;
@@ -300,6 +321,14 @@ export interface VolunteerHistoryItemResponse {
   occurred_at: DateTimeString;
   status: ApplicationStatus | null;
   task: VolunteerHistoryTaskResponse | null;
+  title: string;
+}
+
+export interface NotificationResponse {
+  body: string;
+  created_at: DateTimeString;
+  id: Uuid;
+  is_read: boolean;
   title: string;
 }
 

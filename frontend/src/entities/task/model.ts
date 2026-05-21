@@ -1,8 +1,8 @@
 export type TaskStatus = "open" | "in_progress" | "completed";
 export type TaskFormat = "onsite" | "online" | "hybrid";
-export type TaskSkill = "events" | "media" | "logistics" | "mentoring" | "design" | "analytics";
+export type TaskSkill = string;
 export type TaskCommitment = "one-time" | "regular" | "long-term";
-export type TaskCategory = "children" | "sport" | "ecology" | "education" | "animals" | "probono" | "events";
+export type TaskCategory = string;
 
 export interface VolunteerTask {
   id: string;

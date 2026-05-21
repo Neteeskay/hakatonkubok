@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Calendar, Clock, FileText, Heart, Link2, MapPin, Repeat, UsersRound, type LucideIcon } from "lucide-react";
 import type { VolunteerTask } from "@/entities/task/model";
-import { categoryLabels, commitmentLabels, formatLabels, skillLabels, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
 import { TaskMiniBadge, VolunteerAvatars } from "@/widgets/volunteer-feed/ui/task-card-parts";
 import { cn } from "@/shared/lib/utils";
@@ -31,7 +31,7 @@ export function VolunteerTaskCard({ task, onOpen }: { task: VolunteerTask; onOpe
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-black/50">
-                <span>{categoryLabels[task.category]}</span>
+                <span>{getCategoryLabel(task.category)}</span>
                 <span className="size-1 rounded-full bg-black/20" />
                 <span>{task.foundation}</span>
               </div>
@@ -59,7 +59,7 @@ export function VolunteerTaskCard({ task, onOpen }: { task: VolunteerTask; onOpe
             <TaskMiniBadge className={recruitmentToneClass(recruitment.tone)}>{recruitment.label}</TaskMiniBadge>
             <TaskMiniBadge className="bg-[#f4f3ee] text-black/58">{recruitment.helper}</TaskMiniBadge>
             {task.proBono ? <TaskMiniBadge className="bg-[#eee8ff] text-[#6b4de6]">Pro bono</TaskMiniBadge> : null}
-            {task.skills.slice(0, 2).map((skill) => <TaskMiniBadge key={skill} className="bg-brand/12 text-black/62">{skillLabels[skill]}</TaskMiniBadge>)}
+            {task.skills.slice(0, 2).map((skill) => <TaskMiniBadge key={skill} className="bg-brand/12 text-black/62">{getSkillLabel(skill)}</TaskMiniBadge>)}
             <TaskMiniBadge className="bg-[#f4f3ee] text-black/58"><FileText className="mr-1 size-3" />материалы</TaskMiniBadge>
           </div>
 

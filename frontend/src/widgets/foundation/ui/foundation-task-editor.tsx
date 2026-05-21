@@ -3,7 +3,7 @@
 import { CheckCircle2, X } from "lucide-react";
 import { useState } from "react";
 import type { FoundationTaskItem } from "@/widgets/foundation/foundation-data";
-import { CreateTaskForm } from "@/widgets/foundation/ui/create-task-form";
+import { CreateTaskForm, type FoundationTaskFormValues } from "@/widgets/foundation/ui/create-task-form";
 
 export function FoundationTaskEditor({
   task,
@@ -12,7 +12,7 @@ export function FoundationTaskEditor({
 }: {
   task: FoundationTaskItem;
   onClose: () => void;
-  onSave: (updates: Partial<FoundationTaskItem>) => void;
+  onSave: (values: FoundationTaskFormValues) => Promise<void> | void;
 }) {
   const [saved, setSaved] = useState(false);
 
@@ -44,8 +44,8 @@ export function FoundationTaskEditor({
           <CreateTaskForm
             initialTask={task}
             submitLabel="Сохранить и отправить"
-            onSubmit={(updates) => {
-              onSave(updates);
+            onSubmit={async (updates) => {
+              await onSave(updates);
               setSaved(true);
             }}
           />

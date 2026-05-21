@@ -4,15 +4,7 @@ import type { VolunteerTask } from "@/entities/task/model";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
-
-const skillNames = {
-  events: "События",
-  media: "Медиа",
-  logistics: "Логистика",
-  mentoring: "Наставничество",
-  design: "Дизайн",
-  analytics: "Аналитика"
-};
+import { getSkillLabel } from "@/widgets/volunteer-feed/task-dictionaries";
 
 export function TaskCard({ task }: { task: VolunteerTask }) {
   const progress = Math.round((task.filled / task.spots) * 100);
@@ -24,7 +16,7 @@ export function TaskCard({ task }: { task: VolunteerTask }) {
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap gap-2">
               {task.skills.map((skill) => (
-                <Badge key={skill} tone="brand">{skillNames[skill]}</Badge>
+                <Badge key={skill} tone="brand">{getSkillLabel(skill)}</Badge>
               ))}
               {task.proBono ? <Badge tone="blue">Pro bono</Badge> : null}
             </div>
