@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, Mail, MapPin, MessageCircle, Pencil, Phone, Save, Sparkles, X, type LucideIcon } from "lucide-react";
 import { getApiErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
@@ -31,7 +31,9 @@ type FoundationProfileWorkspaceProps = {
   metrics?: typeof foundationMetrics;
   tasks?: FoundationTaskItem[];
   onSaveProfile?: (form: FoundationProfileForm) => Promise<FoundationProfileForm | void> | FoundationProfileForm | void;
+  onUploadCover?: (file: File) => Promise<string | void> | string | void;
   onUploadDocument?: (id: string, file: File) => Promise<FoundationDocumentItem | void> | FoundationDocumentItem | void;
+  onUploadLogo?: (file: File) => Promise<string | void> | string | void;
 };
 
 export function FoundationProfileWorkspace({
@@ -41,7 +43,9 @@ export function FoundationProfileWorkspace({
   metrics = foundationMetrics,
   tasks = foundationTasks,
   onSaveProfile,
-  onUploadDocument
+  onUploadCover,
+  onUploadDocument,
+  onUploadLogo
 }: FoundationProfileWorkspaceProps) {
   const [profile, setProfile] = useState<FoundationProfileForm>(initialProfile);
   const [draft, setDraft] = useState<FoundationProfileForm>(initialProfile);
@@ -49,6 +53,7 @@ export function FoundationProfileWorkspace({
   const [saved, setSaved] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<FoundationDocumentItem[]>(initialDocuments);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const publicTasks = useMemo(() => tasks.filter((task) => task.status === "published" || task.status === "completed"), [tasks]);
 
   useEffect(() => {
@@ -56,6 +61,12 @@ export function FoundationProfileWorkspace({
     setDraft(initialProfile);
     setDocuments(initialDocuments);
   }, [initialDocuments, initialProfile]);
+
+  useEffect(() => {
+    if (editing) {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editing]);
 
   function beginEdit() {
     setDraft(profile);
@@ -72,7 +83,7 @@ export function FoundationProfileWorkspace({
       setEditing(false);
       setSaved(true);
     } catch (error) {
-      setActionError(getApiErrorMessage(error));
+      setActionError(toProfileActionMessage(error, "Не удалось сохранить профиль. Проверьте данные и попробуйте ещё раз."));
     }
   }
 
@@ -96,7 +107,26 @@ export function FoundationProfileWorkspace({
         return uploadedDocument ?? { ...item, status: "uploaded", fileName: file?.name ?? `${item.id}-updated.pdf` };
       }));
     } catch (error) {
-      setActionError(getApiErrorMessage(error));
+      setActionError(toProfileActionMessage(error, "Не удалось обновить документ. Попробуйте выбрать файл ещё раз."));
+    }
+  }
+
+  async function uploadMedia(kind: "logo" | "cover", file?: File) {
+    if (!file) return;
+    setActionError(null);
+    try {
+      if (kind === "logo") {
+        await onUploadLogo?.(file);
+        setDraft((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name }));
+        setProfile((current) => ({ ...current, logoUploaded: true, logoFile: file, logoFileName: file.name }));
+        return;
+      }
+
+      await onUploadCover?.(file);
+      setDraft((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name }));
+      setProfile((current) => ({ ...current, coverUploaded: true, coverFile: file, coverFileName: file.name }));
+    } catch (error) {
+      setActionError(toProfileActionMessage(error, "Не удалось загрузить изображение фонда. Попробуйте другой файл."));
     }
   }
 
@@ -125,7 +155,7 @@ export function FoundationProfileWorkspace({
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={beginEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(34,28,8,0.08)] transition hover:-translate-y-0.5">
+                  <button type="button" onClick={beginEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(34,28,8,0.08)] transition hover:-translate-y-0.5">
                     <Pencil className="size-4" />
                     Редактировать
                   </button>
@@ -171,16 +201,19 @@ export function FoundationProfileWorkspace({
       ) : null}
 
       {editing ? (
-        <FoundationProfileEditor
-          draft={draft}
-          documents={documents}
-          update={update}
-          toggleList={toggleList}
-          onUploadDocument={uploadDocument}
-          onRemoveDocument={removeDocument}
-          onCancel={() => setEditing(false)}
-          onSave={saveProfile}
-        />
+        <div ref={editorRef}>
+          <FoundationProfileEditor
+            draft={draft}
+            documents={documents}
+            update={update}
+            toggleList={toggleList}
+            onUploadDocument={uploadDocument}
+            onUploadMedia={uploadMedia}
+            onRemoveDocument={removeDocument}
+            onCancel={() => setEditing(false)}
+            onSave={saveProfile}
+          />
+        </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -235,6 +268,7 @@ function FoundationProfileEditor({
   update,
   toggleList,
   onUploadDocument,
+  onUploadMedia,
   onRemoveDocument,
   onCancel,
   onSave
@@ -244,6 +278,7 @@ function FoundationProfileEditor({
   update: <K extends keyof FoundationProfileForm>(key: K, value: FoundationProfileForm[K]) => void;
   toggleList: (key: "categories" | "activityTypes", value: string) => void;
   onUploadDocument: (id: string, file?: File) => Promise<void> | void;
+  onUploadMedia: (kind: "logo" | "cover", file?: File) => Promise<void> | void;
   onRemoveDocument: (id: string) => void;
   onCancel: () => void;
   onSave: () => Promise<void> | void;
@@ -256,8 +291,8 @@ function FoundationProfileEditor({
           <h2 className="mt-2 text-3xl font-black">Профиль фонда</h2>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#fffdf7] px-4 text-sm font-black text-black/56 transition hover:bg-[#f4f3ee]"><X className="size-4" />Отмена</button>
-          <button onClick={() => void onSave()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.22)]"><Save className="size-4" />Сохранить</button>
+          <button type="button" onClick={onCancel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#fffdf7] px-4 text-sm font-black text-black/56 transition hover:bg-[#f4f3ee]"><X className="size-4" />Отмена</button>
+          <button type="button" onClick={() => void onSave()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.22)]"><Save className="size-4" />Сохранить</button>
         </div>
       </div>
 
@@ -284,8 +319,8 @@ function FoundationProfileEditor({
         </div>
 
         <aside className="space-y-4">
-          <MediaUploadCard title="Логотип фонда" description="Показывается в профиле, заданиях и карточках откликов." variant="logo" uploaded={draft.logoUploaded} onUpload={() => update("logoUploaded", true)} />
-          <MediaUploadCard title="Обложка фонда" description="Формирует первый экран публичной страницы фонда." variant="cover" uploaded={draft.coverUploaded} onUpload={() => update("coverUploaded", true)} />
+          <MediaUploadCard title="Логотип фонда" description="Показывается в профиле, заданиях и карточках откликов." variant="logo" uploaded={draft.logoUploaded} fileName={draft.logoFileName} onUpload={(file) => void onUploadMedia("logo", file)} />
+          <MediaUploadCard title="Обложка фонда" description="Формирует первый экран публичной страницы фонда." variant="cover" uploaded={draft.coverUploaded} fileName={draft.coverFileName} onUpload={(file) => void onUploadMedia("cover", file)} />
         </aside>
       </div>
 
@@ -296,6 +331,12 @@ function FoundationProfileEditor({
       </ProfileBlock>
     </section>
   );
+}
+
+function toProfileActionMessage(error: unknown, fallback: string) {
+  const message = getApiErrorMessage(error);
+  if (!message || message.includes("Failed to fetch")) return fallback;
+  return message;
 }
 
 function ProfileBlock({ title, action, children, className }: { title: string; action?: ReactNode; children: ReactNode; className?: string }) {

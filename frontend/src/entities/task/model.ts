@@ -6,6 +6,7 @@ export type TaskCategory = string;
 
 export interface VolunteerTask {
   id: string;
+  imageUrl?: string | null;
   title: string;
   foundation: string;
   foundationId: string;

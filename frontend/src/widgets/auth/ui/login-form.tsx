@@ -64,7 +64,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit}>
       <h2 className="text-3xl font-black">Вход в платформу</h2>
       <p className="mt-2 text-sm leading-6 text-black/56">
-        Войдите по корпоративной почте или логину. Для demo-админа: admin / admin.
+        Войдите по корпоративной почте или логину. Готовые demo-аккаунты доступны в блоке ниже.
       </p>
       <div className="mt-5 space-y-4">
         <AuthField

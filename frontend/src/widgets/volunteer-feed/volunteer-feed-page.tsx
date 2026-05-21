@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { VolunteerTask } from "@/entities/task/model";
 import { applicationsService, getApiErrorMessage, tasksService } from "@/shared/api";
+import type { DurationType, HelpCategory, HelpCategoryResponse, ParticipationFormat, SkillOptionResponse, TaskFeedQuery, TaskFilterOptionsResponse, TaskType } from "@/shared/api";
 import { useTaskFilters } from "@/features/task-filters/store";
 import { FeedFilters } from "@/widgets/volunteer-feed/feed-filters";
 import { FeedHero } from "@/widgets/volunteer-feed/feed-hero";
 import { TaskDetailDrawer } from "@/widgets/volunteer-feed/task-detail-drawer";
-import { formatLabels, getCategoryLabel, getSkillLabel, taskStatusLabels } from "@/widgets/volunteer-feed/task-dictionaries";
+import { commitmentLabels, fallbackCategoryOptions, formatLabels, getCategoryLabel, getSkillLabel, taskStatusLabels } from "@/widgets/volunteer-feed/task-dictionaries";
 import { TaskFeedEmpty, TaskFeedError, TaskFeedSkeleton } from "@/widgets/volunteer-feed/feed-states";
 import { VolunteerTaskCard } from "@/widgets/volunteer-feed/volunteer-task-card";
 import type { ApplicationStatus } from "@/widgets/task-detail/model/participation-flow";
@@ -24,18 +25,24 @@ export function VolunteerFeedPage() {
   const [error, setError] = useState<string | null>(null);
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
   const [applicationError, setApplicationError] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<HelpCategoryResponse[]>(fallbackCategoryOptions);
+  const [skillOptions, setSkillOptions] = useState<SkillOptionResponse[]>([]);
+  const [filterOptions, setFilterOptions] = useState<TaskFilterOptionsResponse | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadFeed() {
-      setLoading(true);
+    async function loadFeed(showLoading = true) {
+      if (showLoading) setLoading(true);
       setError(null);
 
       try {
-        const [taskResponses, applicationResponses] = await Promise.all([
-          tasksService.getTaskFeed({ limit: 100 }),
-          applicationsService.getMyApplications()
+        const [taskResponses, applicationResponses, categoryResponses, skillResponses, filterResponses] = await Promise.all([
+          tasksService.getTaskFeed(buildTaskFeedQuery(filters, categoryOptions, filterOptions)),
+          applicationsService.getMyApplications(),
+          tasksService.getTaskCategories().catch(() => fallbackCategoryOptions),
+          tasksService.getTaskSkills().catch(() => []),
+          tasksService.getTaskFilters().catch(() => null)
         ]);
 
         if (!mounted) return;
@@ -43,29 +50,38 @@ export function VolunteerFeedPage() {
         setFeedTasks(taskResponses.map(mapTaskResponseToVolunteerTask));
         setStatuses(Object.fromEntries(applicationResponses.map((item) => [item.task_id, apiStatusToDetailStatus(item.status)])));
         setApplicationIds(Object.fromEntries(applicationResponses.map((item) => [item.task_id, item.id])));
+        setCategoryOptions(categoryResponses.length ? categoryResponses : fallbackCategoryOptions);
+        setSkillOptions(skillResponses);
+        setFilterOptions(filterResponses);
       } catch (loadError) {
         if (!mounted) return;
         setError(getApiErrorMessage(loadError));
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted && showLoading) setLoading(false);
       }
     }
 
     void loadFeed();
+    const interval = window.setInterval(() => {
+      void loadFeed(false);
+    }, 15000);
 
     return () => {
       mounted = false;
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [filters.category, filters.city, filters.duration, filters.format, filters.proBono, filters.search, filters.skill, filters.sort]);
 
   const visibleTasks = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
     const next = feedTasks.filter((task) => {
+      if (statuses[task.id] === "hours") return false;
       const haystack = [task.title, task.description, task.foundation, task.city, task.location, task.impact, ...task.skills.map(getSkillLabel)].join(" ").toLowerCase();
       if (query && !haystack.includes(query)) return false;
       if (filters.city !== "Все города" && task.city !== filters.city) return false;
       if (filters.format !== "Любой формат" && formatLabels[task.format] !== filters.format) return false;
       if (filters.category !== "Все категории" && getCategoryLabel(task.category) !== filters.category && task.foundation !== filters.category) return false;
+      if (filters.duration !== "Любая длительность" && commitmentLabels[task.commitment] !== filters.duration) return false;
       if (filters.proBono && !task.proBono) return false;
       if (filters.skill !== "Любые навыки" && !task.skills.some((skill) => getSkillLabel(skill) === filters.skill)) return false;
       if (filters.hours === "До 2 часов" && task.hours > 2) return false;
@@ -79,7 +95,7 @@ export function VolunteerFeedPage() {
     if (filters.sort === "Меньше часов") return [...next].sort((a, b) => a.hours - b.hours);
     if (filters.sort === "По дедлайну") return [...next].sort((a, b) => a.deadline.localeCompare(b.deadline));
     return next;
-  }, [feedTasks, filters]);
+  }, [feedTasks, filters, statuses]);
 
   const selectedStatus = selectedTask ? statuses[selectedTask.id] ?? "idle" : "idle";
   const applicationSubmitting = Boolean(selectedTask && submittingTaskId === selectedTask.id);
@@ -123,7 +139,13 @@ export function VolunteerFeedPage() {
   return (
     <div className="space-y-5">
       <FeedHero />
-      <FeedFilters resultCount={visibleTasks.length} />
+      <FeedFilters
+        categoryOptions={categoryOptions.map((item) => item.label)}
+        durationOptions={filterOptions?.duration_types.map((item) => item.label)}
+        formatOptions={filterOptions?.participation_formats.map((item) => item.label)}
+        skillOptions={skillOptions.length ? skillOptions.map((item) => item.label) : undefined}
+        resultCount={visibleTasks.length}
+      />
       <section className="rounded-[1.55rem] bg-white/86 p-4 shadow-[0_20px_70px_rgba(34,28,8,0.08),inset_0_0_0_1px_rgba(34,28,8,0.06)] backdrop-blur-xl">
         {loading ? (
           <TaskFeedSkeleton />
@@ -161,4 +183,48 @@ export function VolunteerFeedPage() {
       />
     </div>
   );
+}
+
+function buildTaskFeedQuery(
+  filters: ReturnType<typeof useTaskFilters.getState>,
+  categories: HelpCategoryResponse[],
+  filterOptions: TaskFilterOptionsResponse | null
+): TaskFeedQuery {
+  const category = categories.find((item) => item.label === filters.category)?.value;
+  const format = (filterOptions?.participation_formats.find((item) => item.label === filters.format)?.value ?? mapFormatLabel(filters.format)) as ParticipationFormat | undefined;
+  const duration = (filterOptions?.duration_types.find((item) => item.label === filters.duration)?.value ?? mapDurationLabel(filters.duration)) as DurationType | undefined;
+  const type = (filters.proBono ? "pro_bono" : undefined) as TaskType | undefined;
+
+  return {
+    available_only: true,
+    category: category as HelpCategory | undefined,
+    city: filters.city !== "Все города" && filters.city !== "Онлайн" ? filters.city : undefined,
+    duration,
+    format,
+    limit: 100,
+    required_skill: filters.skill !== "Любые навыки" ? filters.skill : undefined,
+    search: filters.search.trim().length >= 2 ? filters.search.trim() : undefined,
+    sort: mapSort(filters.sort),
+    type
+  };
+}
+
+function mapFormatLabel(value: string): ParticipationFormat | undefined {
+  if (value === "Онлайн") return "online";
+  if (value === "Офлайн") return "offline";
+  return undefined;
+}
+
+function mapDurationLabel(value: string): DurationType | undefined {
+  if (value === "Разовое" || value === "Разовые") return "one_time";
+  if (value === "Регулярное" || value === "Регулярные") return "regular";
+  if (value === "Долгосрочное" || value === "Долгосрочные") return "long_term";
+  return undefined;
+}
+
+function mapSort(sort: string): TaskFeedQuery["sort"] {
+  if (sort === "По дедлайну") return "deadline_at_asc";
+  if (sort === "Больше часов") return "expected_hours_desc";
+  if (sort === "Меньше часов") return "expected_hours_asc";
+  return "published_at_desc";
 }

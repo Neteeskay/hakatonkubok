@@ -30,6 +30,7 @@ class ApplicationStatus(StrEnum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     CANCELED = "canceled"
+    NOT_COMPLETED = "not_completed"
     COMPLETION_CONFIRMED = "completion_confirmed"
     HOURS_AWARDED = "hours_awarded"
 
@@ -89,4 +90,3 @@ class AchievementCode(StrEnum):
     RELIABLE_VOLUNTEER = "reliable_volunteer"
     TEAM_PLAYER = "team_player"
     PROSTO_LEGEND = "prosto_legend"
-

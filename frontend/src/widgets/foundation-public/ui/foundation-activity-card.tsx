@@ -4,11 +4,11 @@ import { ArrowRight, Calendar, Clock, MapPin, UsersRound, type LucideIcon } from
 import type { VolunteerTask } from "@/entities/task/model";
 import { cn } from "@/shared/lib/utils";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
-import { formatLabels, getCategoryLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { formatLabels, getCategoryLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 import { TaskMiniBadge, VolunteerAvatars } from "@/widgets/volunteer-feed/ui/task-card-parts";
 
 export function FoundationActivityCard({ task, compact = false }: { task: VolunteerTask; compact?: boolean }) {
-  const visual = taskVisuals[task.id] ?? taskVisuals["task-001"];
+  const visual = getTaskVisual(task.id, task.imageUrl);
   const recruitment = getRecruitmentState(task);
 
   return (

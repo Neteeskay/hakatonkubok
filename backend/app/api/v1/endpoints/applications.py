@@ -35,6 +35,7 @@ from app.services.application_service import (
     get_fund_application,
     list_fund_applications,
     list_my_applications,
+    mark_application_not_completed,
     reject_application,
 )
 
@@ -362,6 +363,47 @@ async def confirm_fund_application_completion(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="task must be closed before confirming volunteer completion",
+        ) from exc
+
+    return ApplicationResponse.model_validate(application)
+
+
+@router.post(
+    "/fund/{application_id}/mark-not-completed",
+    response_model=ApplicationResponse,
+)
+async def mark_fund_application_not_completed(
+    application_id: UUID,
+    payload: ApplicationCompletionConfirmRequest,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> ApplicationResponse:
+    try:
+        application = await mark_application_not_completed(
+            session,
+            current_user=current_user,
+            application_id=application_id,
+            completion_comment=payload.completion_comment,
+        )
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="application not found",
+        ) from exc
+    except ApplicationAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="application does not belong to current fund",
+        ) from exc
+    except InvalidApplicationStatusTransitionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="not completed can be set only for assigned participant",
+        ) from exc
+    except TaskNotClosedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="task must be closed before marking not completed",
         ) from exc
 
     return ApplicationResponse.model_validate(application)

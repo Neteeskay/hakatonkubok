@@ -30,8 +30,9 @@ NEW_VALUES = (
 
 
 def upgrade() -> None:
-    for value in NEW_VALUES:
-        op.execute(f"ALTER TYPE help_category ADD VALUE IF NOT EXISTS '{value}'")
+    with op.get_context().autocommit_block():
+        for value in NEW_VALUES:
+            op.execute(f"ALTER TYPE help_category ADD VALUE IF NOT EXISTS '{value}'")
 
 
 def downgrade() -> None:

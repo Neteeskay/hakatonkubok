@@ -30,13 +30,13 @@ export function isValidSkill(value: string) {
   return /[\p{L}\d]/u.test(label) && !/^[^\p{L}\d]+$/u.test(label);
 }
 
-export function findSkillSuggestions(query: string, selected: string[], groups: SkillOption["group"][], limit = 6) {
+export function findSkillSuggestions(query: string, selected: string[], groups: SkillOption["group"][], options: SkillOption[] = skillOptions, limit = 6) {
   const normalizedQuery = normalizeSkill(query);
   if (!normalizedQuery) {
-    return skillOptions.filter((option) => groups.includes(option.group) && !hasSkill(selected, option.label)).slice(0, limit);
+    return options.filter((option) => groups.includes(option.group) && !hasSkill(selected, option.label)).slice(0, limit);
   }
 
-  return skillOptions
+  return options
     .filter((option) => groups.includes(option.group) && !hasSkill(selected, option.label))
     .map((option) => ({ option, score: scoreOption(option, normalizedQuery) }))
     .filter((item) => item.score > 0)

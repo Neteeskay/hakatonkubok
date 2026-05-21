@@ -35,8 +35,10 @@ function apiStatusToStage(status: ApiApplicationStatus): VolunteerApplicationSta
     accepted: "accepted",
     applied: "pending",
     canceled: "rejected",
+    clarify: "pending",
     completion_confirmed: "completed",
     hours_awarded: "hours",
+    not_completed: "rejected",
     rejected: "rejected"
   };
   return stages[status];
@@ -47,8 +49,10 @@ export function apiStatusToDetailStatus(status: ApiApplicationStatus): Applicati
     accepted: "accepted",
     applied: "pending",
     canceled: "rejected",
+    clarify: "pending",
     completion_confirmed: "completed",
     hours_awarded: "hours",
+    not_completed: "rejected",
     rejected: "rejected"
   };
   return statuses[status];
@@ -71,6 +75,14 @@ function applicationCopy(status: ApiApplicationStatus) {
       progress: 58,
       nextAction: "Связаться с координатором и согласовать детали",
       message: "Фонд принял отклик. Организационные детали доступны в карточке отклика."
+    },
+    clarify: {
+      title: "Фонд просит уточнение",
+      statusLabel: "Нужны детали",
+      stageLabel: "Уточнение отклика",
+      progress: 42,
+      nextAction: "Ответить фонду по доступным контактам",
+      message: "Фонд оставил вопрос по отклику. Посмотрите комментарий и уточните детали участия."
     },
     rejected: {
       title: "Отклик не принят",
@@ -103,6 +115,14 @@ function applicationCopy(status: ApiApplicationStatus) {
       progress: 100,
       nextAction: "Можно посмотреть часы в профиле",
       message: "Волонтёрские часы добавлены в профиль и попадут в отчётность."
+    },
+    not_completed: {
+      title: "Участие не подтверждено",
+      statusLabel: "Не выполнено",
+      stageLabel: "Фонд оставил решение",
+      progress: 100,
+      nextAction: "Можно выбрать другое задание",
+      message: "Фонд отметил, что участие не выполнено. Если фонд оставил комментарий, он показан ниже."
     }
   };
 
@@ -144,7 +164,7 @@ function historyStatus(status: ApiApplicationStatus | null): HistoryStatus {
   if (status === "hours_awarded") return "hours";
   if (status === "completion_confirmed") return "completed";
   if (status === "accepted") return "accepted";
-  if (status === "rejected" || status === "canceled") return "rejected";
+  if (status === "rejected" || status === "canceled" || status === "not_completed") return "rejected";
   return "pending";
 }
 
@@ -196,7 +216,7 @@ export function mapHistoryResponseToEntry(item: VolunteerHistoryItemResponse): V
     date: formatDate(item.occurred_at, { day: "numeric", month: "long" }),
     year: Number.isNaN(occurredAt.getTime()) ? "" : String(occurredAt.getFullYear()),
     completedAt: formatDate(item.occurred_at),
-    confirmedAt: status === "hours" || status === "completed" ? formatDate(item.occurred_at) : undefined,
+    confirmedAt: status === "hours" ? formatDate(item.occurred_at) : undefined,
     hours: Number(item.hours ?? 0),
     description: item.description ?? item.title,
     formatLabel: item.task?.participation_format === "offline" ? "Офлайн" : "Онлайн",
@@ -211,7 +231,7 @@ export function buildHistorySummary(entries: VolunteerHistoryEntry[]) {
   const confirmed = entries.filter((item) => item.status === "hours").length;
 
   return [
-    { value: String(totalHours), label: "волонтёрских часов", helper: "по данным backend", tone: "gold", icon: Clock3 },
+    { value: String(totalHours), label: "волонтёрских часов", helper: "по данным платформы", tone: "gold", icon: Clock3 },
     { value: String(completed), label: "задания выполнено", helper: "завершённые участия", tone: "green", icon: CalendarCheck2 },
     { value: String(funds), label: "фондов и организаций", helper: "вы помогли", tone: "violet", icon: UsersRound },
     { value: String(confirmed), label: "подтверждений", helper: "с начисленными часами", tone: "cream", icon: Star }

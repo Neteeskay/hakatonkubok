@@ -24,10 +24,10 @@ export const roleLabels: Record<AppRole, string> = {
 export const roleNavigation = {
   volunteer: [
     { label: "Лента / задания", href: "/volunteer", icon: ListChecks },
-    { label: "Мои отклики", href: "/volunteer/applications", icon: Inbox, badge: "4" },
+    { label: "Мои отклики", href: "/volunteer/applications", icon: Inbox },
     { label: "История участия", href: "/volunteer/history", icon: History },
     { label: "Волонтёрские часы", href: "/volunteer/hours", icon: Clock },
-    { label: "Уведомления", href: "/volunteer/notifications", icon: Bell, badge: "2" }
+    { label: "Уведомления", href: "/volunteer/notifications", icon: Bell }
   ],
   foundation: [
     { label: "Главная", href: "/foundation", icon: BarChart3 },
@@ -35,6 +35,7 @@ export const roleNavigation = {
     { label: "Создать задание", href: "/foundation/create-task", icon: PlusCircle },
     { label: "Участники", href: "/foundation/participants", icon: UsersRound },
     { label: "Модерация", href: "/foundation/moderation", icon: ShieldCheck },
+    { label: "Уведомления", href: "/foundation/notifications", icon: Bell },
     { label: "Отчёты", href: "/foundation/reports", icon: FileBarChart },
     { label: "Профиль фонда", href: "/foundation/profile", icon: Building2 }
   ],
@@ -45,7 +46,7 @@ export const roleNavigation = {
     { label: "Модерация заданий", href: "/admin/moderation/tasks", icon: CheckCircle2 },
     { label: "Волонтёры", href: "/admin/volunteers", icon: UsersRound },
     { label: "Начисление часов", href: "/admin/hours", icon: Clock },
-    { label: "Уведомления", href: "/admin/notifications", icon: Bell, badge: "3" },
+    { label: "Уведомления", href: "/admin/notifications", icon: Bell },
     { label: "Аналитика", href: "/admin/analytics", icon: BarChart3 },
     { label: "Отчёты", href: "/admin/reports", icon: FileBarChart }
   ]

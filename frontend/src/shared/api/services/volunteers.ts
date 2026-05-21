@@ -1,6 +1,7 @@
 import { apiClient } from "@/shared/api/client";
 import type {
   NotificationResponse,
+  NotificationReadCount,
   PublicVolunteerProfileResponse,
   Uuid,
   UserResponse,
@@ -11,11 +12,23 @@ import type {
   VolunteerHoursLedgerItemResponse,
   VolunteerHoursSummaryResponse,
   VolunteerHistoryItemResponse,
+  VolunteerProfileResponse,
   VolunteerProfileUpdateRequest
 } from "@/shared/api/types";
 
 export async function updateMyVolunteerProfile(payload: VolunteerProfileUpdateRequest) {
   return apiClient.patch<UserResponse, VolunteerProfileUpdateRequest>("/volunteers/me", payload);
+}
+
+export async function getMyVolunteerProfile() {
+  return apiClient.get<VolunteerProfileResponse>("/volunteers/me/profile");
+}
+
+export async function uploadMyAvatar(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiClient.post<{ avatar_url: string }, FormData>("/volunteers/me/avatar", formData);
 }
 
 export async function getMyVolunteerHistory(params?: { limit?: number; offset?: number }) {
@@ -64,6 +77,10 @@ export async function markMyNotificationRead(notificationId: Uuid) {
   return apiClient.patch<NotificationResponse, undefined>(`/volunteers/me/notifications/${notificationId}/read`, undefined);
 }
 
+export async function markAllMyVolunteerNotificationsRead() {
+  return apiClient.patch<NotificationReadCount, Record<string, never>>("/volunteers/me/notifications/read-all", {});
+}
+
 export async function downloadMyVolunteerStatistics(year?: number) {
   return apiClient.requestBlob({
     path: "/volunteers/me/statistics.pdf",
@@ -75,6 +92,7 @@ export const volunteersService = {
   downloadMyVolunteerStatistics,
   getMyVolunteerAchievements,
   getMyVolunteerAchievementsOverview,
+  getMyVolunteerProfile,
   getMyVolunteerHoursByCategory,
   getMyVolunteerHoursDynamics,
   getMyVolunteerHoursLedger,
@@ -82,6 +100,8 @@ export const volunteersService = {
   getPublicVolunteerProfile,
   getMyVolunteerNotifications,
   getMyVolunteerHistory,
+  markAllMyVolunteerNotificationsRead,
   markMyNotificationRead,
-  updateMyVolunteerProfile
+  updateMyVolunteerProfile,
+  uploadMyAvatar
 };

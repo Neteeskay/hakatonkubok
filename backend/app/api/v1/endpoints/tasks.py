@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_roles
@@ -16,17 +16,23 @@ from app.models.enums import (
     UserRole,
 )
 from app.schemas.tasks import (
+    HelpCategoryResponse,
+    SkillOptionResponse,
+    TaskDictionaryOptionResponse,
     TaskCreateRequest,
     TaskFeedSort,
+    TaskFilterOptionsResponse,
+    TaskImageUploadResponse,
     TaskResponse,
     TaskUpdateRequest,
 )
 from app.services.fund_service import FundNotFoundError
 from app.services.task_service import (
     FundNotApprovedError,
+    EmptyTaskImageError,
     InvalidTaskDataError,
-    get_published_task_for_volunteer,
     InvalidTaskStatusTransitionError,
+    InvalidTaskImageTypeError,
     TaskEditNotAllowedError,
     TaskNotFoundError,
     close_task,
@@ -37,6 +43,7 @@ from app.services.task_service import (
     list_published_tasks,
     submit_task_for_review,
     update_task,
+    upload_task_image,
 )
 
 router = APIRouter()
@@ -48,6 +55,72 @@ PageOffset = Annotated[int, Query(ge=0)]
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "tasks"}
+
+
+@router.get("/categories", response_model=list[HelpCategoryResponse])
+async def list_help_categories() -> list[HelpCategoryResponse]:
+    return get_help_category_options()
+
+
+def get_help_category_options() -> list[HelpCategoryResponse]:
+    labels = {
+        HelpCategory.CHILDREN: "Дети",
+        HelpCategory.ELDERLY: "Пожилые",
+        HelpCategory.DISABILITY: "Люди с ОВЗ",
+        HelpCategory.ECOLOGY: "Экология",
+    }
+    return [
+        HelpCategoryResponse(value=category, label=label)
+        for category, label in labels.items()
+    ]
+
+
+@router.get("/filters", response_model=TaskFilterOptionsResponse)
+async def list_task_filter_options() -> TaskFilterOptionsResponse:
+    return TaskFilterOptionsResponse(
+        categories=get_help_category_options(),
+        participation_formats=[
+            TaskDictionaryOptionResponse(value=ParticipationFormat.ONLINE, label="Онлайн"),
+            TaskDictionaryOptionResponse(value=ParticipationFormat.OFFLINE, label="Офлайн"),
+        ],
+        duration_types=[
+            TaskDictionaryOptionResponse(value=DurationType.ONE_TIME, label="Разовые"),
+            TaskDictionaryOptionResponse(value=DurationType.REGULAR, label="Регулярные"),
+            TaskDictionaryOptionResponse(value=DurationType.LONG_TERM, label="Долгосрочные"),
+        ],
+        task_types=[
+            TaskDictionaryOptionResponse(value=TaskType.REGULAR, label="Обычные задания"),
+            TaskDictionaryOptionResponse(value=TaskType.PRO_BONO, label="Pro Bono"),
+        ],
+    )
+
+
+@router.get("/skills", response_model=list[SkillOptionResponse])
+async def list_task_skills() -> list[SkillOptionResponse]:
+    return [
+        SkillOptionResponse(label="Помощь животным", group="interest", aliases=["животные", "приют", "собаки"]),
+        SkillOptionResponse(label="Экология", group="interest", aliases=["эко", "парк", "субботник"]),
+        SkillOptionResponse(label="Образование", group="interest", aliases=["дети", "школа", "наставничество"]),
+        SkillOptionResponse(label="Помощь пожилым", group="interest", aliases=["старшие", "пенсионеры"]),
+        SkillOptionResponse(label="Культура и искусство", group="interest", aliases=["культура", "искусство", "музей"]),
+        SkillOptionResponse(label="Спорт", group="interest", aliases=["события", "мероприятия"]),
+        SkillOptionResponse(label="Логистика", group="professional", aliases=["склад", "доставка", "координация"]),
+        SkillOptionResponse(label="Коммуникации", group="professional", aliases=["общение", "координация", "поддержка"]),
+        SkillOptionResponse(label="Наставничество", group="professional", aliases=["менторство", "обучение", "сопровождение"]),
+        SkillOptionResponse(label="Управление проектами", group="professional", aliases=["менеджмент", "координация", "планирование"]),
+        SkillOptionResponse(label="Дизайн продукта", group="professional", aliases=["дизайн", "прототип", "макеты"]),
+        SkillOptionResponse(label="Графический дизайн", group="professional", aliases=["визуал", "баннеры", "иллюстрации"]),
+        SkillOptionResponse(label="Аналитика данных", group="professional", aliases=["аналитика", "данные", "отчёты"]),
+        SkillOptionResponse(label="Визуализация данных", group="professional", aliases=["дашборды", "отчёты", "метрики"]),
+        SkillOptionResponse(label="Социальные сети", group="professional", aliases=["контент", "публикации", "комьюнити"]),
+        SkillOptionResponse(label="Копирайтинг", group="professional", aliases=["тексты", "редактура", "статьи"]),
+        SkillOptionResponse(label="Презентации", group="professional", aliases=["слайды", "презентационные материалы"]),
+        SkillOptionResponse(label="Программная разработка", group="probono", aliases=["код", "сайт", "разработка"]),
+        SkillOptionResponse(label="Дизайн интерфейсов", group="probono", aliases=["интерфейс", "прототип", "макеты"]),
+        SkillOptionResponse(label="Юридическая помощь", group="probono", aliases=["право", "договоры", "юрист"]),
+        SkillOptionResponse(label="Финансы", group="probono", aliases=["бюджет", "финансовая модель", "смета"]),
+        SkillOptionResponse(label="Подбор команды", group="probono", aliases=["найм", "интервью", "люди"]),
+    ]
 
 
 @router.get("/feed", response_model=list[TaskResponse])
@@ -103,6 +176,32 @@ async def create_my_task(
     except InvalidTaskDataError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return TaskResponse.model_validate(task)
+
+
+@router.post("/my/{task_id}/image", response_model=TaskImageUploadResponse)
+async def upload_my_task_image(
+    task_id: UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> TaskImageUploadResponse:
+    try:
+        image_url = await upload_task_image(
+            session,
+            current_user=current_user,
+            task_id=task_id,
+            file=file,
+        )
+    except TaskNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found") from exc
+    except TaskEditNotAllowedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="task cannot be edited") from exc
+    except EmptyTaskImageError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty task image file") from exc
+    except InvalidTaskImageTypeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="task image must be png, jpeg or webp") from exc
+
+    return TaskImageUploadResponse(image_url=image_url)
 
 
 @router.get("/my", response_model=list[TaskResponse])

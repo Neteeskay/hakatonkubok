@@ -12,6 +12,7 @@ import type {
   PlatformAnalyticsReport
 } from "@/shared/api/types";
 import type { AdminFoundation, AdminHourCase, AdminNotification, AdminTask, AdminTone, AdminVolunteer } from "@/widgets/admin/admin-data";
+import { getCategoryLabel, getSkillLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 
 function formatNumber(value: number | string) {
   const numeric = typeof value === "string" ? Number(value) : value;
@@ -126,7 +127,7 @@ export function mapAdminFundListItem(fund: AdminFundListItemResponse): AdminFoun
 export function mapAdminFundDetail(fund: AdminFundDetailResponse): AdminFoundation {
   return {
     ...mapAdminFundListItem(fund),
-    categories: fund.help_categories ?? [],
+    categories: (fund.help_categories ?? []).map(getCategoryLabel),
     contactName: fund.contact_person ?? fund.representative.full_name ?? "Контакт не указан",
     contactRole: fund.contact_position ?? "Контактное лицо",
     description: fund.description ?? fund.moderation_comment ?? "Описание фонда не заполнено.",
@@ -145,7 +146,7 @@ export function mapAdminFundDetail(fund: AdminFundDetailResponse): AdminFoundati
 
 export function mapAdminTaskDirectoryItem(task: AdminTaskDirectoryItemResponse): AdminTask {
   return {
-    category: task.category,
+    category: getCategoryLabel(task.category),
     city: task.city ?? "Онлайн",
     communication: "",
     contacts: "",
@@ -158,7 +159,7 @@ export function mapAdminTaskDirectoryItem(task: AdminTaskDirectoryItemResponse):
     goal: task.description,
     hours: Number(task.expected_hours),
     id: task.id,
-    image: "/tasks/3.jpg",
+    image: getTaskVisual(task.id, task.image_url).image,
     instruction: "",
     location: task.city ?? "Онлайн",
     materials: [],
@@ -174,7 +175,7 @@ export function mapAdminTaskDirectoryItem(task: AdminTaskDirectoryItemResponse):
 
 export function mapAdminTaskDetail(task: AdminTaskDetailResponse): AdminTask {
   return {
-    category: task.category,
+    category: getCategoryLabel(task.category),
     city: task.city ?? "Онлайн",
     communication: task.online_url ? "Онлайн-ссылка указана в задании" : "Контакты и инструкции указаны фондом",
     contacts: task.online_url ?? task.location ?? "Не указано",
@@ -187,7 +188,7 @@ export function mapAdminTaskDetail(task: AdminTaskDetailResponse): AdminTask {
     goal: task.description,
     hours: Number(task.expected_hours),
     id: task.id,
-    image: "/tasks/3.jpg",
+    image: getTaskVisual(task.id, task.image_url).image,
     instruction: task.materials_url ?? "Материалы и подробности доступны в описании задания.",
     location: task.location ?? task.online_url ?? task.city ?? "Онлайн",
     materials: task.materials_url ? [task.materials_url] : [],
@@ -235,13 +236,21 @@ export function mapAdminVolunteerDirectoryItem(volunteer: AdminVolunteerDirector
     history: [],
     hours,
     id: volunteer.id,
-    interests: profile?.interests ?? volunteer.interests ?? [],
+    interests: mapAdminLabels(profile?.interests ?? volunteer.interests),
     name: volunteer.full_name ?? profile?.full_name ?? volunteer.email,
-    proSkills: profile?.pro_bono_skills ?? [],
+    proSkills: mapAdminLabels(profile?.pro_bono_skills),
     role: volunteer.position ?? profile?.position ?? volunteer.department ?? "Волонтёр",
-    skills: profile?.skills ?? volunteer.skills ?? [],
+    skills: mapAdminLabels(profile?.skills ?? volunteer.skills),
     status: volunteer.active_tasks > 0 || completedTasks > 0 || hours > 0 ? "active" : "new"
   };
+}
+
+function mapAdminLabels(values: string[] | null | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => {
+    const skill = getSkillLabel(value);
+    if (skill !== value) return skill;
+    return getCategoryLabel(value);
+  }).filter(Boolean)));
 }
 
 export function buildAdminKpisFromApi(summary: AdminDashboardSummary, analytics?: PlatformAnalyticsReport) {

@@ -4,6 +4,8 @@ export type AuthMode = "login" | "register" | "recovery";
 export type RegistrationRole = "volunteer" | "foundation";
 
 export interface DemoRole {
+  login: string;
+  password: string;
   title: string;
   text: string;
   helper: string;

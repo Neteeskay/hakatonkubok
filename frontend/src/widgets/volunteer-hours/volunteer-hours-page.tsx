@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock3,
+  Download,
   History,
   ShieldCheck,
   Sparkles
@@ -42,6 +43,7 @@ export function VolunteerHoursPage() {
   const [hoursData, setHoursData] = useState(emptyVolunteerHoursViewData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const { categories: hourCategories, dynamics: hourDynamics, summary: hourSummary } = hoursData;
   const monthDeltaCaption = `${hourSummary.monthDelta >= 0 ? "↑" : "↓"} ${Math.abs(hourSummary.monthDelta)} ч ${hourSummary.monthDelta >= 0 ? "больше" : "меньше"}, чем в прошлом месяце`;
   const maxDynamicHours = Math.max(40, ...hourDynamics.map((item) => item.hours));
@@ -84,13 +86,39 @@ export function VolunteerHoursPage() {
     };
   }, []);
 
+  async function downloadReport() {
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const year = new Date().getFullYear();
+      const blob = await volunteersService.downloadMyVolunteerStatistics(year);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `volunteer-hours-${year}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(getApiErrorMessage(downloadError));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="rounded-[1.8rem] bg-white p-5 shadow-[0_24px_72px_rgba(34,28,8,0.055),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-7">
-      <header className="mb-7">
-        <h1 className="text-4xl font-black leading-tight text-black md:text-[2.65rem]">Мои волонтёрские часы</h1>
-        <p className="mt-3 text-base font-semibold text-black/62">Каждый час вашей помощи — это важные изменения</p>
-        {loading ? <p className="mt-3 text-sm font-bold text-black/44">Загружаем часы...</p> : null}
-        {error ? <p className="mt-3 rounded-xl bg-[#fff1f1] p-3 text-sm font-bold text-[#c83c3c]">{error}</p> : null}
+      <header className="mb-7 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-4xl font-black leading-tight text-black md:text-[2.65rem]">Мои волонтёрские часы</h1>
+          <p className="mt-3 text-base font-semibold text-black/62">Каждый час вашей помощи — это важные изменения</p>
+          {loading ? <p className="mt-3 text-sm font-bold text-black/44">Загружаем часы...</p> : null}
+          {error ? <p className="mt-3 rounded-xl bg-[#fff1f1] p-3 text-sm font-bold text-[#c83c3c]">{error}</p> : null}
+        </div>
+        <button onClick={downloadReport} disabled={downloading} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 disabled:opacity-60">
+          {downloading ? "Готовим отчёт" : "Скачать отчёт"}
+          <Download className="size-4" />
+        </button>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_0.9fr_0.9fr_0.95fr]">

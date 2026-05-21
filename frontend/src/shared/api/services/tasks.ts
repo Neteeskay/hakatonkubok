@@ -1,7 +1,10 @@
 import { apiClient, type QueryParams } from "@/shared/api/client";
 import type {
+  HelpCategoryResponse,
+  SkillOptionResponse,
   TaskCreateRequest,
   TaskFeedQuery,
+  TaskFilterOptionsResponse,
   TaskResponse,
   TaskStatus,
   TaskUpdateRequest,
@@ -16,12 +19,31 @@ export async function getTaskFeed(query?: TaskFeedQuery) {
   return apiClient.get<TaskResponse[]>("/tasks/feed", { query: toTaskFeedQuery(query) });
 }
 
+export async function getTaskCategories() {
+  return apiClient.get<HelpCategoryResponse[]>("/tasks/categories");
+}
+
+export async function getTaskSkills() {
+  return apiClient.get<SkillOptionResponse[]>("/tasks/skills");
+}
+
+export async function getTaskFilters() {
+  return apiClient.get<TaskFilterOptionsResponse>("/tasks/filters");
+}
+
 export async function getTask(taskId: Uuid) {
   return apiClient.get<TaskResponse>(`/tasks/${taskId}`);
 }
 
 export async function createTask(payload: TaskCreateRequest) {
   return apiClient.post<TaskResponse, TaskCreateRequest>("/tasks", payload);
+}
+
+export async function uploadMyTaskImage(taskId: Uuid, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiClient.post<{ image_url: string }, FormData>(`/tasks/my/${taskId}/image`, formData);
 }
 
 export async function getMyTasks(status?: TaskStatus) {
@@ -49,10 +71,14 @@ export async function closeMyTask(taskId: Uuid) {
 export const tasksService = {
   closeMyTask,
   createTask,
+  getTaskCategories,
+  getTaskFilters,
+  getTaskSkills,
   getMyTask,
   getMyTasks,
   getTask,
   getTaskFeed,
   submitMyTask,
+  uploadMyTaskImage,
   updateMyTask
 };

@@ -3,13 +3,13 @@
 import type { ReactNode } from "react";
 import { Calendar, Clock, FileText, Heart, Link2, MapPin, Repeat, UsersRound, type LucideIcon } from "lucide-react";
 import type { VolunteerTask } from "@/entities/task/model";
-import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
 import { TaskMiniBadge, VolunteerAvatars } from "@/widgets/volunteer-feed/ui/task-card-parts";
 import { cn } from "@/shared/lib/utils";
 
 export function VolunteerTaskCard({ task, onOpen }: { task: VolunteerTask; onOpen: (task: VolunteerTask) => void }) {
-  const visual = taskVisuals[task.id] ?? taskVisuals["task-001"];
+  const visual = getTaskVisual(task.id, task.imageUrl);
   const recruitment = getRecruitmentState(task);
 
   return (

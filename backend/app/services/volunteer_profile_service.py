@@ -247,7 +247,7 @@ async def upload_volunteer_avatar(
     if not content:
         raise EmptyAvatarError
 
-    allowed_types = {"image/png", "image/jpeg", "image/webp"}
+    allowed_types = {"image/jpg", "image/jpeg", "image/png", "image/webp"}
     if file.content_type not in allowed_types:
         raise InvalidAvatarTypeError
 

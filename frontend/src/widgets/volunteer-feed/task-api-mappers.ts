@@ -61,6 +61,7 @@ export function mapTaskResponseToVolunteerTask(task: TaskResponse): VolunteerTas
 
   return {
     id: task.id,
+    imageUrl: task.image_url,
     title: task.title,
     foundation: task.fund?.name ?? "Фонд",
     foundationId: task.fund_id,

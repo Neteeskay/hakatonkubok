@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.domain import TaskApplication, User, VolunteerTask
-from app.models.enums import ApplicationStatus, TaskStatus
-from app.services.achievement_service import sync_volunteer_achievements
+from app.models.enums import AchievementCode, ApplicationStatus, TaskStatus
+from app.services.achievement_service import ACHIEVEMENT_DEFINITIONS, sync_volunteer_achievements
 from app.services.fund_service import get_fund_by_representative
-from app.services.notification_service import add_admin_notifications
+from app.services.notification_service import add_admin_notifications, add_user_notification
 from app.services.status_transitions import APPLICATION_TRANSITIONS, can_transition
 
 
@@ -103,8 +103,14 @@ async def create_application(
         volunteer_comment=volunteer_comment,
     )
     session.add(application)
+    await add_user_notification(
+        session,
+        user_id=task.fund.representative_user_id,
+        title="Новый отклик",
+        body=f"Волонтёр откликнулся на задание «{task.title}».",
+    )
     await session.commit()
-    await sync_volunteer_achievements(session, current_user.id)
+    await _sync_achievements_and_notify(session, current_user.id)
     return await _get_application_by_id(session, application.id)
 
 
@@ -145,6 +151,12 @@ async def cancel_my_application(
 
     application.status = ApplicationStatus.CANCELED
     application.canceled_at = datetime.now(UTC)
+    await add_user_notification(
+        session,
+        user_id=application.task.fund.representative_user_id,
+        title="Отклик отменён",
+        body=f"Волонтёр отменил отклик на задание «{application.task.title}».",
+    )
     await session.commit()
     return await _get_application_by_id(session, application.id)
 
@@ -211,8 +223,14 @@ async def accept_application(
     application.status = ApplicationStatus.ACCEPTED
     application.fund_comment = fund_comment
     application.decided_at = datetime.now(UTC)
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Вы назначены на задачу",
+        body=f"Фонд принял ваш отклик на задание «{application.task.title}». Контакты и инструкции доступны в карточке задания.",
+    )
     await session.commit()
-    await sync_volunteer_achievements(session, application.volunteer_id)
+    await _sync_achievements_and_notify(session, application.volunteer_id)
     return await _get_application_by_id(session, application.id)
 
 
@@ -242,6 +260,12 @@ async def reject_application(
     application.status = ApplicationStatus.REJECTED
     application.fund_comment = fund_comment.strip()
     application.decided_at = datetime.now(UTC)
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Отклик отклонён",
+        body=f"Фонд не смог принять отклик на задание «{application.task.title}».",
+    )
     await session.commit()
     return await _get_application_by_id(session, application.id)
 
@@ -274,6 +298,12 @@ async def clarify_application(
     application.status = ApplicationStatus.CLARIFY
     application.fund_comment = fund_comment.strip()
     application.decided_at = datetime.now(UTC)
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Фонд просит уточнение",
+        body=f"По заданию «{application.task.title}» фонд просит уточнить детали отклика.",
+    )
 
     await session.commit()
     return await _get_application_by_id(session, application.id)
@@ -316,10 +346,17 @@ async def confirm_all_accepted_completions_for_task(
                 f"для {len(applications)} участника(ов). Требуется начисление часов."
             ),
         )
+        for application in applications:
+            await add_user_notification(
+                session,
+                user_id=application.volunteer_id,
+                title="Выполнение подтверждено",
+                body=f"Фонд подтвердил выполнение задания «{task.title}». Часы переданы на проверку администратору.",
+            )
 
     await session.commit()
     for volunteer_id in {application.volunteer_id for application in applications}:
-        await sync_volunteer_achievements(session, volunteer_id)
+        await _sync_achievements_and_notify(session, volunteer_id)
     return [
         await _get_application_by_id(session, application.id)
         for application in applications
@@ -358,8 +395,48 @@ async def confirm_application_completion(
             f"«{application.task.title}». Требуется начисление часов."
         ),
     )
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Выполнение подтверждено",
+        body=f"Фонд подтвердил выполнение задания «{application.task.title}». Часы переданы на проверку администратору.",
+    )
     await session.commit()
-    await sync_volunteer_achievements(session, application.volunteer_id)
+    await _sync_achievements_and_notify(session, application.volunteer_id)
+    return await _get_application_by_id(session, application.id)
+
+
+async def mark_application_not_completed(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    application_id: UUID,
+    completion_comment: str | None,
+) -> TaskApplication:
+    application = await get_fund_application(
+        session,
+        current_user=current_user,
+        application_id=application_id,
+    )
+    if application.task.status != TaskStatus.CLOSED:
+        raise TaskNotClosedError
+    if not can_transition(
+        application.status,
+        ApplicationStatus.NOT_COMPLETED,
+        APPLICATION_TRANSITIONS,
+    ):
+        raise InvalidApplicationStatusTransitionError
+
+    application.status = ApplicationStatus.NOT_COMPLETED
+    application.completion_confirmed_at = datetime.now(UTC)
+    application.completion_comment = completion_comment
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Участие не подтверждено",
+        body=f"Фонд отметил, что задание «{application.task.title}» не выполнено.",
+    )
+    await session.commit()
     return await _get_application_by_id(session, application.id)
 
 
@@ -376,6 +453,24 @@ async def _get_application_by_id(
     if application is None:
         raise ApplicationNotFoundError
     return application
+
+
+async def _sync_achievements_and_notify(session: AsyncSession, volunteer_id: UUID) -> None:
+    awards = await sync_volunteer_achievements(session, volunteer_id)
+    if not awards:
+        return
+
+    for award in awards:
+        code = AchievementCode(award.achievement_code)
+        definition = ACHIEVEMENT_DEFINITIONS.get(code)
+        title = definition.title if definition else "Новое достижение"
+        await add_user_notification(
+            session,
+            user_id=volunteer_id,
+            title="Получен бейдж",
+            body=f"Поздравляем! Получен бейдж «{title}».",
+        )
+    await session.commit()
 
 
 async def _get_fund_task(

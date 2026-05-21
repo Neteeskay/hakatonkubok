@@ -1,9 +1,33 @@
 import { notFound } from "next/navigation";
+import type { Foundation } from "@/entities/foundation/model";
+import { fundsService } from "@/shared/api";
 import { foundations, tasks } from "@/shared/config/mock-data";
+import { mapTaskResponseToVolunteerTask } from "@/widgets/volunteer-feed/task-api-mappers";
+import { getCategoryLabel } from "@/widgets/volunteer-feed/task-dictionaries";
 import { FoundationPublicPage } from "@/widgets/foundation-public/foundation-public-page";
 
 export default async function FoundationPublicRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const publicProfile = await fundsService.getPublicFundProfile(id).catch(() => null);
+  if (publicProfile) {
+    const publicTasks = await fundsService.listPublicFundTasks(id).catch(() => []);
+    const mappedTasks = publicTasks.map(mapTaskResponseToVolunteerTask);
+    const foundation: Foundation = {
+      activeTasks: publicProfile.active_tasks,
+      city: publicProfile.region ?? "Регион не указан",
+      curator: publicProfile.contact_person ?? "Координатор",
+      focus: (publicProfile.help_categories ?? []).map(getCategoryLabel).join(", ") || "Направления помощи",
+      id: publicProfile.id,
+      moderationStatus: "approved",
+      name: publicProfile.name,
+      reportsReady: 0,
+      responseRate: 0,
+      volunteersNeeded: publicProfile.volunteers_total
+    };
+
+    return <FoundationPublicPage activeTasks={mappedTasks} completedTasks={[]} documents={publicProfile.documents} foundation={foundation} />;
+  }
+
   const foundation = foundations.find((item) => item.id === id);
   if (!foundation) notFound();
 

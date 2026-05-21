@@ -1,12 +1,17 @@
+import re
 from datetime import UTC, datetime
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select
+from fastapi import UploadFile
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.domain import Fund, User, VolunteerTask
+from app.core.config import settings
+from app.models.domain import Fund, TaskApplication, User, VolunteerTask
 from app.models.enums import (
+    ApplicationStatus,
     DurationType,
     FundStatus,
     HelpCategory,
@@ -34,6 +39,14 @@ class TaskNotFoundError(TaskError):
     pass
 
 
+class EmptyTaskImageError(TaskError):
+    pass
+
+
+class InvalidTaskImageTypeError(TaskError):
+    pass
+
+
 class FundNotApprovedError(TaskError):
     pass
 
@@ -52,6 +65,11 @@ class TaskEditNotAllowedError(TaskError):
 
 class InvalidTaskDataError(TaskError):
     pass
+
+
+def safe_task_image_filename(filename: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", filename).strip("._")
+    return cleaned or "task-image"
 
 
 def task_load_options() -> tuple[object, object]:
@@ -128,8 +146,24 @@ async def list_published_tasks(
 
     if available_only:
         now = datetime.now(UTC)
+        accepted_count = (
+            select(func.count(TaskApplication.id))
+            .where(TaskApplication.task_id == VolunteerTask.id)
+            .where(
+                TaskApplication.status.in_(
+                    [
+                        ApplicationStatus.ACCEPTED,
+                        ApplicationStatus.COMPLETION_CONFIRMED,
+                        ApplicationStatus.HOURS_AWARDED,
+                    ]
+                )
+            )
+            .correlate(VolunteerTask)
+            .scalar_subquery()
+        )
         statement = statement.where(
-            or_(VolunteerTask.deadline_at.is_(None), VolunteerTask.deadline_at >= now)
+            or_(VolunteerTask.deadline_at.is_(None), VolunteerTask.deadline_at >= now),
+            or_(VolunteerTask.participant_limit.is_(None), accepted_count < VolunteerTask.participant_limit),
         )
 
     if city is not None:
@@ -160,9 +194,14 @@ async def list_published_tasks(
         )
 
     if required_skill:
-        skill = required_skill.strip().lower()
+        skill = required_skill.strip()
         if skill:
-            statement = statement.where(VolunteerTask.required_skills.contains([skill]))
+            statement = statement.where(
+                or_(
+                    VolunteerTask.required_skills.contains([skill]),
+                    VolunteerTask.required_skills.contains([skill.lower()]),
+                )
+            )
 
     statement = _apply_feed_sort(statement, sort).limit(limit).offset(offset)
 
@@ -248,8 +287,48 @@ async def create_task(
     validate_task_state(task)
 
     session.add(task)
+    await add_admin_notifications(
+        session,
+        title="Создано новое задание",
+        body=f"Фонд «{fund.name}» создал задание «{task.title}». Проверьте его и статус модерации.",
+    )
     await session.commit()
     return await get_task_by_id(session, task.id)
+
+
+async def upload_task_image(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    task_id: UUID,
+    file: UploadFile,
+) -> str:
+    task = await get_fund_task(session, current_user=current_user, task_id=task_id)
+    if task.status not in {
+        TaskStatus.DRAFT,
+        TaskStatus.NEEDS_CHANGES,
+        TaskStatus.PENDING_REVIEW,
+    }:
+        raise TaskEditNotAllowedError
+
+    content = await file.read()
+    if not content:
+        raise EmptyTaskImageError
+
+    allowed_types = {"image/jpg", "image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise InvalidTaskImageTypeError
+
+    filename = f"{uuid4()}_{safe_task_image_filename(file.filename or 'task-image')}"
+    relative_path = Path("uploads") / "funds" / str(task.fund_id) / "tasks" / str(task.id) / filename
+    storage_path = Path(settings.uploads_dir) / "funds" / str(task.fund_id) / "tasks" / str(task.id) / filename
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_bytes(content)
+
+    task.image_url = relative_path.as_posix()
+    await session.commit()
+    await session.refresh(task)
+    return task.image_url
 
 
 async def update_task(
@@ -260,7 +339,11 @@ async def update_task(
     payload: TaskUpdateRequest,
 ) -> VolunteerTask:
     task = await get_fund_task(session, current_user=current_user, task_id=task_id)
-    if task.status not in {TaskStatus.DRAFT, TaskStatus.NEEDS_CHANGES}:
+    if task.status not in {
+        TaskStatus.DRAFT,
+        TaskStatus.NEEDS_CHANGES,
+        TaskStatus.PENDING_REVIEW,
+    }:
         raise TaskEditNotAllowedError
 
     updates = payload.model_dump(exclude_unset=True)
@@ -283,7 +366,8 @@ async def submit_task_for_review(
     task = await get_fund_task(session, current_user=current_user, task_id=task_id)
     validate_task_state(task)
 
-    if not can_transition(task.status, TaskStatus.PENDING_REVIEW, TASK_TRANSITIONS):
+    previous_status = task.status
+    if previous_status != TaskStatus.PENDING_REVIEW and not can_transition(task.status, TaskStatus.PENDING_REVIEW, TASK_TRANSITIONS):
         raise InvalidTaskStatusTransitionError
 
     task.status = TaskStatus.PENDING_REVIEW
@@ -292,8 +376,14 @@ async def submit_task_for_review(
     task.closed_at = None
     await add_admin_notifications(
         session,
-        title="Новое задание на проверке",
+        title="Задание на проверке",
         body=f"Фонд «{fund.name}» отправил задание «{task.title}» на модерацию.",
+    )
+    await add_user_notification(
+        session,
+        user_id=fund.representative_user_id,
+        title="Задание отправлено на модерацию",
+        body=f"Задание «{task.title}» передано администратору. Мы сообщим, когда проверка завершится.",
     )
 
     await session.commit()
@@ -312,6 +402,19 @@ async def close_task(
 
     task.status = TaskStatus.CLOSED
     task.closed_at = datetime.now(UTC)
+    await add_admin_notifications(
+        session,
+        title="Задание завершено",
+        body=f"Фонд «{task.fund.name}» завершил задание «{task.title}».",
+    )
+    for application in task.applications:
+        if application.status == ApplicationStatus.ACCEPTED:
+            await add_user_notification(
+                session,
+                user_id=application.volunteer_id,
+                title="Задание завершено",
+                body=f"Фонд завершил задание «{task.title}». Скоро фонд подтвердит выполнение.",
+            )
 
     await session.commit()
     return await get_task_by_id(session, task.id)
@@ -370,6 +473,11 @@ async def moderate_task(
             title="Задание опубликовано",
             body=f"Ваше задание «{task.title}» прошло модерацию и опубликовано.",
         )
+        await add_admin_notifications(
+            session,
+            title="Задание опубликовано",
+            body=f"Задание «{task.title}» фонда «{task.fund.name}» одобрено и опубликовано.",
+        )
     if target_status == TaskStatus.NEEDS_CHANGES:
         await add_user_notification(
             session,
@@ -394,6 +502,11 @@ async def moderate_task(
                 f"Задание «{task.title}» отклонено администратором.\n\n"
                 f"Комментарий: {task.moderation_comment or 'Комментарий не указан'}"
             ),
+        )
+        await add_admin_notifications(
+            session,
+            title="Задание отклонено",
+            body=f"Задание «{task.title}» фонда «{task.fund.name}» отклонено.",
         )
 
     await session.commit()

@@ -98,11 +98,14 @@ class UserResponse(BaseModel):
     full_name: str | None
     city: str | None
     phone: str | None
+    avatar_url: str | None
+    about: str | None
     employee_id: str | None
     department: str | None
     position: str | None
     interests: list[str] | None
     skills: list[str] | None
+    pro_bono_skills: list[str] | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

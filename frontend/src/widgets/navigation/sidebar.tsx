@@ -7,7 +7,7 @@ import { roleLabels, roleNavigation, type AppRole } from "@/shared/config/naviga
 import { cn } from "@/shared/lib/utils";
 import { Logo } from "@/widgets/navigation/logo";
 
-export function Sidebar({ role }: { role: AppRole }) {
+export function Sidebar({ role, unreadNotifications }: { role: AppRole; unreadNotifications: number }) {
   const pathname = usePathname();
   const navigation = roleNavigation[role];
   const activeHref = navigation
@@ -34,7 +34,11 @@ export function Sidebar({ role }: { role: AppRole }) {
               >
                 <item.icon className="size-4" />
                 {item.label}
-                {"badge" in item && item.badge ? <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-black", active ? "bg-black/10 text-black" : "bg-brand text-black")}>{item.badge}</span> : null}
+                {item.href.endsWith("/notifications") && unreadNotifications > 0 ? (
+                  <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-black", active ? "bg-black/10 text-black" : "bg-brand text-black")}>
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

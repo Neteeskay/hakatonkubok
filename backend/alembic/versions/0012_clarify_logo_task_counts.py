@@ -16,7 +16,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'clarify'")
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE application_status ADD VALUE IF NOT EXISTS 'clarify'")
 
     op.add_column(
         "fund",

@@ -7,9 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.domain import TaskApplication, UserAchievement, VolunteerTask
+from app.models.domain import TaskApplication, VolunteerTask
 from app.models.enums import AchievementCode, ApplicationStatus, HelpCategory, ParticipationFormat, TaskType
-from app.services.achievement_service import ACHIEVEMENT_DEFINITIONS
 
 
 @dataclass(frozen=True)
@@ -55,14 +54,6 @@ async def list_volunteer_history(
 
     for application in applications:
         events.extend(_build_application_events(application))
-
-    achievements = await session.scalars(
-        select(UserAchievement).where(UserAchievement.user_id == volunteer_id)
-    )
-    for achievement in achievements:
-        event = _build_achievement_event(achievement)
-        if event is not None:
-            events.append(event)
 
     events.sort(key=lambda item: item.occurred_at, reverse=True)
     return events[offset : offset + limit]
@@ -166,25 +157,6 @@ def _build_application_events(application: TaskApplication) -> list[VolunteerHis
     return events
 
 
-def _build_achievement_event(achievement: UserAchievement) -> VolunteerHistoryItem | None:
-    code = _parse_achievement_code(achievement.achievement_code)
-    if code is None:
-        return None
-
-    definition = ACHIEVEMENT_DEFINITIONS[code]
-    return VolunteerHistoryItem(
-        event_type="achievement_awarded",
-        occurred_at=achievement.awarded_at,
-        title=f"Получена медаль: {definition.title}",
-        description=definition.description,
-        application_id=None,
-        task=None,
-        achievement_code=code,
-        status=None,
-        hours=None,
-    )
-
-
 def _task_payload(application: TaskApplication) -> VolunteerHistoryTask:
     fund_name = application.task.fund.name if application.task.fund is not None else None
     return VolunteerHistoryTask(
@@ -196,9 +168,3 @@ def _task_payload(application: TaskApplication) -> VolunteerHistoryTask:
         fund_name=fund_name,
     )
 
-
-def _parse_achievement_code(value: str) -> AchievementCode | None:
-    try:
-        return AchievementCode(value)
-    except ValueError:
-        return None

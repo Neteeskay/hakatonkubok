@@ -24,7 +24,11 @@ export interface FoundationRegistrationForm {
   telegram: string;
   whatsapp: string;
   preferredContact: PreferredContact;
+  coverFile?: File;
+  coverFileName?: string;
   logoUploaded: boolean;
+  logoFile?: File;
+  logoFileName?: string;
   coverUploaded: boolean;
 }
 
@@ -33,6 +37,7 @@ export interface FoundationDocumentItem {
   title: string;
   description: string;
   file?: File;
+  fileUrl?: string;
   fileName?: string;
   status: FoundationDocumentStatus;
 }

@@ -17,6 +17,7 @@ export interface FoundationTaskContact {
 
 export interface FoundationTaskItem {
   id: string;
+  imageUrl?: string | null;
   title: string;
   description: string;
   category: string;
@@ -28,7 +29,12 @@ export interface FoundationTaskItem {
   capacity: number;
   responses: number;
   hours: number;
+  instructions: string;
+  location: string;
+  requirements: string[];
+  skills: string[];
   status: FoundationTaskStatus;
+  taskType: "regular" | "pro_bono";
   moderationComment?: string;
   contactVisibility: FoundationContactVisibility;
   contacts: FoundationTaskContact;
@@ -38,6 +44,8 @@ export interface FoundationTaskItem {
 export interface FoundationApplicationItem {
   id: string;
   volunteer: string;
+  volunteerEmail?: string;
+  volunteerPhone?: string;
   role: string;
   city: string;
   avatar: string;
@@ -92,7 +100,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 18,
     responses: 21,
     hours: 5,
+    instructions: "",
+    location: "Москва, парк Сокольники",
+    requirements: [],
+    skills: [],
     status: "published",
+    taskType: "regular",
     contactVisibility: "after_acceptance",
     contacts: defaultTaskContacts
   },
@@ -110,7 +123,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 4,
     responses: 7,
     hours: 3,
+    instructions: "",
+    location: "Онлайн",
+    requirements: [],
+    skills: [],
     status: "moderation",
+    taskType: "pro_bono",
     contactVisibility: "after_acceptance",
     contacts: {
       ...defaultTaskContacts,
@@ -132,7 +150,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 10,
     responses: 14,
     hours: 8,
+    instructions: "",
+    location: "Санкт-Петербург",
+    requirements: [],
+    skills: [],
     status: "returned",
+    taskType: "regular",
     contactVisibility: "immediate",
     contacts: {
       ...defaultTaskContacts,
@@ -155,7 +178,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 16,
     responses: 23,
     hours: 4,
+    instructions: "",
+    location: "Казань",
+    requirements: [],
+    skills: [],
     status: "completed",
+    taskType: "regular",
     contactVisibility: "after_acceptance",
     contacts: defaultTaskContacts
   },
@@ -173,7 +201,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 3,
     responses: 5,
     hours: 6,
+    instructions: "",
+    location: "Онлайн",
+    requirements: [],
+    skills: [],
     status: "published",
+    taskType: "pro_bono",
     contactVisibility: "after_acceptance",
     contacts: {
       ...defaultTaskContacts,
@@ -191,8 +224,8 @@ export const foundationApplications: FoundationApplicationItem[] = [
     city: "Москва",
     avatar: "/avatars/avatar-anna.png",
     taskTitle: tasks[1].title,
-    skills: ["Презентации", "Product Design", "Копирайтинг"],
-    proBonoSkills: ["Figma", "UX/UI"],
+    skills: ["Презентации", "Дизайн продукта", "Копирайтинг"],
+    proBonoSkills: ["Прототипирование", "Дизайн интерфейсов"],
     interests: ["Дети", "Образование", "Pro bono"],
     hoursHistory: 56,
     completedActivities: 12,
@@ -212,7 +245,7 @@ export const foundationApplications: FoundationApplicationItem[] = [
     avatar: "/avatars/avatar-ilya.png",
     taskTitle: tasks[0].title,
     skills: ["Логистика", "События", "Работа с семьями"],
-    proBonoSkills: ["Project Management"],
+    proBonoSkills: ["Управление проектами"],
     interests: ["Семьи", "Спорт", "События"],
     hoursHistory: 34,
     completedActivities: 7,
@@ -231,7 +264,7 @@ export const foundationApplications: FoundationApplicationItem[] = [
     city: "Онлайн",
     avatar: "/avatars/avatar-maria.png",
     taskTitle: tasks[4].title,
-    skills: ["Аналитика", "BI", "Data Analysis"],
+    skills: ["Аналитика", "Визуализация данных", "Аналитика данных"],
     proBonoSkills: ["Аудит анкет"],
     interests: ["ОВЗ", "Данные", "Pro bono"],
     hoursHistory: 82,
@@ -294,8 +327,8 @@ export const applicationStatusConfig: Record<FoundationApplicationStatus, { labe
   accepted: { label: "Назначен", tone: "green", icon: CheckCircle2, helper: "Контакты доступны волонтёру" },
   clarify: { label: "Уточнения", tone: "violet", icon: RotateCcw, helper: "Запросите детали" },
   rejected: { label: "Отклонён", tone: "red", icon: XCircle, helper: "С комментарием фонда" },
-  completed: { label: "Завершено", tone: "neutral", icon: ShieldCheck, helper: "Ожидает подтверждения" },
-  confirmed: { label: "Выполнено", tone: "green", icon: ShieldCheck, helper: "Активность закрыта фондом" },
+  completed: { label: "Ожидает часов", tone: "neutral", icon: ShieldCheck, helper: "Передано администратору" },
+  confirmed: { label: "Часы начислены", tone: "green", icon: ShieldCheck, helper: "Участие закрыто" },
   not_completed: { label: "Не выполнено", tone: "red", icon: XCircle, helper: "Закрыто с комментарием" }
 };
 

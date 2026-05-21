@@ -2,20 +2,22 @@
 
 import type { ReactNode } from "react";
 import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
-import { categories, foundations } from "@/shared/config/mock-data";
 import { useTaskFilters } from "@/features/task-filters/store";
-import { categoryLabels, skillLabels } from "@/widgets/volunteer-feed/task-dictionaries";
+import { fallbackCategoryOptions, skillLabels } from "@/widgets/volunteer-feed/task-dictionaries";
+import { skillOptions as fallbackSkillOptions } from "@/widgets/volunteer-profile/skills-dictionary";
 import { cn } from "@/shared/lib/utils";
 
-const formatOptions = ["Любой формат", "Онлайн", "Офлайн", "Гибрид"];
+const formatOptionsDefault = ["Онлайн", "Офлайн"];
 const dateOptions = ["Любая дата", "Сегодня", "На этой неделе", "В выходные"];
 const deadlineOptions = ["Любой дедлайн", "До 3 дней", "До недели", "Без спешки"];
+const defaultDurationOptions = ["Разовые", "Регулярные", "Долгосрочные"];
 const hoursOptions = ["Любые часы", "До 2 часов", "3-5 часов", "6+ часов"];
 const statusOptions = ["Любой статус", "Набор открыт", "В работе"];
 const sortOptions = ["Сначала новые", "По дедлайну", "Больше часов", "Меньше часов"];
-const categoryOptions = Array.from(new Set(["Все категории", ...categories, ...Object.values(categoryLabels)]));
+const defaultCategoryOptions = fallbackCategoryOptions.map((item) => item.label);
+const defaultSkillOptions = Array.from(new Set([...Object.values(skillLabels), ...fallbackSkillOptions.map((item) => item.label)]));
 
-export function FeedFilters({ resultCount }: { resultCount: number }) {
+export function FeedFilters({ categoryOptions = defaultCategoryOptions, durationOptions = defaultDurationOptions, formatOptions = formatOptionsDefault, resultCount, skillOptions = defaultSkillOptions }: { categoryOptions?: string[]; durationOptions?: string[]; formatOptions?: string[]; resultCount: number; skillOptions?: string[] }) {
   const {
     search,
     setSearch,
@@ -27,6 +29,8 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
     setCategory,
     deadline,
     setDeadline,
+    duration,
+    setDuration,
     proBono,
     setProBono,
     skill,
@@ -64,10 +68,11 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <SelectPill label="Категория помощи" value={category} onChange={setCategory} options={categoryOptions} />
-        <SelectPill label="Формат" value={format} onChange={setFormat} options={formatOptions} />
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <SelectPill label="Категория помощи" value={category} onChange={setCategory} options={["Все категории", ...categoryOptions]} />
+        <SelectPill label="Формат" value={format} onChange={setFormat} options={["Любой формат", ...formatOptions]} />
         <SelectPill label="Город" value={city} onChange={setCity} options={["Все города", "Москва", "Санкт-Петербург", "Казань", "Онлайн"]} />
+        <SelectPill label="Длительность" value={duration} onChange={setDuration} options={["Любая длительность", ...durationOptions]} />
         <SelectPill label="Дата" value={deadline} onChange={setDeadline} options={[...dateOptions, ...deadlineOptions]} />
         <SelectPill label="Часы" value={hours} onChange={setHours} options={hoursOptions} />
       </div>
@@ -75,7 +80,7 @@ export function FeedFilters({ resultCount }: { resultCount: number }) {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <FilterChip active={!proBono} onClick={() => setProBono(false)}>Все задания <span>{resultCount}</span></FilterChip>
         <FilterChip active={proBono} onClick={() => setProBono(true)}>Pro bono</FilterChip>
-        <SelectChip value={skill} onChange={setSkill} options={["Любые навыки", ...Object.values(skillLabels)]} />
+        <SelectChip value={skill} onChange={setSkill} options={["Любые навыки", ...skillOptions]} />
         <SelectChip value={status} onChange={setStatus} options={statusOptions} />
         <FilterChip active={format === "Онлайн"} onClick={() => setFormat(format === "Онлайн" ? "Любой формат" : "Онлайн")}>Онлайн</FilterChip>
         <FilterChip active={format === "Офлайн"} onClick={() => setFormat(format === "Офлайн" ? "Любой формат" : "Офлайн")}>Офлайн</FilterChip>

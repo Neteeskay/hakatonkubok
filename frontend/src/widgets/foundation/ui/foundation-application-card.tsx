@@ -1,23 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CalendarClock,
-  Check,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  Link2,
-  Mail,
-  Phone,
-  Send,
-  ShieldCheck,
-  Smartphone,
-  Star,
-  X,
-  XCircle,
-  type LucideIcon
-} from "lucide-react";
+import { CalendarClock, Check, CheckCircle2, ChevronRight, Clock3, Link2, Mail, Phone, Send, ShieldCheck, Smartphone, Star, X, XCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   applicationStatusConfig,
@@ -45,7 +29,9 @@ export function FoundationApplicationCard({
   const styles = foundationToneStyles[status.tone];
   const Icon = status.icon;
   const contactsUnlocked = task.contactVisibility === "immediate" || ["accepted", "completed", "confirmed"].includes(item.status);
-  const isClosed = item.status === "rejected" || item.status === "confirmed" || item.status === "not_completed";
+  const isClosed = item.status === "rejected" || item.status === "completed" || item.status === "confirmed" || item.status === "not_completed";
+  const canReviewApplication = task.status === "published";
+  const canConfirmCompletion = task.status === "completed";
 
   function submitComment() {
     if (!commentAction) return;
@@ -74,14 +60,14 @@ export function FoundationApplicationCard({
                 <p className="mt-1 text-sm font-bold text-black/50">{item.role} · {item.city}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-black/50">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fffdf7] px-3 py-1.5"><CalendarClock className="size-3.5" />Отклик {item.appliedAt}</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fffdf7] px-3 py-1.5"><Star className="size-3.5" />{item.relevance}% совпадение</span>
+                  {item.relevance ? <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fffdf7] px-3 py-1.5"><Star className="size-3.5" />{item.relevance}% совпадение</span> : null}
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-center">
-              <SmallStat value={`${item.hoursHistory} ч`} label="в истории" />
-              <SmallStat value={`${item.completedActivities}`} label="участий" />
+              <SmallStat value={item.hoursHistory ? `${item.hoursHistory} ч` : "—"} label="в истории" />
+              <SmallStat value={item.completedActivities ? `${item.completedActivities}` : "—"} label="участий" />
             </div>
           </div>
 
@@ -89,9 +75,9 @@ export function FoundationApplicationCard({
             <div className="rounded-[1.2rem] bg-[#fffdf7] p-4">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-black/35">Навыки и интересы</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {[...item.skills, ...item.proBonoSkills, ...item.interests].map((skill) => (
+                {[...item.skills, ...item.proBonoSkills, ...item.interests].length ? [...item.skills, ...item.proBonoSkills, ...item.interests].map((skill) => (
                   <span key={skill} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-black/58 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.05)]">{skill}</span>
-                ))}
+                )) : <span className="text-xs font-bold text-black/42">Волонтёр пока не указал навыки в профиле.</span>}
               </div>
             </div>
 
@@ -109,6 +95,7 @@ export function FoundationApplicationCard({
           </div>
 
           <ContactAccessPanel contactsUnlocked={contactsUnlocked} task={task} />
+          {contactsUnlocked && (item.volunteerEmail || item.volunteerPhone) ? <VolunteerContacts item={item} /> : null}
 
           {commentAction ? (
             <div className="mt-4 rounded-[1.2rem] bg-[#fffdf7] p-4">
@@ -134,28 +121,36 @@ export function FoundationApplicationCard({
           </div>
 
           <div className="mt-5 space-y-3">
-            {!isClosed && (item.status === "review" || item.status === "clarify") ? (
+            {!isClosed && (item.status === "review" || item.status === "clarify") && canReviewApplication ? (
               <>
                 <button onClick={() => onStatusChange?.(item.id, "accepted")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#e8f8eb] text-xs font-black text-[#247a31] transition hover:brightness-95">
                   <Check className="size-4" />
-                  Подтвердить участие
+                  Назначить на задачу
                 </button>
                 <button onClick={() => setCommentAction("rejected")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-xs font-black text-[#c83c3c] shadow-[inset_0_0_0_1px_rgba(200,60,60,0.18)] transition hover:bg-[#fff6f6]">
                   <X className="size-4" />
-                  Отклонить
+                  Отказать
                 </button>
               </>
             ) : null}
 
-            {!isClosed && (item.status === "accepted" || item.status === "completed") ? (
+            {!isClosed && (item.status === "review" || item.status === "clarify") && !canReviewApplication ? (
+              <div className="rounded-[1.15rem] bg-white p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]">
+                <p className="text-sm font-black">Задание пока не опубликовано</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-black/52">Назначение участников станет доступно после публикации задания.</p>
+              </div>
+            ) : null}
+
+            {!isClosed && item.status === "accepted" ? (
               <>
-                <button onClick={() => onStatusChange?.(item.id, "confirmed")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#e8f8eb] text-xs font-black text-[#247a31] transition hover:brightness-95">
+                <button disabled={!canConfirmCompletion} onClick={() => onStatusChange?.(item.id, "confirmed")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#e8f8eb] text-xs font-black text-[#247a31] transition hover:brightness-95 disabled:bg-[#ece8dc] disabled:text-black/34">
                   <CheckCircle2 className="size-4" />
                   Подтвердить выполнение
                 </button>
-                <button onClick={() => setCommentAction("not_completed")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-xs font-black text-[#c83c3c] shadow-[inset_0_0_0_1px_rgba(200,60,60,0.18)] transition hover:bg-[#fff6f6]">
+                {!canConfirmCompletion ? <p className="rounded-xl bg-white px-3 py-2 text-xs font-bold leading-5 text-black/48">Подтверждение выполнения станет доступно после завершения задания.</p> : null}
+                <button disabled={!canConfirmCompletion} onClick={() => setCommentAction("not_completed")} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-xs font-black text-[#c83c3c] shadow-[inset_0_0_0_1px_rgba(200,60,60,0.18)] transition hover:bg-[#fff6f6] disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none">
                   <XCircle className="size-4" />
-                  Не выполнено
+                  Отметить как не выполнено
                 </button>
               </>
             ) : null}
@@ -163,8 +158,8 @@ export function FoundationApplicationCard({
             {isClosed ? (
               <div className={cn("rounded-[1.15rem] p-4", styles.surface)}>
                 <ShieldCheck className={cn("size-5", styles.text)} />
-                <p className="mt-3 text-sm font-black">{item.status === "confirmed" ? "Решение фонда зафиксировано" : "Заявка закрыта"}</p>
-                <p className="mt-1 text-xs font-bold leading-5 text-black/52">Информация сохранена в истории участия.</p>
+                <p className="mt-3 text-sm font-black">{closedTitle(item.status)}</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-black/52">{closedText(item.status)}</p>
               </div>
             ) : null}
           </div>
@@ -199,6 +194,33 @@ function ContactAccessPanel({ contactsUnlocked, task }: { contactsUnlocked: bool
         <ChevronRight className="size-4 text-[#247a31]" />
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-2">
+        {contacts.length ? contacts.map((contact) => {
+          const ContactIcon = contact.icon;
+          return (
+            <span key={contact.label} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-black text-black/60">
+              <ContactIcon className="size-4 text-black" />
+              {contact.label}: {contact.value}
+            </span>
+          );
+        }) : <span className="rounded-xl bg-white px-3 py-2 text-xs font-bold leading-5 text-black/50">Фонд не указал отдельные контакты. Используйте инструкцию или карточку задания.</span>}
+      </div>
+      {task.contacts.instruction ? <p className="mt-3 text-xs font-bold leading-5 text-black/54">{task.contacts.instruction}</p> : null}
+    </div>
+  );
+}
+
+function VolunteerContacts({ item }: { item: FoundationApplicationItem }) {
+  const contacts: { icon: LucideIcon; label: string; value: string | undefined }[] = [
+    { icon: Phone, label: "Телефон", value: item.volunteerPhone },
+    { icon: Mail, label: "Email", value: item.volunteerEmail }
+  ].filter((contact) => contact.value);
+
+  if (!contacts.length) return null;
+
+  return (
+    <div className="mt-3 rounded-[1.2rem] bg-[#fffdf7] p-4">
+      <p className="text-sm font-black">Контакты волонтёра</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
         {contacts.map((contact) => {
           const ContactIcon = contact.icon;
           return (
@@ -209,7 +231,6 @@ function ContactAccessPanel({ contactsUnlocked, task }: { contactsUnlocked: bool
           );
         })}
       </div>
-      {task.contacts.instruction ? <p className="mt-3 text-xs font-bold leading-5 text-black/54">{task.contacts.instruction}</p> : null}
     </div>
   );
 }
@@ -229,4 +250,18 @@ function initials(name: string) {
     .map((part) => part[0])
     .join("")
     .slice(0, 2);
+}
+
+function closedTitle(status: FoundationApplicationStatus) {
+  if (status === "completed") return "Передано администратору";
+  if (status === "confirmed") return "Часы начислены";
+  if (status === "not_completed") return "Участие не подтверждено";
+  return "Заявка закрыта";
+}
+
+function closedText(status: FoundationApplicationStatus) {
+  if (status === "completed") return "Фонд подтвердил выполнение, теперь часы ожидают проверки.";
+  if (status === "confirmed") return "Участие закрыто, часы отображаются в истории волонтёра.";
+  if (status === "not_completed") return "Комментарий сохранён в истории участия.";
+  return "Решение фонда сохранено в отклике.";
 }

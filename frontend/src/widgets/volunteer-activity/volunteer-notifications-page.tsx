@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { VolunteerTask } from "@/entities/task/model";
-import { getApiErrorMessage, volunteersService } from "@/shared/api";
+import { getApiErrorMessage, notificationsService } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
 import {
   notificationSettings,
@@ -39,7 +39,7 @@ export function VolunteerNotificationsPage() {
       setError(null);
 
       try {
-        const response = await volunteersService.getMyVolunteerNotifications({ limit: 100 });
+        const response = await notificationsService.getRoleNotifications("volunteer", { limit: 100 });
         if (!mounted) return;
         setNotifications(response.map(mapNotificationResponseToItem));
       } catch (loadError) {
@@ -51,9 +51,13 @@ export function VolunteerNotificationsPage() {
     }
 
     void loadNotifications();
+    const interval = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
 
     return () => {
       mounted = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -79,7 +83,7 @@ export function VolunteerNotificationsPage() {
     if (!item.unread) return;
 
     try {
-      const response = await volunteersService.markMyNotificationRead(item.id);
+      const response = await notificationsService.markRoleNotificationRead("volunteer", item.id);
       const next = mapNotificationResponseToItem(response);
       setNotifications((items) => items.map((notification) => notification.id === item.id ? next : notification));
     } catch (readError) {
@@ -95,9 +99,8 @@ export function VolunteerNotificationsPage() {
     setError(null);
 
     try {
-      const responses = await Promise.all(unread.map((item) => volunteersService.markMyNotificationRead(item.id)));
-      const nextById = new Map(responses.map((item) => [item.id, mapNotificationResponseToItem(item)]));
-      setNotifications((items) => items.map((item) => nextById.get(item.id) ?? item));
+      await notificationsService.markAllRoleNotificationsRead("volunteer");
+      setNotifications((items) => items.map((item) => ({ ...item, unread: false })));
     } catch (readError) {
       setError(getApiErrorMessage(readError));
     } finally {

@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import type { Foundation } from "@/entities/foundation/model";
 import type { VolunteerTask } from "@/entities/task/model";
+import { resolveApiFileUrl } from "@/shared/api/config";
+import type { FundDocumentResponse } from "@/shared/api/types";
 import { getFoundationDetails } from "@/widgets/foundation-public/model/foundation-public-data";
 import { FoundationActivityCard } from "@/widgets/foundation-public/ui/foundation-activity-card";
 import { FoundationStat } from "@/widgets/foundation-public/ui/foundation-stat";
@@ -25,11 +27,13 @@ import { DetailCard, IconBubble, Pill } from "@/widgets/task-detail/ui/detail-ca
 export function FoundationPublicPage({
   foundation,
   activeTasks,
-  completedTasks
+  completedTasks,
+  documents = []
 }: {
   foundation: Foundation;
   activeTasks: VolunteerTask[];
   completedTasks: VolunteerTask[];
+  documents?: FundDocumentResponse[];
 }) {
   const details = getFoundationDetails(foundation.id);
   const totalHours = [...activeTasks, ...completedTasks].reduce((sum, task) => sum + task.hours * Math.max(task.filled, 1), foundation.reportsReady * 18);
@@ -118,6 +122,26 @@ export function FoundationPublicPage({
               </div>
             </div>
           </DetailCard>
+
+          {documents.length ? (
+            <DetailCard>
+              <div className="mb-5">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-black/38">Документы фонда</p>
+                <h2 className="mt-2 text-3xl font-black">Файлы из профиля</h2>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {documents.map((document) => {
+                  const href = resolveApiFileUrl(document.file_url);
+                  return (
+                    <a key={document.id} href={href ?? "#"} target="_blank" rel="noreferrer" className="rounded-[1.1rem] bg-[#fffdf7] p-4 text-sm font-black text-black/66 transition hover:bg-brand/12">
+                      <span className="block text-black">{document.document_type}</span>
+                      <span className="mt-1 block truncate text-xs text-black/42">{document.file_url.split("/").pop()}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </DetailCard>
+          ) : null}
 
           <DetailCard>
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

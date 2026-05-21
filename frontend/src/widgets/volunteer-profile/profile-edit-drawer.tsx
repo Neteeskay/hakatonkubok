@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, X } from "lucide-react";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { tasksService } from "@/shared/api/services/tasks";
 import { SoftBadge } from "@/widgets/volunteer-profile/profile-ui";
+import { skillOptions, type SkillOption } from "@/widgets/volunteer-profile/skills-dictionary";
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
 
 export interface ProfileDraft {
+  avatarUrl: string | null;
   name: string;
   city: string;
   email: string;
@@ -20,6 +24,7 @@ export interface ProfileDraft {
 
 export const emptyProfileDraft: ProfileDraft = {
   about: "",
+  avatarUrl: null,
   city: "",
   email: "",
   interests: [],
@@ -38,6 +43,7 @@ export function ProfileEditDrawer({
   initialFocus = "basic",
   profileDraft,
   skillsSnapshot,
+  onAvatarUpload,
   onSave
 }: {
   open: boolean;
@@ -45,6 +51,7 @@ export function ProfileEditDrawer({
   initialFocus?: ProfileEditFocus;
   profileDraft: ProfileDraft;
   skillsSnapshot: ProfileSkillsSnapshot;
+  onAvatarUpload?: (file: File) => Promise<string | null> | string | null;
   onSave: (draft: ProfileDraft) => Promise<void> | void;
 }) {
   const hydratedDraft = useMemo(() => ({ ...emptyProfileDraft, ...profileDraft, ...skillsSnapshot }), [profileDraft, skillsSnapshot]);
@@ -53,6 +60,8 @@ export function ProfileEditDrawer({
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [dictionaryOptions, setDictionaryOptions] = useState<SkillOption[]>(skillOptions);
   const skillsRef = useRef<HTMLDivElement>(null);
   const isValid = draft.name.trim().length > 2 && draft.email.includes("@") && draft.phone.trim().length >= 7;
   const initials = getInitials(draft.name || draft.email);
@@ -63,11 +72,30 @@ export function ProfileEditDrawer({
       setSaving(false);
       setSaved(false);
       setSaveError(null);
+      setAvatar(resolveApiFileUrl(hydratedDraft.avatarUrl));
+      setAvatarFile(null);
       if (initialFocus === "skills") {
         window.setTimeout(() => skillsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 220);
       }
     }
   }, [hydratedDraft, initialFocus, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+
+    tasksService.getTaskSkills()
+      .then((options) => {
+        if (mounted && options.length) setDictionaryOptions(options);
+      })
+      .catch(() => {
+        if (mounted) setDictionaryOptions(skillOptions);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [open]);
 
   function update(field: keyof ProfileDraft, value: string) {
     setSaved(false);
@@ -84,6 +112,7 @@ export function ProfileEditDrawer({
   function handleAvatar(file?: File) {
     if (!file) return;
     setAvatar(URL.createObjectURL(file));
+    setAvatarFile(file);
   }
 
   async function save() {
@@ -92,7 +121,8 @@ export function ProfileEditDrawer({
     setSaveError(null);
 
     try {
-      await onSave(draft);
+      const uploadedAvatarUrl = avatarFile ? await onAvatarUpload?.(avatarFile) : draft.avatarUrl;
+      await onSave({ ...draft, avatarUrl: uploadedAvatarUrl ?? draft.avatarUrl });
       setSaved(true);
     } catch (error) {
       setSaveError(getApiErrorMessage(error));
@@ -115,7 +145,7 @@ export function ProfileEditDrawer({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-black/38">Edit mode</p>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-black/38">Редактирование</p>
                 <h2 className="mt-2 text-3xl font-black">Редактировать профиль</h2>
                 <p className="mt-2 max-w-md text-sm leading-6 text-black/56">Изменения сохраняются в профиле волонтёра.</p>
               </div>
@@ -136,7 +166,7 @@ export function ProfileEditDrawer({
                 <div>
                   <p className="font-black">Фото профиля</p>
                   <p className="mt-1 text-sm text-black/54">PNG/JPG.</p>
-                  {avatar ? <SoftBadge tone="green">uploaded</SoftBadge> : null}
+                  {avatar ? <SoftBadge tone="green">Загружено</SoftBadge> : null}
                 </div>
               </div>
             </div>
@@ -158,6 +188,7 @@ export function ProfileEditDrawer({
                     value={draft.interests}
                     onChange={(value) => updateList("interests", value)}
                     groups={["interest"]}
+                    options={dictionaryOptions}
                     tone="brand"
                   />
                   <SkillsInput
@@ -166,6 +197,7 @@ export function ProfileEditDrawer({
                     value={draft.skills}
                     onChange={(value) => updateList("skills", value)}
                     groups={["professional", "probono"]}
+                    options={dictionaryOptions}
                     tone="violet"
                   />
                   <SkillsInput
@@ -174,6 +206,7 @@ export function ProfileEditDrawer({
                     value={draft.proBono}
                     onChange={(value) => updateList("proBono", value)}
                     groups={["probono", "professional"]}
+                    options={dictionaryOptions}
                     tone="brand"
                   />
                 </div>
@@ -188,10 +221,10 @@ export function ProfileEditDrawer({
                   {saveError ? <p className="text-sm font-bold text-red-500">{saveError}</p> : null}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setDraft(hydratedDraft)} className="h-12 rounded-xl bg-white px-5 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.1)]">Cancel</button>
+                  <button onClick={() => setDraft(hydratedDraft)} className="h-12 rounded-xl bg-white px-5 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.1)]">Отменить</button>
                   <button disabled={!isValid || saving} onClick={save} className="inline-flex h-12 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.28)] disabled:opacity-45">
                     {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Save
+                    Сохранить
                   </button>
                 </div>
               </div>

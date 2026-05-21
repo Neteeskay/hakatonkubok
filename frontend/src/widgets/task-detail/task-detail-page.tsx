@@ -22,7 +22,7 @@ import {
 import type { Foundation } from "@/entities/foundation/model";
 import type { VolunteerTask } from "@/entities/task/model";
 import { getRecruitmentState, recruitmentToneClass } from "@/widgets/volunteer-feed/model/recruitment-state";
-import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { commitmentLabels, formatLabels, getCategoryLabel, getSkillLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 import {
   ctaLabels,
   getCtaState,
@@ -64,7 +64,7 @@ export function TaskDetailPage({
   const setStatus = onApplicationStatusChange ?? setLocalStatus;
   const ctaState = getCtaState(task.status, recruitment.remaining, currentStatus);
   const activeStep = getParticipationProgress(ctaState);
-  const visual = taskVisuals[task.id] ?? taskVisuals["task-001"];
+  const visual = getTaskVisual(task.id, task.imageUrl);
   const cta = ctaLabels[ctaState];
   const contactsUnlocked = ctaState === "accepted" || ctaState === "completed" || ctaState === "hours";
 
@@ -268,7 +268,7 @@ function ContactStep({ icon: Icon, title, text }: { icon: LucideIcon; title: str
 
 function RelatedTaskCard({ task, onOpen }: { task: VolunteerTask; onOpen?: (task: VolunteerTask) => void }) {
   const recruitment = getRecruitmentState(task);
-  const visual = taskVisuals[task.id] ?? taskVisuals["task-001"];
+  const visual = getTaskVisual(task.id, task.imageUrl);
   const content = (
     <>
       <div className="relative h-32 overflow-hidden rounded-[1.05rem] bg-brand/12">

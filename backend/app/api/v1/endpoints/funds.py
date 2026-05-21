@@ -48,6 +48,13 @@ from app.services.fund_report_service import (
 )
 from app.schemas.tasks import TaskFeedSort, TaskResponse
 from app.services.task_service import list_published_tasks
+from app.schemas.notifications import NotificationReadCount, NotificationResponse
+from app.services.notification_service import (
+    NotificationNotFoundError,
+    list_user_notifications,
+    mark_all_user_notifications_read,
+    mark_notification_read,
+)
 
 
 router = APIRouter()
@@ -120,6 +127,46 @@ async def update_my_fund_profile(
     except FundNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
     return FundProfileResponse.model_validate(fund)
+
+
+@router.get("/me/notifications", response_model=list[NotificationResponse])
+async def get_my_fund_notifications(
+    unread_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> list[NotificationResponse]:
+    notifications = await list_user_notifications(
+        session,
+        current_user,
+        unread_only=unread_only,
+        limit=limit,
+        offset=offset,
+    )
+    return [NotificationResponse.model_validate(notification) for notification in notifications]
+
+
+@router.patch("/me/notifications/read-all", response_model=NotificationReadCount)
+async def mark_all_my_fund_notifications_read(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationReadCount:
+    updated_count = await mark_all_user_notifications_read(session, current_user)
+    return NotificationReadCount(updated_count=updated_count)
+
+
+@router.patch("/me/notifications/{notification_id}/read", response_model=NotificationResponse)
+async def mark_my_fund_notification_read(
+    notification_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationResponse:
+    try:
+        notification = await mark_notification_read(session, current_user, notification_id)
+    except NotificationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="notification not found") from exc
+    return NotificationResponse.model_validate(notification)
 
 
 @router.post(
@@ -380,12 +427,6 @@ async def get_public_fund_profile(
         fund.id,
     )
 
-    public_documents = [
-        document
-        for document in fund.documents
-        if document.is_public
-    ]
-
     return PublicFundProfileResponse(
         id=fund.id,
         name=fund.name,
@@ -403,7 +444,7 @@ async def get_public_fund_profile(
         contact_email=fund.contact_email,
         documents=[
             FundDocumentResponse.model_validate(document)
-            for document in public_documents
+            for document in fund.documents
         ],
         active_tasks=active_tasks,
         awarded_hours_total=awarded_hours_total,

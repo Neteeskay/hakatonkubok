@@ -74,7 +74,7 @@ export default function VolunteerRegisterPage() {
           <button type="button" onClick={() => setChecked(true)} className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black">Проверить сотрудника</button>
           {checked ? (
             <p className="rounded-2xl bg-white px-4 py-3 text-sm font-bold leading-6 text-black/54">
-              Сотрудник будет проверен backend при создании профиля.
+              Данные сотрудника будут проверены при создании профиля.
             </p>
           ) : null}
           {error ? (

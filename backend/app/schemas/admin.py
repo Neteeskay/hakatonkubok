@@ -98,6 +98,7 @@ class AdminTaskListItem(AdminOrmModel):
     deadline_at: datetime | None = None
     participant_limit: int | None = None
     expected_hours: Decimal
+    image_url: str | None = None
     status: TaskStatus
     moderation_comment: str | None = None
     published_at: datetime | None = None
@@ -232,6 +233,7 @@ class AdminTaskDirectoryItem(AdminOrmModel):
     applications_completion_confirmed: int = 0
     applications_hours_awarded: int = 0
     expected_hours: Decimal
+    image_url: str | None = None
     status: TaskStatus
     created_at: datetime
     updated_at: datetime

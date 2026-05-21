@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Download } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { getApiErrorMessage, volunteersService } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -29,7 +29,6 @@ export function VolunteerHistoryPage() {
   const [statuses, setStatuses] = useState<Record<string, ApplicationStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -65,7 +64,7 @@ export function VolunteerHistoryPage() {
       if (activeFilter === "all") return true;
       if (activeFilter === "completed") return entry.status === "completed" || entry.status === "hours";
       if (activeFilter === "hours") return entry.status === "hours";
-      if (activeFilter === "pending") return entry.status === "pending" || entry.status === "accepted" || entry.status === "in-progress";
+      if (activeFilter === "pending") return entry.status === "pending" || entry.status === "accepted" || entry.status === "in-progress" || entry.status === "completed";
       return true;
     });
   }, [activeFilter, entries]);
@@ -75,25 +74,6 @@ export function VolunteerHistoryPage() {
   const cities = useMemo(() => buildCityContribution(entries), [entries]);
   const allTasks = useMemo(() => entries.map((entry) => entry.task), [entries]);
 
-  async function downloadReport() {
-    setDownloading(true);
-    setError(null);
-
-    try {
-      const blob = await volunteersService.downloadMyVolunteerStatistics(new Date().getFullYear());
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `volunteer-statistics-${new Date().getFullYear()}.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (downloadError) {
-      setError(getApiErrorMessage(downloadError));
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   return (
     <section className="rounded-[1.55rem] bg-white p-4 shadow-[0_20px_70px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -101,10 +81,6 @@ export function VolunteerHistoryPage() {
           <h1 className="text-3xl font-black leading-none md:text-4xl">История помощи</h1>
           <p className="mt-3 text-sm font-bold text-black/54">Ваш путь добрых дел</p>
         </div>
-        <button onClick={downloadReport} disabled={downloading} className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-xl bg-white px-4 text-sm font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12 disabled:opacity-60 md:self-auto">
-          {downloading ? "Готовим отчёт" : "Скачать отчёт"}
-          <Download className="size-4" />
-        </button>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

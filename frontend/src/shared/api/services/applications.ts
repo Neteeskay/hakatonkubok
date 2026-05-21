@@ -42,6 +42,10 @@ export async function rejectFundApplication(applicationId: Uuid, payload: Applic
   return apiClient.post<ApplicationResponse, ApplicationRejectRequest>(`/applications/fund/${applicationId}/reject`, payload);
 }
 
+export async function clarifyFundApplication(applicationId: Uuid, payload: ApplicationRejectRequest) {
+  return apiClient.post<ApplicationResponse, ApplicationRejectRequest>(`/applications/${applicationId}/clarify`, payload);
+}
+
 export async function confirmFundTaskCompletions(taskId: Uuid, payload: TaskCompletionsConfirmRequest = {}) {
   return apiClient.post<ApplicationResponse[], TaskCompletionsConfirmRequest>(
     `/applications/fund/tasks/${taskId}/confirm-completions`,
@@ -56,15 +60,23 @@ export async function confirmFundApplicationCompletion(applicationId: Uuid, payl
   );
 }
 
+export async function markFundApplicationNotCompleted(applicationId: Uuid, payload: ApplicationCompletionConfirmRequest = {}) {
+  return apiClient.post<ApplicationResponse, ApplicationCompletionConfirmRequest>(
+    `/applications/fund/${applicationId}/mark-not-completed`,
+    payload
+  );
+}
+
 export const applicationsService = {
   acceptFundApplication,
   applyToTask,
   cancelMyApplication,
+  clarifyFundApplication,
   confirmFundApplicationCompletion,
   confirmFundTaskCompletions,
   getFundApplication,
   getFundApplications,
   getMyApplications,
+  markFundApplicationNotCompleted,
   rejectFundApplication
 };
-

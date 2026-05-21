@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { ArrowRight, Download, Plus, ShieldCheck } from "lucide-react";
-import { applicationsService, fundsService, getApiErrorMessage, tasksService } from "@/shared/api";
+import { applicationsService, fundsService, getApiErrorMessage, notificationsService, tasksService } from "@/shared/api";
+import type { HelpCategoryResponse, NotificationResponse, SkillOptionResponse, TaskFilterOptionsResponse } from "@/shared/api";
 import {
   currentFoundation,
   foundationMetrics,
@@ -92,7 +94,12 @@ const fallbackParticipantsTask: FoundationTaskItem = {
   capacity: 0,
   responses: 0,
   hours: 0,
+  instructions: "",
+  location: "",
+  requirements: [],
+  skills: [],
   status: "published",
+  taskType: "regular",
   contactVisibility: "after_acceptance",
   contacts: {
     telegram: "",
@@ -104,10 +111,24 @@ const fallbackParticipantsTask: FoundationTaskItem = {
   }
 };
 
+async function uploadTaskImageIfNeeded(taskId: string, values: FoundationTaskFormValues) {
+  if (values.imageFile) {
+    await tasksService.uploadMyTaskImage(taskId, values.imageFile);
+  }
+}
+
 export function FoundationDashboardPage() {
-  const { applications, error, foundation, loading, metrics, tasks } = useFoundationWorkspaceData();
+  const { applications, error, foundation, loading, metrics, setTasks, tasks } = useFoundationWorkspaceData();
+  const [editingTask, setEditingTask] = useState<FoundationTaskItem | null>(null);
   const urgentApplications = applications.filter((item) => item.status === "review" || item.status === "clarify");
   const activeTasks = tasks.filter((task) => task.status === "published" || task.status === "returned");
+  const saveTask = async (values: FoundationTaskFormValues) => {
+    if (!editingTask) return;
+    const updated = await tasksService.updateMyTask(editingTask.taskId, buildTaskUpdateRequest(values));
+    await uploadTaskImageIfNeeded(updated.id, values);
+    const submitted = await tasksService.submitMyTask(updated.id);
+    setTasks((items) => items.map((task) => task.id === editingTask.id ? mapTaskResponseToFoundationTask(submitted) : task));
+  };
 
   return (
     <FoundationPageShell
@@ -121,7 +142,7 @@ export function FoundationDashboardPage() {
       <div className="grid gap-5 xl:grid-cols-[1fr_390px]">
         <section className="space-y-4">
           <SectionHeader title="Задания, требующие внимания" text="Опубликованные активности и задания, которые нужно доработать после модерации." href="/foundation/tasks" />
-          {loading ? <StateBlock title="Загружаем задания..." /> : error ? <StateBlock title="Не удалось загрузить кабинет" text={error} /> : activeTasks.length ? activeTasks.slice(0, 3).map((task) => <FoundationTaskCard key={task.id} task={task} />) : <StateBlock title="Нет заданий, требующих внимания" text="Опубликованные и возвращённые на доработку задания появятся здесь." />}
+          {loading ? <StateBlock title="Загружаем задания..." /> : error ? <StateBlock title="Не удалось загрузить кабинет" text={error} /> : activeTasks.length ? activeTasks.slice(0, 3).map((task) => <FoundationTaskCard key={task.id} task={task} onEdit={setEditingTask} />) : <StateBlock title="Нет заданий, требующих внимания" text="Опубликованные и возвращённые на доработку задания появятся здесь." />}
         </section>
 
         <aside className="space-y-4">
@@ -152,6 +173,7 @@ export function FoundationDashboardPage() {
           </section>
         </aside>
       </div>
+      {editingTask ? <FoundationTaskEditor task={editingTask} onClose={() => setEditingTask(null)} onSave={saveTask} /> : null}
     </FoundationPageShell>
   );
 }
@@ -162,9 +184,14 @@ export function FoundationTasksPage() {
   const [editingTask, setEditingTask] = useState<FoundationTaskItem | null>(null);
   const visibleTasks = activeStatus === "all" ? tasks : tasks.filter((task) => task.status === activeStatus);
 
-  const saveTask = async (values: Parameters<typeof buildTaskUpdateRequest>[0]) => {
+  useEffect(() => {
+    setActiveStatus(normalizeTaskStatus(new URLSearchParams(window.location.search).get("status")));
+  }, []);
+
+  const saveTask = async (values: FoundationTaskFormValues) => {
     if (!editingTask) return;
     const updated = await tasksService.updateMyTask(editingTask.taskId, buildTaskUpdateRequest(values));
+    await uploadTaskImageIfNeeded(updated.id, values);
     const submitted = await tasksService.submitMyTask(updated.id);
     setTasks((items) => items.map((task) => task.id === editingTask.id ? mapTaskResponseToFoundationTask(submitted) : task));
   };
@@ -186,11 +213,32 @@ export function FoundationTasksPage() {
 }
 
 export function CreateTaskPage() {
+  const router = useRouter();
   const { error, foundation, loading } = useFoundationWorkspaceData();
+  const [categories, setCategories] = useState<HelpCategoryResponse[]>([]);
+  const [skillOptions, setSkillOptions] = useState<SkillOptionResponse[]>([]);
+  const [filterOptions, setFilterOptions] = useState<TaskFilterOptionsResponse | null>(null);
+  const [, setCategoriesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void Promise.all([
+      tasksService.getTaskCategories(),
+      tasksService.getTaskSkills(),
+      tasksService.getTaskFilters()
+    ])
+      .then(([categoryResponses, skillResponses, taskFilterResponses]) => {
+        setCategories(categoryResponses);
+        setSkillOptions(skillResponses);
+        setFilterOptions(taskFilterResponses);
+      })
+      .catch((categoryError) => setCategoriesError(getApiErrorMessage(categoryError)));
+  }, []);
 
   const createTask = async (values: FoundationTaskFormValues) => {
     const created = await tasksService.createTask(buildTaskCreateRequest(values));
+    await uploadTaskImageIfNeeded(created.id, values);
     await tasksService.submitMyTask(created.id);
+    window.setTimeout(() => router.push("/foundation/tasks?status=moderation"), 650);
   };
 
   return (
@@ -199,32 +247,43 @@ export function CreateTaskPage() {
       title="Новая активность для волонтёров"
       description="Опишите неденежную помощь, требования, сроки, контакты после принятия и ожидаемый результат."
     >
-      {loading ? <StateBlock title="Загружаем данные фонда..." /> : error ? <StateBlock title="Не удалось загрузить данные фонда" text={error} /> : <CreateTaskForm canPublish={foundation.moderationStatus === "approved"} onSubmit={createTask} />}
+      {loading ? <StateBlock title="Загружаем данные фонда..." /> : error ? <StateBlock title="Не удалось загрузить данные фонда" text={error} /> : (
+        <>
+          <CreateTaskForm
+            canPublish={foundation.moderationStatus === "approved"}
+            categoryOptions={categories}
+            durationOptions={filterOptions?.duration_types}
+            formatOptions={filterOptions?.participation_formats}
+            skillOptions={skillOptions.length ? skillOptions : undefined}
+            taskTypeOptions={filterOptions?.task_types}
+            onSubmit={createTask}
+          />
+        </>
+      )}
     </FoundationPageShell>
   );
 }
 
 export function FoundationParticipantsPage() {
-  const { applications, error, loading, setApplications, tasks } = useFoundationWorkspaceData();
+  const { applications, error, loading, setApplications, setTasks, tasks } = useFoundationWorkspaceData();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeQueue, setActiveQueue] = useState<ApplicationQueue>("review");
 
   const setApplicationStatus = async (id: string, status: FoundationApplicationStatus, comment?: string) => {
     setActionError(null);
 
     try {
       if (status === "clarify") {
-        setActionError("Endpoint для запроса уточнений у волонтёра отсутствует.");
+        const updatedApplication = await applicationsService.clarifyFundApplication(id, { fund_comment: comment?.trim() || "Фонд просит уточнить детали участия." });
+        const mappedApplication = mapApplicationResponseToFoundationApplication(updatedApplication);
+        setApplications((items) => items.map((item) => item.id === id ? mappedApplication : item));
         return;
       }
 
       if (status === "not_completed") {
-        setApplications((items) => items.map((item) => item.id === id ? {
-          ...item,
-          attendanceDecision: applicationAttendanceByStatus(status),
-          comment: applicationCommentByStatus(status, comment),
-          nextStep: applicationNextStepByStatus(status),
-          status
-        } : item));
+        const updatedApplication = await applicationsService.markFundApplicationNotCompleted(id, { completion_comment: comment?.trim() || "Фонд отметил, что участие не выполнено." });
+        const mappedApplication = mapApplicationResponseToFoundationApplication(updatedApplication);
+        setApplications((items) => items.map((item) => item.id === id ? mappedApplication : item));
         return;
       }
 
@@ -238,11 +297,22 @@ export function FoundationParticipantsPage() {
 
       setApplications((items) => items.map((item) => item.id === id ? mappedApplication : item));
     } catch (statusError) {
-      setActionError(getApiErrorMessage(statusError));
+      setActionError(toApplicationActionMessage(statusError));
+    }
+  };
+  const closeTask = async (task: FoundationTaskItem) => {
+    setActionError(null);
+
+    try {
+      await tasksService.closeMyTask(task.taskId);
+      setTasks((items) => items.map((item) => item.id === task.id ? { ...item, status: "completed" } : item));
+    } catch (closeError) {
+      setActionError(toApplicationActionMessage(closeError));
     }
   };
   const tasksWithApplications = tasks.filter((task) => applications.some((item) => item.taskId === task.taskId || item.taskTitle === task.title));
   const orphanApplications = applications.filter((item) => !tasks.some((task) => item.taskId === task.taskId || item.taskTitle === task.title));
+  const visibleApplications = applications.filter((item) => isApplicationInQueue(item, activeQueue));
 
   return (
     <FoundationPageShell
@@ -251,13 +321,16 @@ export function FoundationParticipantsPage() {
       description="Единый рабочий раздел: рассмотрите отклики, запросите уточнение, примите участника и после активности подтвердите факт участия."
     >
       <div className="space-y-5">
-        {loading ? <StateBlock title="Загружаем участников..." /> : error ? <StateBlock title="Не удалось загрузить участников" text={error} /> : actionError ? <StateBlock title="Не удалось обновить статус" text={actionError} /> : null}
+        <ApplicationQueueFilters active={activeQueue} applications={applications} onChange={setActiveQueue} />
+        {loading ? <StateBlock title="Загружаем участников..." /> : error ? <StateBlock title="Не удалось загрузить участников" text={error} /> : actionError ? <StateBlock title="Действие пока недоступно" text={actionError} /> : null}
         {!loading && !error && !applications.length ? <StateBlock title="Откликов пока нет" text="Когда волонтёры откликнутся на задания фонда, они появятся здесь." /> : null}
         {tasksWithApplications.map((task) => {
-          const taskApplications = applications.filter((item) => item.taskId === task.taskId || item.taskTitle === task.title);
-          return <TaskApplicationsSection key={task.id} task={task} applications={taskApplications} onStatusChange={setApplicationStatus} />;
+          const taskApplications = visibleApplications.filter((item) => item.taskId === task.taskId || item.taskTitle === task.title);
+          if (!taskApplications.length) return null;
+          return <TaskApplicationsSection key={task.id} task={task} applications={taskApplications} onCloseTask={closeTask} onStatusChange={setApplicationStatus} />;
         })}
-        {!loading && !error && orphanApplications.length ? <TaskApplicationsSection task={fallbackParticipantsTask} applications={orphanApplications} onStatusChange={setApplicationStatus} /> : null}
+        {!loading && !error && orphanApplications.filter((item) => isApplicationInQueue(item, activeQueue)).length ? <TaskApplicationsSection task={fallbackParticipantsTask} applications={orphanApplications.filter((item) => isApplicationInQueue(item, activeQueue))} onStatusChange={setApplicationStatus} /> : null}
+        {!loading && !error && applications.length && !visibleApplications.length ? <StateBlock title="В этой группе откликов нет" text="Переключите фильтр, чтобы посмотреть другие статусы." /> : null}
       </div>
     </FoundationPageShell>
   );
@@ -266,15 +339,102 @@ export function FoundationParticipantsPage() {
 export const FoundationApplicationsPage = FoundationParticipantsPage;
 export const FoundationVolunteersPage = FoundationParticipantsPage;
 
+export function FoundationNotificationsPage() {
+  const [items, setItems] = useState<NotificationResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
+
+  async function loadNotifications() {
+    setLoading(true);
+    try {
+      const response = await notificationsService.getRoleNotifications("foundation", { limit: 100 });
+      setItems(response);
+      setError(null);
+    } catch (notificationError) {
+      setError(getApiErrorMessage(notificationError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadNotifications();
+    const interval = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  async function markRead(item: NotificationResponse) {
+    if (item.is_read) return;
+    try {
+      const updated = await notificationsService.markRoleNotificationRead("foundation", item.id);
+      setItems((current) => current.map((notification) => notification.id === item.id ? updated : notification));
+      setError(null);
+    } catch (readError) {
+      setError(getApiErrorMessage(readError));
+    }
+  }
+
+  async function markAllRead() {
+    if (!unreadCount || markingAll) return;
+    setMarkingAll(true);
+    try {
+      await notificationsService.markAllRoleNotificationsRead("foundation");
+      setItems((current) => current.map((notification) => ({ ...notification, is_read: true })));
+      setError(null);
+    } catch (readError) {
+      setError(getApiErrorMessage(readError));
+    } finally {
+      setMarkingAll(false);
+    }
+  }
+
+  const unreadCount = items.filter((item) => !item.is_read).length;
+
+  return (
+    <FoundationPageShell
+      eyebrow="Уведомления"
+      title="События фонда"
+      description="Здесь собраны решения по модерации, новые отклики, завершения заданий и начисление часов."
+    >
+      <div className="space-y-4">
+        <section className="flex flex-wrap items-center gap-2 rounded-[1.45rem] bg-white p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+          <FoundationStatusBadge tone="gold">Новые {unreadCount}</FoundationStatusBadge>
+          <FoundationStatusBadge tone="neutral">Всего {items.length}</FoundationStatusBadge>
+          <button onClick={() => { void markAllRead(); }} disabled={!unreadCount || markingAll} className="ml-auto h-10 rounded-xl bg-[#fffdf7] px-4 text-xs font-black text-black/58 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)] transition hover:bg-brand/12 disabled:opacity-55">
+            {markingAll ? "Отмечаем..." : "Отметить все прочитанными"}
+          </button>
+        </section>
+        {loading ? <StateBlock title="Загружаем уведомления..." /> : error ? <StateBlock title="Не удалось загрузить уведомления" text={error} /> : null}
+        {!loading && !error && !items.length ? <StateBlock title="Уведомлений пока нет" text="Когда появятся новые события по заданиям и откликам, они будут здесь." /> : null}
+        <div className="grid gap-3">
+          {items.map((item) => (
+            <button key={item.id} onClick={() => { void markRead(item); }} className={`grid gap-3 rounded-[1.35rem] bg-white p-4 text-left shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5 hover:bg-brand/10 md:grid-cols-[1fr_auto] md:items-center ${item.is_read ? "opacity-70" : ""}`}>
+              <span>
+                <span className="block text-sm font-black">{item.title}</span>
+                <span className="mt-1 block whitespace-pre-line text-sm font-bold leading-6 text-black/54">{item.body}</span>
+              </span>
+              <span className="rounded-full bg-[#fffdf7] px-3 py-1.5 text-xs font-black text-black/44">{formatNotificationDate(item.created_at)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </FoundationPageShell>
+  );
+}
+
 export function FoundationModerationPage() {
   const { error, loading, setTasks, tasks } = useFoundationWorkspaceData();
   const [activeStatus, setActiveStatus] = useState<"all" | FoundationTaskStatus>("all");
   const [editingTask, setEditingTask] = useState<FoundationTaskItem | null>(null);
-  const moderationTasks = tasks.filter((task) => task.status !== "published" || task.moderationComment);
+  const moderationTasks = tasks;
   const visibleTasks = activeStatus === "all" ? moderationTasks : moderationTasks.filter((task) => task.status === activeStatus);
   const saveTask = async (values: FoundationTaskFormValues) => {
     if (!editingTask) return;
     const updated = await tasksService.updateMyTask(editingTask.taskId, buildTaskUpdateRequest(values));
+    await uploadTaskImageIfNeeded(updated.id, values);
     const submitted = await tasksService.submitMyTask(updated.id);
     setTasks((items) => items.map((task) => task.id === editingTask.id ? mapTaskResponseToFoundationTask(submitted) : task));
   };
@@ -296,7 +456,44 @@ export function FoundationModerationPage() {
 
 export function FoundationReportsPage() {
   const { error, loading, reports } = useFoundationWorkspaceData();
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const chartValues = reports.map((metric) => Math.max(12, Math.min(Number(metric.value.replace(",", ".")) || 0, 100)));
+  const reportActions = [
+    {
+      id: "participants-csv",
+      title: "CSV по участникам",
+      text: "Отклики, выполненные задания и часы волонтёров фонда.",
+      fileName: "fund-participants.csv",
+      run: () => fundsService.downloadMyFundParticipantsReport("csv")
+    },
+    {
+      id: "participants-xlsx",
+      title: "Excel по участникам",
+      text: "Таблица для внутренней отчётности фонда.",
+      fileName: "fund-participants.xlsx",
+      run: () => fundsService.downloadMyFundParticipantsReport("xlsx")
+    },
+    {
+      id: "hours-xlsx",
+      title: "Отчёт по часам",
+      text: "Начисленные часы по месяцам.",
+      fileName: "fund-hours.xlsx",
+      run: () => fundsService.downloadMyFundHoursReport("xlsx")
+    }
+  ];
+
+  async function downloadReport(action: (typeof reportActions)[number]) {
+    setDownloading(action.id);
+    setDownloadError(null);
+    try {
+      downloadBlob(await action.run(), action.fileName);
+    } catch (downloadReportError) {
+      setDownloadError(getApiErrorMessage(downloadReportError));
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   return (
     <FoundationPageShell
@@ -305,6 +502,7 @@ export function FoundationReportsPage() {
       description="Следите за заданиями, откликами, принятыми участниками, завершёнными активностями и подтверждёнными часами."
     >
       {loading ? <StateBlock title="Загружаем отчёты..." /> : error ? <StateBlock title="Не удалось загрузить отчёты" text={error} /> : null}
+      {downloadError ? <StateBlock title="Не удалось скачать отчёт" text={downloadError} /> : null}
       <div className="grid gap-4 md:grid-cols-4">
         {reports.map((metric) => <FoundationMetricCard key={metric.label} {...metric} />)}
       </div>
@@ -323,9 +521,12 @@ export function FoundationReportsPage() {
         <div className="rounded-[1.35rem] bg-[#fffdf7] p-5">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-black/38">Экспорт отчётов</p>
           <div className="mt-4 space-y-3">
-            {["CSV по откликам", "Excel по участникам", "Отчёт по часам"].map((item) => (
-              <button key={item} disabled className="flex h-14 w-full items-center justify-between rounded-xl bg-white px-4 text-sm font-black text-black/34 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
-                {item}
+            {reportActions.map((action) => (
+              <button key={action.id} onClick={() => { void downloadReport(action); }} disabled={downloading !== null} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-left text-sm font-black text-black/68 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)] transition hover:bg-brand/12 disabled:text-black/34">
+                <span>
+                  <span className="block">{downloading === action.id ? "Готовим..." : action.title}</span>
+                  <span className="mt-1 block text-xs font-bold text-black/42">{action.text}</span>
+                </span>
                 <Download className="size-4" />
               </button>
             ))}
@@ -334,6 +535,15 @@ export function FoundationReportsPage() {
       </section>
     </FoundationPageShell>
   );
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  window.URL.revokeObjectURL(url);
 }
 
 export function FoundationProfilePage() {
@@ -350,13 +560,24 @@ export function FoundationProfilePage() {
       id: document.document_type,
       title: document.document_type,
       description: "Документ фонда",
+      fileUrl: document.file_url,
       fileName: document.file_url.split("/").pop() || document.file_url,
       status: "uploaded" as const
     };
   };
 
+  const uploadLogo = async (file: File) => {
+    const response = await fundsService.uploadMyFundLogo(file);
+    return response.file_url;
+  };
+
+  const uploadCover = async (file: File) => {
+    const response = await fundsService.uploadMyFundCover(file);
+    return response.file_url;
+  };
+
   return (
-    <FoundationPageShell eyebrow="Профиль фонда" title={foundation.name} description={foundation.description}>
+    <div className="space-y-6">
       {loading ? <StateBlock title="Загружаем профиль фонда..." /> : error ? <StateBlock title="Не удалось загрузить профиль фонда" text={error} /> : null}
       {profileForm ? (
         <FoundationProfileWorkspace
@@ -365,11 +586,13 @@ export function FoundationProfilePage() {
           initialProfile={profileForm}
           metrics={metrics}
           onSaveProfile={saveProfile}
+          onUploadCover={uploadCover}
           onUploadDocument={uploadDocument}
+          onUploadLogo={uploadLogo}
           tasks={tasks}
         />
       ) : null}
-    </FoundationPageShell>
+    </div>
   );
 }
 
@@ -410,36 +633,133 @@ function StateBlock({ title, text }: { title: string; text?: string }) {
   );
 }
 
+type ApplicationQueue = "review" | "accepted" | "completion" | "closed" | "all";
+
+function ApplicationQueueFilters({
+  active,
+  applications,
+  onChange
+}: {
+  active: ApplicationQueue;
+  applications: FoundationApplicationItem[];
+  onChange: (queue: ApplicationQueue) => void;
+}) {
+  const filters: { label: string; value: ApplicationQueue }[] = [
+    { label: "Новые", value: "review" },
+    { label: "Принятые", value: "accepted" },
+    { label: "Ждут подтверждения", value: "completion" },
+    { label: "Завершённые", value: "closed" },
+    { label: "Все", value: "all" }
+  ];
+
+  return (
+    <section className="flex flex-wrap items-center gap-2 rounded-[1.45rem] bg-white p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+      {filters.map((item) => {
+        const count = applications.filter((application) => isApplicationInQueue(application, item.value)).length;
+        return (
+          <button key={item.value} onClick={() => onChange(item.value)} className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-black transition ${active === item.value ? "bg-brand text-black shadow-[0_12px_24px_rgba(255,227,0,0.2)]" : "bg-[#faf9f4] text-black/58 hover:bg-brand/12 hover:text-black"}`}>
+            {item.label}
+            <span className="rounded-full bg-white/72 px-2 py-0.5 text-[11px]">{count}</span>
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
+function isApplicationInQueue(item: FoundationApplicationItem, queue: ApplicationQueue) {
+  if (queue === "all") return true;
+  if (queue === "review") return item.status === "review" || item.status === "clarify";
+  if (queue === "accepted") return item.status === "accepted";
+  if (queue === "completion") return item.status === "completed";
+  return item.status === "confirmed" || item.status === "not_completed" || item.status === "rejected";
+}
+
 function TaskApplicationsSection({
   task,
   applications,
+  onCloseTask,
   onStatusChange
 }: {
   task: FoundationTaskItem;
   applications: FoundationApplicationItem[];
+  onCloseTask?: (task: FoundationTaskItem) => Promise<void> | void;
   onStatusChange: (id: string, status: FoundationApplicationStatus, comment?: string) => Promise<void> | void;
 }) {
+  const hasAccepted = applications.some((item) => item.status === "accepted");
+  const canReviewApplications = task.status === "published";
+  const canConfirmCompletions = task.status === "completed";
+  const canManageParticipants = canReviewApplications || canConfirmCompletions;
+  const canCloseForCompletion = canReviewApplications && hasAccepted;
+
   return (
     <section className="overflow-hidden rounded-[1.65rem] bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_20px_60px_rgba(34,28,8,0.05)]">
       <div className="grid gap-4 bg-[#fffdf7] p-4 lg:grid-cols-[1fr_220px] lg:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <FoundationStatusBadge tone={task.status === "published" ? "green" : task.status === "returned" ? "violet" : "blue"}>{task.status === "published" ? "Опубликовано" : task.status === "returned" ? "На доработке" : "На модерации"}</FoundationStatusBadge>
+            <FoundationStatusBadge tone={task.status === "published" ? "green" : task.status === "completed" ? "neutral" : task.status === "returned" ? "violet" : "blue"}>{task.status === "published" ? "Опубликовано" : task.status === "completed" ? "Задание завершено" : task.status === "returned" ? "На доработке" : "На модерации"}</FoundationStatusBadge>
             <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-black/50">{applications.length} отклика</span>
           </div>
           <h2 className="mt-3 text-2xl font-black leading-tight">{task.title}</h2>
           <p className="mt-2 text-sm font-bold text-black/50">{task.period} · {task.city} · {task.participants}/{task.capacity} участников</p>
         </div>
-        <Link href="/foundation/tasks" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-xs font-black text-black">
-          Открыть задание
-          <ArrowRight className="size-4" />
-        </Link>
+        <div className="space-y-2">
+          {canCloseForCompletion ? (
+            <button onClick={() => onCloseTask?.(task)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-4 text-xs font-black text-white">
+              Закрыть и подтверждать
+              <ArrowRight className="size-4" />
+            </button>
+          ) : null}
+          <Link href="/foundation/tasks" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-xs font-black text-black">
+            Открыть задание
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
       </div>
       <div className="space-y-3 p-4">
-        {applications.map((item) => <FoundationApplicationCard key={item.id} item={item} task={task} onStatusChange={onStatusChange} />)}
+        {!canManageParticipants ? (
+          <StateBlock title={taskStatusUnavailableTitle(task.status)} text={taskStatusUnavailableText(task.status)} />
+        ) : applications.map((item) => <FoundationApplicationCard key={item.id} item={item} task={task} onStatusChange={onStatusChange} />)}
       </div>
     </section>
   );
+}
+
+function taskStatusUnavailableTitle(status: FoundationTaskStatus) {
+  const titles: Partial<Record<FoundationTaskStatus, string>> = {
+    draft: "Задание ещё не отправлено на проверку",
+    moderation: "Сейчас задание находится на проверке",
+    rejected: "Задание отклонено",
+    returned: "Задание нужно доработать"
+  };
+  return titles[status] ?? "Задание пока недоступно волонтёрам";
+}
+
+function taskStatusUnavailableText(status: FoundationTaskStatus) {
+  const texts: Partial<Record<FoundationTaskStatus, string>> = {
+    completed: "Можно посмотреть историю откликов и статусы уже назначенных участников.",
+    draft: "Задание станет доступно волонтёрам после проверки и публикации.",
+    moderation: "Задание станет доступно волонтёрам после публикации.",
+    rejected: "Отклики и назначение участников для отклонённого задания недоступны.",
+    returned: "После доработки и публикации можно будет работать с откликами."
+  };
+  return texts[status] ?? "Управление участниками откроется после публикации задания.";
+}
+
+function normalizeTaskStatus(value: string | null): "all" | FoundationTaskStatus {
+  const statuses: FoundationTaskStatus[] = ["completed", "draft", "moderation", "published", "rejected", "returned"];
+  return statuses.includes(value as FoundationTaskStatus) ? value as FoundationTaskStatus : "all";
+}
+
+function formatNotificationDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "сейчас";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short"
+  }).format(date);
 }
 
 function TaskStatusFilters({ active, onChange }: { active: "all" | FoundationTaskStatus; onChange: (status: "all" | FoundationTaskStatus) => void }) {
@@ -465,11 +785,11 @@ function applicationCommentByStatus(status: FoundationApplicationStatus, comment
   if (comment?.trim()) return comment.trim();
   const comments: Record<FoundationApplicationStatus, string> = {
     review: "Заявка ожидает решения фонда.",
-    accepted: "Заявка принята. Контакты и инструкции доступны волонтёру.",
+    accepted: "Волонтёр назначен на задачу. Контакты и инструкции доступны.",
     clarify: "Фонд запросил уточнение перед финальным решением.",
     rejected: "Заявка отклонена с комментарием фонда.",
-    completed: "Участие отмечено как завершённое.",
-    confirmed: "Участие подтверждено фондом.",
+    completed: "Фонд подтвердил выполнение. Часы ожидают проверки.",
+    confirmed: "Администратор начислил часы.",
     not_completed: "Участие закрыто как невыполненное с комментарием."
   };
   return comments[status];
@@ -478,27 +798,25 @@ function applicationCommentByStatus(status: FoundationApplicationStatus, comment
 function applicationNextStepByStatus(status: FoundationApplicationStatus) {
   const steps: Record<FoundationApplicationStatus, string> = {
     review: "Примите решение по заявке",
-    accepted: "Дождитесь активности и подтвердите участие",
+    accepted: "После завершения задания подтвердите выполнение участника",
     clarify: "Дождитесь ответа волонтёра",
     rejected: "Заявка закрыта",
-    completed: "Проверьте результат участия",
-    confirmed: "Участие закрыто",
+    completed: "Ожидает начисления часов администратором",
+    confirmed: "Часы начислены",
     not_completed: "Результат зафиксирован"
   };
   return steps[status];
 }
 
-function applicationAttendanceByStatus(status: FoundationApplicationStatus): FoundationApplicationItem["attendanceDecision"] {
-  const decisions: Record<FoundationApplicationStatus, FoundationApplicationItem["attendanceDecision"]> = {
-    review: "pending",
-    accepted: "pending",
-    clarify: "pending",
-    rejected: "missed",
-    completed: "done",
-    confirmed: "participated",
-    not_completed: "missed"
-  };
-  return decisions[status];
+function toApplicationActionMessage(error: unknown) {
+  const message = getApiErrorMessage(error);
+  if (message.includes("task must be closed before confirming volunteer completion")) return "Сначала завершите задание, после этого можно будет подтвердить участие волонтёров.";
+  if (message.includes("task must be closed before marking not completed")) return "Сначала завершите задание, после этого можно будет отметить результат участия.";
+  if (message.includes("completion can be confirmed only for accepted application")) return "Сначала назначьте волонтёра на задачу, после этого можно подтвердить выполнение.";
+  if (message.includes("not completed can be set only for assigned participant")) return "Отметить результат можно только для назначенного участника.";
+  if (message.includes("task is not open for accepting applications")) return "Задание пока недоступно для работы с участниками.";
+  if (message.includes("invalid task status transition")) return "Статус задания не позволяет выполнить это действие.";
+  return message;
 }
 
 function SectionHeader({ title, text, href, compact = false }: { title: string; text: string; href?: string; compact?: boolean }) {

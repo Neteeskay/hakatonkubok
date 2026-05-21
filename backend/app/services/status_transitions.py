@@ -35,8 +35,12 @@ APPLICATION_TRANSITIONS: dict[ApplicationStatus, set[ApplicationStatus]] = {
         ApplicationStatus.REJECTED,
         ApplicationStatus.CANCELED,
     },
-    ApplicationStatus.ACCEPTED: {ApplicationStatus.COMPLETION_CONFIRMED},
+    ApplicationStatus.ACCEPTED: {
+        ApplicationStatus.COMPLETION_CONFIRMED,
+        ApplicationStatus.NOT_COMPLETED,
+    },
     ApplicationStatus.COMPLETION_CONFIRMED: {ApplicationStatus.HOURS_AWARDED},
+    ApplicationStatus.NOT_COMPLETED: set(),
     ApplicationStatus.REJECTED: set(),
     ApplicationStatus.CANCELED: set(),
     ApplicationStatus.HOURS_AWARDED: set(),

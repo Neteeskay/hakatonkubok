@@ -3,14 +3,14 @@
 import { MapPin, ShieldCheck } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { historyStatusConfig, historyToneStyles, type VolunteerHistoryEntry } from "@/widgets/volunteer-activity/history-data";
-import { taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 
 export function HistoryTimelineItem({ entry, onOpen }: { entry: VolunteerHistoryEntry; onOpen: (entry: VolunteerHistoryEntry) => void }) {
   const status = historyStatusConfig[entry.status];
   const styles = historyToneStyles[status.tone];
   const Icon = status.icon;
-  const visual = taskVisuals[entry.task.id] ?? taskVisuals["task-001"];
-  const hoursConfirmed = entry.status === "hours" || entry.status === "completed";
+  const visual = getTaskVisual(entry.task.id, entry.task.imageUrl);
+  const hoursAwarded = entry.status === "hours";
 
   return (
     <button
@@ -41,11 +41,11 @@ export function HistoryTimelineItem({ entry, onOpen }: { entry: VolunteerHistory
         <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-black/56">{entry.description}</p>
       </div>
 
-      <div className={cn("rounded-[1rem] p-4 text-left md:text-center", hoursConfirmed ? "bg-[#f0fbf1]" : styles.surface)}>
+      <div className={cn("rounded-[1rem] p-4 text-left md:text-center", hoursAwarded ? "bg-[#f0fbf1]" : styles.surface)}>
         <p className="text-2xl font-black leading-none">{entry.hours ? `${entry.hours} ч` : "—"}</p>
-        <p className="mt-2 text-xs font-black text-black/48">{entry.hours ? (hoursConfirmed ? "начислено" : "ожидается") : "часы не начислены"}</p>
+        <p className="mt-2 text-xs font-black text-black/48">{entry.hours ? (hoursAwarded ? "начислено" : "на проверке") : "часы не начислены"}</p>
         <p className={cn("mt-3 text-[11px] font-black leading-4", styles.text)}>{status.helper}</p>
-        <p className="mt-3 text-[11px] font-bold leading-4 text-black/42">{entry.confirmedAt ?? "Подтверждение фонда в течение 1-3 дней"}</p>
+        <p className="mt-3 text-[11px] font-bold leading-4 text-black/42">{entry.confirmedAt ?? "Ожидает начисления часов"}</p>
       </div>
     </button>
   );

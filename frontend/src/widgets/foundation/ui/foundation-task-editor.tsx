@@ -1,7 +1,9 @@
 "use client";
 
 import { CheckCircle2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { tasksService } from "@/shared/api/services/tasks";
+import type { HelpCategoryResponse, SkillOptionResponse, TaskFilterOptionsResponse } from "@/shared/api/types";
 import type { FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 import { CreateTaskForm, type FoundationTaskFormValues } from "@/widgets/foundation/ui/create-task-form";
 
@@ -15,6 +17,28 @@ export function FoundationTaskEditor({
   onSave: (values: FoundationTaskFormValues) => Promise<void> | void;
 }) {
   const [saved, setSaved] = useState(false);
+  const [categories, setCategories] = useState<HelpCategoryResponse[]>([]);
+  const [skills, setSkills] = useState<SkillOptionResponse[]>([]);
+  const [filters, setFilters] = useState<TaskFilterOptionsResponse | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void Promise.all([
+      tasksService.getTaskCategories().catch(() => []),
+      tasksService.getTaskSkills().catch(() => []),
+      tasksService.getTaskFilters().catch(() => null)
+    ]).then(([categoryResponses, skillResponses, filterResponses]) => {
+      if (!mounted) return;
+      setCategories(categoryResponses);
+      setSkills(skillResponses);
+      setFilters(filterResponses);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/20 p-3 backdrop-blur-sm md:p-6">
@@ -43,6 +67,11 @@ export function FoundationTaskEditor({
         <div className="min-h-0 flex-1 overflow-auto p-5 md:p-7">
           <CreateTaskForm
             initialTask={task}
+            categoryOptions={categories}
+            durationOptions={filters?.duration_types}
+            formatOptions={filters?.participation_formats}
+            skillOptions={skills}
+            taskTypeOptions={filters?.task_types}
             submitLabel="Сохранить и отправить"
             onSubmit={async (updates) => {
               await onSave(updates);

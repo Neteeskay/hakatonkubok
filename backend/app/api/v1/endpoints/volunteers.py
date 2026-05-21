@@ -10,7 +10,7 @@ from app.db.session import get_session
 from app.models.domain import User
 from app.models.enums import UserRole
 from app.schemas.auth import UserResponse
-from app.schemas.notifications import NotificationResponse
+from app.schemas.notifications import NotificationReadCount, NotificationResponse
 from app.schemas.volunteers import (
     VolunteerAchievementResponse,
     VolunteerAchievementsOverviewResponse,
@@ -32,6 +32,7 @@ from app.services.achievement_service import (
 from app.services.notification_service import (
     NotificationNotFoundError,
     list_user_notifications,
+    mark_all_user_notifications_read,
     mark_notification_read,
 )
 from app.services.report_service import build_volunteer_year_statistics_pdf
@@ -181,6 +182,15 @@ async def get_my_notifications(
         offset=offset,
     )
     return [NotificationResponse.model_validate(notification) for notification in notifications]
+
+
+@router.patch("/me/notifications/read-all", response_model=NotificationReadCount)
+async def read_all_my_notifications(
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationReadCount:
+    updated_count = await mark_all_user_notifications_read(session, current_user)
+    return NotificationReadCount(updated_count=updated_count)
 
 
 @router.patch(

@@ -67,6 +67,7 @@ from app.services.task_service import (
 from app.schemas.notifications import NotificationResponse
 from app.services.notification_service import (
     NotificationNotFoundError,
+    add_user_notification,
     list_user_notifications,
     mark_all_user_notifications_read,
     mark_notification_read,
@@ -184,6 +185,15 @@ async def list_admin_notifications(
     return [NotificationResponse.model_validate(notification) for notification in notifications]
 
 
+@router.patch("/notifications/read-all", response_model=AdminNotificationReadCount)
+async def mark_all_admin_notifications_read(
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+) -> AdminNotificationReadCount:
+    updated_count = await mark_all_user_notifications_read(session, admin)
+    return AdminNotificationReadCount(updated_count=updated_count)
+
+
 @router.patch("/notifications/{notification_id}/read", response_model=NotificationResponse)
 async def mark_admin_notification_read(
     notification_id: UUID,
@@ -199,15 +209,6 @@ async def mark_admin_notification_read(
         ) from exc
 
     return NotificationResponse.model_validate(notification)
-
-
-@router.patch("/notifications/read-all", response_model=AdminNotificationReadCount)
-async def mark_all_admin_notifications_read(
-    admin: User = Depends(require_roles(UserRole.ADMIN)),
-    session: AsyncSession = Depends(get_session),
-) -> AdminNotificationReadCount:
-    updated_count = await mark_all_user_notifications_read(session, admin)
-    return AdminNotificationReadCount(updated_count=updated_count)
 
 
 @router.get("/funds", response_model=list[AdminFundListItem])
@@ -455,7 +456,7 @@ async def award_volunteer_hours(
     application = await session.scalar(
         select(TaskApplication)
         .where(TaskApplication.id == application_id)
-        .options(selectinload(TaskApplication.task))
+        .options(selectinload(TaskApplication.task).selectinload(VolunteerTask.fund))
     )
 
     if application is None:
@@ -494,10 +495,30 @@ async def award_volunteer_hours(
     application.status = ApplicationStatus.HOURS_AWARDED
 
     session.add(ledger)
+    await add_user_notification(
+        session,
+        user_id=application.volunteer_id,
+        title="Часы начислены",
+        body=f"За задание «{application.task.title}» начислено {payload.hours} ч.",
+    )
+    await add_user_notification(
+        session,
+        user_id=application.task.fund.representative_user_id,
+        title="Часы начислены волонтёру",
+        body=f"Администратор начислил часы по заданию «{application.task.title}».",
+    )
 
     await session.commit()
     await session.refresh(ledger)
-    await sync_volunteer_achievements(session, application.volunteer_id)
+    awards = await sync_volunteer_achievements(session, application.volunteer_id)
+    if awards:
+        await add_user_notification(
+            session,
+            user_id=application.volunteer_id,
+            title="Получен бейдж",
+            body="В профиле появилось новое достижение.",
+        )
+        await session.commit()
 
     return ledger
 
@@ -649,6 +670,7 @@ async def list_admin_tasks_directory(
                     0,
                 ),
                 expected_hours=task.expected_hours,
+                image_url=task.image_url,
                 status=task.status,
                 created_at=task.created_at,
                 updated_at=task.updated_at,

@@ -115,6 +115,14 @@ export function FoundationRegistrationPage() {
         website_url: optionalText(form.website)
       });
 
+      if (form.logoFile) {
+        await fundsService.uploadMyFundLogo(form.logoFile);
+      }
+
+      if (form.coverFile) {
+        await fundsService.uploadMyFundCover(form.coverFile);
+      }
+
       const documentsToUpload = documents.filter((document) => document.file);
       let failedUploads = 0;
 
@@ -124,8 +132,8 @@ export function FoundationRegistrationPage() {
         setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "uploading" } : item));
 
         try {
-          await fundsService.uploadMyFundDocument({ documentType: document.id, file: document.file });
-          setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "uploaded" } : item));
+          const uploadedDocument = await fundsService.uploadMyFundDocument({ documentType: document.id, file: document.file });
+          setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, fileUrl: uploadedDocument.file_url, status: "uploaded" } : item));
         } catch {
           failedUploads += 1;
           setDocuments((items) => items.map((item) => item.id === document.id ? { ...item, status: "error" } : item));
@@ -232,8 +240,16 @@ function MainInfoStep({ form, update, toggleArray }: { form: FoundationRegistrat
         <ChipGroup label="Виды волонтёрской помощи" options={foundationActivityOptions} selected={form.activityTypes} onToggle={(value) => toggleArray("activityTypes", value)} />
       </div>
       <div className="grid gap-4">
-        <MediaUploadCard title="Логотип фонда" description="Будет виден в профиле, карточках заданий и откликах." variant="logo" uploaded={form.logoUploaded} onUpload={() => update("logoUploaded", true)} />
-        <MediaUploadCard title="Обложка фонда" description="Горизонтальный баннер для публичной страницы фонда." variant="cover" uploaded={form.coverUploaded} onUpload={() => update("coverUploaded", true)} />
+        <MediaUploadCard title="Логотип фонда" description="Будет виден в профиле, карточках заданий и откликах." variant="logo" uploaded={form.logoUploaded} fileName={form.logoFileName} onUpload={(file) => {
+          update("logoUploaded", Boolean(file));
+          update("logoFile", file);
+          update("logoFileName", file?.name);
+        }} />
+        <MediaUploadCard title="Обложка фонда" description="Горизонтальный баннер для публичной страницы фонда." variant="cover" uploaded={form.coverUploaded} fileName={form.coverFileName} onUpload={(file) => {
+          update("coverUploaded", Boolean(file));
+          update("coverFile", file);
+          update("coverFileName", file?.name);
+        }} />
       </div>
     </div>
   );
@@ -278,8 +294,16 @@ function DocumentsStep({ form, update, documents, onUpload, onRemove }: { form: 
         </div>
       </div>
       <div className="grid gap-4">
-        <MediaUploadCard title="Логотип фонда" description="Можно загрузить сейчас или позже." variant="logo" uploaded={form.logoUploaded} onUpload={() => update("logoUploaded", true)} />
-        <MediaUploadCard title="Обложка фонда" description="Используется на публичной странице." variant="cover" uploaded={form.coverUploaded} onUpload={() => update("coverUploaded", true)} />
+        <MediaUploadCard title="Логотип фонда" description="Можно загрузить сейчас или позже." variant="logo" uploaded={form.logoUploaded} fileName={form.logoFileName} onUpload={(file) => {
+          update("logoUploaded", Boolean(file));
+          update("logoFile", file);
+          update("logoFileName", file?.name);
+        }} />
+        <MediaUploadCard title="Обложка фонда" description="Используется на публичной странице." variant="cover" uploaded={form.coverUploaded} fileName={form.coverFileName} onUpload={(file) => {
+          update("coverUploaded", Boolean(file));
+          update("coverFile", file);
+          update("coverFileName", file?.name);
+        }} />
       </div>
     </div>
   );

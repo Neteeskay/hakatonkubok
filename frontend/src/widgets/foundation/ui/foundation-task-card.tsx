@@ -4,14 +4,16 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, PencilLine, RotateCcw, UsersRound } from "lucide-react";
 import { foundationToneStyles, taskStatusConfig, type FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 import { FoundationStatusBadge } from "@/widgets/foundation/ui/foundation-status-badge";
-import { taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 
 export function FoundationTaskCard({ task, compact = false, onEdit }: { task: FoundationTaskItem; compact?: boolean; onEdit?: (task: FoundationTaskItem) => void }) {
   const status = taskStatusConfig[task.status];
   const styles = foundationToneStyles[status.tone];
-  const visual = taskVisuals[task.taskId] ?? taskVisuals["task-001"];
-  const progress = Math.min(Math.round((task.participants / task.capacity) * 100), 100);
+  const visual = getTaskVisual(task.taskId, task.imageUrl);
+  const progress = task.capacity > 0 ? Math.min(Math.round((task.participants / task.capacity) * 100), 100) : 0;
   const needsRevision = task.status === "returned" || task.status === "rejected";
+  const canManageParticipants = task.status === "published" || task.status === "completed";
+  const canEdit = task.status === "draft" || task.status === "moderation" || task.status === "returned";
 
   return (
     <article className="group overflow-hidden rounded-[1.55rem] bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_18px_52px_rgba(34,28,8,0.045)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[inset_0_0_0_1px_rgba(24,20,7,0.07),0_26px_70px_rgba(34,28,8,0.08)]">
@@ -39,9 +41,9 @@ export function FoundationTaskCard({ task, compact = false, onEdit }: { task: Fo
             <div className="mt-5 rounded-[1.1rem] bg-[#f7f4ff] px-4 py-3">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6b4de6]">Комментарий администратора</p>
               <p className="mt-1 text-sm font-bold leading-6 text-[#6b4de6]">{task.moderationComment}</p>
-              {onEdit ? (
+              {onEdit && canEdit ? (
                 <button onClick={() => onEdit(task)} className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-white px-3 text-xs font-black text-[#6b4de6] shadow-[inset_0_0_0_1px_rgba(107,77,230,0.16)] transition hover:bg-[#eee9ff]">
-                  Исправить задание
+                  Исправить и отправить снова
                   <ArrowRight className="size-3.5" />
                 </button>
               ) : null}
@@ -65,14 +67,26 @@ export function FoundationTaskCard({ task, compact = false, onEdit }: { task: Fo
               <p className="mt-3 text-xs font-bold text-black/46">Дедлайн: {task.deadline}</p>
             </div>
             <div className="mt-5 grid gap-2">
-              <Link href="/foundation/participants" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand text-xs font-black text-black transition hover:brightness-95">
-                Отклики и участие
-                <ArrowRight className="size-4" />
-              </Link>
-              <button onClick={() => onEdit?.(task)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-xs font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12">
-                {needsRevision ? <RotateCcw className="size-4" /> : <PencilLine className="size-4" />}
-                {needsRevision ? "Доработать" : "Редактировать"}
-              </button>
+              {canManageParticipants ? (
+                <Link href="/foundation/participants" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand text-xs font-black text-black transition hover:brightness-95">
+                  Отклики и участие
+                  <ArrowRight className="size-4" />
+                </Link>
+              ) : (
+                <div className="inline-flex h-11 items-center justify-center rounded-xl bg-[#ece8dc] px-3 text-center text-xs font-black text-black/42">
+                  Доступно после публикации
+                </div>
+              )}
+              {canEdit ? (
+                <button onClick={() => onEdit?.(task)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-xs font-black text-black/64 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)] transition hover:bg-brand/12">
+                  {needsRevision ? <RotateCcw className="size-4" /> : <PencilLine className="size-4" />}
+                  {needsRevision ? "Доработать" : "Редактировать"}
+                </button>
+              ) : (
+                <div className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-3 text-center text-xs font-black text-black/38 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]">
+                  Редактирование закрыто
+                </div>
+              )}
             </div>
           </aside>
         ) : null}

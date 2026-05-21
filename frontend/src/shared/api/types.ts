@@ -5,7 +5,7 @@ export type DecimalString = string;
 export type UserRole = "volunteer" | "fund" | "admin";
 export type FundStatus = "draft" | "pending_review" | "approved" | "needs_changes" | "rejected";
 export type TaskStatus = "draft" | "pending_review" | "published" | "needs_changes" | "rejected" | "closed";
-export type ApplicationStatus = "applied" | "accepted" | "rejected" | "canceled" | "completion_confirmed" | "hours_awarded";
+export type ApplicationStatus = "applied" | "clarify" | "accepted" | "rejected" | "canceled" | "not_completed" | "completion_confirmed" | "hours_awarded";
 export type ParticipationFormat = "online" | "offline";
 export type DurationType = "one_time" | "regular" | "long_term";
 export type TaskType = "regular" | "pro_bono";
@@ -27,6 +27,23 @@ export type HelpCategory =
   | "targeted_help";
 export type TaskFeedSort = "published_at_desc" | "deadline_at_asc" | "expected_hours_desc" | "expected_hours_asc";
 
+export interface HelpCategoryResponse {
+  label: string;
+  value: HelpCategory;
+}
+
+export interface TaskDictionaryOptionResponse {
+  label: string;
+  value: string;
+}
+
+export interface TaskFilterOptionsResponse {
+  categories: HelpCategoryResponse[];
+  duration_types: TaskDictionaryOptionResponse[];
+  participation_formats: TaskDictionaryOptionResponse[];
+  task_types: TaskDictionaryOptionResponse[];
+}
+
 export interface AuthTokenFields {
   access_token: string;
   refresh_token: string | null;
@@ -34,6 +51,8 @@ export interface AuthTokenFields {
 }
 
 export interface UserResponse {
+  about: string | null;
+  avatar_url: string | null;
   city: string | null;
   created_at: DateTimeString;
   department: string | null;
@@ -44,6 +63,7 @@ export interface UserResponse {
   interests: string[] | null;
   phone: string | null;
   position: string | null;
+  pro_bono_skills: string[] | null;
   role: UserRole;
   skills: string[] | null;
   username: string | null;
@@ -128,6 +148,7 @@ export interface FundDocumentResponse {
   file_url: string;
   fund_id: Uuid;
   id: Uuid;
+  is_public: boolean;
 }
 
 export interface FundProfileResponse {
@@ -136,12 +157,15 @@ export interface FundProfileResponse {
   contact_person: string | null;
   contact_phone: string | null;
   contact_position: string | null;
+  cover_url: string | null;
   created_at: DateTimeString;
   description: string | null;
   documents: FundDocumentResponse[];
   help_categories: string[] | null;
   id: Uuid;
   inn: string | null;
+  logo_url: string | null;
+  max_url: string | null;
   moderation_comment: string | null;
   name: string;
   ogrn: string | null;
@@ -149,8 +173,32 @@ export interface FundProfileResponse {
   region: string | null;
   representative: FundRepresentativeResponse | null;
   representative_user_id: Uuid;
+  socials: Record<string, unknown> | null;
   status: FundStatus;
   updated_at: DateTimeString;
+  vk_url: string | null;
+  website_url: string | null;
+}
+
+export interface PublicFundProfileResponse {
+  active_tasks: number;
+  awarded_hours_total: DecimalString;
+  contact_email: string | null;
+  contact_person: string | null;
+  cover_url: string | null;
+  created_at: DateTimeString;
+  description: string | null;
+  documents: FundDocumentResponse[];
+  help_categories: string[] | null;
+  id: Uuid;
+  logo_url: string | null;
+  max_url: string | null;
+  name: string;
+  planned_help: string | null;
+  region: string | null;
+  socials: Record<string, unknown> | null;
+  vk_url: string | null;
+  volunteers_total: number;
   website_url: string | null;
 }
 
@@ -173,6 +221,35 @@ export interface FundDashboardSummary {
   tasks_published: number;
   tasks_rejected: number;
   tasks_total: number;
+}
+
+export interface FundReportSummaryResponse {
+  accepted_applications: number;
+  applications_total: number;
+  awarded_hours_total: DecimalString;
+  completed_applications: number;
+  fund_id: Uuid;
+  fund_name: string;
+  participants_total: number;
+  tasks_closed: number;
+  tasks_published: number;
+  tasks_total: number;
+}
+
+export interface FundReportParticipantRow {
+  applications_count: number;
+  awarded_hours: DecimalString;
+  city: string | null;
+  completed_tasks_count: number;
+  email: string;
+  full_name: string | null;
+  volunteer_id: Uuid;
+}
+
+export interface FundReportHoursByMonthResponse {
+  entries_count: number;
+  hours: DecimalString;
+  period: DateTimeString;
 }
 
 export interface FundUpdateRequest {
@@ -209,6 +286,7 @@ export interface TaskResponse {
   fund: TaskFundResponse | null;
   fund_id: Uuid;
   id: Uuid;
+  image_url: string | null;
   location: string | null;
   materials_url: string | null;
   moderation_comment: string | null;
@@ -233,6 +311,7 @@ export interface TaskCreateRequest {
   duration_type: DurationType;
   ends_at?: DateTimeString | null;
   expected_hours: number | string;
+  image_url?: string | null;
   location?: string | null;
   materials_url?: string | null;
   online_url?: string | null;
@@ -270,7 +349,17 @@ export interface ApplicationVolunteerShort {
   email: string;
   full_name: string | null;
   id: Uuid;
+  interests: string[] | null;
+  phone: string | null;
   position: string | null;
+  pro_bono_skills: string[] | null;
+  skills: string[] | null;
+}
+
+export interface SkillOptionResponse {
+  aliases: string[];
+  group: "interest" | "professional" | "probono";
+  label: string;
 }
 
 export interface ApplicationResponse {
@@ -446,6 +535,12 @@ export interface PublicVolunteerProfileResponse {
   stats: VolunteerProfileStatsResponse;
 }
 
+export interface VolunteerProfileResponse extends PublicVolunteerProfileResponse {
+  email: string;
+  phone: string | null;
+  updated_at: DateTimeString;
+}
+
 export interface VolunteerHistoryTaskResponse {
   category: HelpCategory;
   fund_name: string | null;
@@ -473,6 +568,10 @@ export interface NotificationResponse {
   id: Uuid;
   is_read: boolean;
   title: string;
+}
+
+export interface NotificationReadCount {
+  updated_count: number;
 }
 
 export interface ParticipantReportRow {
@@ -585,6 +684,7 @@ export interface AdminTaskDirectoryItemResponse {
   fund_id: Uuid;
   fund_name: string;
   id: Uuid;
+  image_url: string | null;
   participant_limit: number | null;
   participation_format: ParticipationFormat;
   starts_at: DateTimeString | null;
@@ -607,6 +707,7 @@ export interface AdminTaskDetailResponse {
   fund: AdminFundListItemResponse;
   fund_id: Uuid;
   id: Uuid;
+  image_url: string | null;
   location: string | null;
   materials_url: string | null;
   moderation_comment: string | null;

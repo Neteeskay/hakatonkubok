@@ -29,6 +29,29 @@ class TaskFundResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HelpCategoryResponse(BaseModel):
+    value: HelpCategory
+    label: str
+
+
+class TaskDictionaryOptionResponse(BaseModel):
+    value: str
+    label: str
+
+
+class TaskFilterOptionsResponse(BaseModel):
+    categories: list[HelpCategoryResponse]
+    participation_formats: list[TaskDictionaryOptionResponse]
+    duration_types: list[TaskDictionaryOptionResponse]
+    task_types: list[TaskDictionaryOptionResponse]
+
+
+class SkillOptionResponse(BaseModel):
+    label: str
+    group: str
+    aliases: list[str] = Field(default_factory=list)
+
+
 class TaskResponse(BaseModel):
     id: UUID
     fund_id: UUID
@@ -52,6 +75,7 @@ class TaskResponse(BaseModel):
     required_skills: list[str] | None
     expected_hours: Decimal
     materials_url: str | None
+    image_url: str | None = None
     status: TaskStatus
     moderation_comment: str | None
     published_at: datetime | None
@@ -81,6 +105,7 @@ class TaskCreateRequest(BaseModel):
     required_skills: list[str] = Field(default_factory=list)
     expected_hours: Decimal = Field(gt=0, max_digits=5, decimal_places=2)
     materials_url: str | None = Field(default=None, max_length=700)
+    image_url: str | None = Field(default=None, max_length=700)
 
     @model_validator(mode="after")
     def validate_task_details(self) -> "TaskCreateRequest":
@@ -107,6 +132,7 @@ class TaskUpdateRequest(BaseModel):
     required_skills: list[str] | None = None
     expected_hours: Decimal | None = Field(default=None, gt=0, max_digits=5, decimal_places=2)
     materials_url: str | None = Field(default=None, max_length=700)
+    image_url: str | None = Field(default=None, max_length=700)
 
     @model_validator(mode="after")
     def require_at_least_one_field(self) -> "TaskUpdateRequest":
@@ -134,6 +160,10 @@ class TaskModerationRequest(BaseModel):
         if self.moderation_comment is not None:
             self.moderation_comment = self.moderation_comment.strip()
         return self
+
+
+class TaskImageUploadResponse(BaseModel):
+    image_url: str
 
 
 def validate_task_location(

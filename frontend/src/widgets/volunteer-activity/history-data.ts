@@ -23,7 +23,7 @@ export interface VolunteerHistoryEntry {
 export const historyFilters = [
   { label: "Все", value: "all" },
   { label: "Завершённые", value: "completed" },
-  { label: "Подтверждённые", value: "hours" },
+  { label: "Часы начислены", value: "hours" },
   { label: "Ожидают подтверждения", value: "pending" }
 ] as const;
 
@@ -61,7 +61,7 @@ export const historyEntries: VolunteerHistoryEntry[] = [
     hours: 4,
     description: "Посадка деревьев, уборка мусора на территории парка.",
     formatLabel: "Офлайн",
-    result: "Часы подтверждены после проверки участия."
+    result: "Часы начислены после проверки участия."
   },
   {
     id: "history-kits",
@@ -137,7 +137,7 @@ export const historyStatusConfig: Record<HistoryStatus, { label: string; helper:
   pending: { label: "Ожидает подтверждения", helper: "ожидается", tone: "violet", icon: Clock3 },
   accepted: { label: "Принят", helper: "контакты доступны", tone: "blue", icon: Check },
   "in-progress": { label: "В процессе", helper: "в работе", tone: "violet", icon: Clock3 },
-  completed: { label: "Завершено", helper: "часы подтверждены", tone: "green", icon: Check },
-  hours: { label: "Завершено", helper: "часы подтверждены", tone: "green", icon: Check },
+  completed: { label: "Часы на проверке", helper: "ожидает начисления", tone: "violet", icon: Clock3 },
+  hours: { label: "Часы начислены", helper: "начислено", tone: "green", icon: Check },
   rejected: { label: "Отклонено", helper: "часы не начислены", tone: "red", icon: X }
 };

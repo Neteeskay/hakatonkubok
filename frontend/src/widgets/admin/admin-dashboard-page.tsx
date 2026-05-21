@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Bell, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
-import { adminFoundations, adminHourCases, adminKpis, adminNotifications, adminTasks } from "@/widgets/admin/admin-data";
+import { adminFoundations, adminHourCases, adminKpis, adminTasks } from "@/widgets/admin/admin-data";
 import { AdminKpiCard } from "@/widgets/admin/ui/admin-kpi-card";
 import { AdminPageShell } from "@/widgets/admin/ui/admin-page-shell";
 import { AdminStatusBadge } from "@/widgets/admin/ui/admin-status-badge";
@@ -22,7 +22,7 @@ export function AdminDashboardPage() {
   const [pendingFoundations, setPendingFoundations] = useState<AdminFoundation[]>(adminFoundations.filter((item) => item.status === "pending" || item.status === "revision"));
   const [pendingTasks, setPendingTasks] = useState<AdminTask[]>(adminTasks.filter((item) => item.status === "moderation" || item.status === "returned"));
   const [hourCases, setHourCases] = useState<AdminHourCase[]>(adminHourCases.filter((item) => item.status === "ready" || item.status === "needsCheck"));
-  const [notifications, setNotifications] = useState<AdminNotification[]>(adminNotifications);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
 
   useEffect(() => {
     let active = true;

@@ -19,3 +19,4 @@ export { fundsService } from "@/shared/api/services/funds";
 export { reportsService } from "@/shared/api/services/reports";
 export { tasksService } from "@/shared/api/services/tasks";
 export { volunteersService } from "@/shared/api/services/volunteers";
+export { emitNotificationsChanged, NOTIFICATIONS_CHANGED_EVENT, notificationsService } from "@/shared/api/services/notifications";

@@ -22,7 +22,7 @@ from app.models.domain import (
 from app.models.enums import ApplicationStatus, FundStatus, TaskStatus
 from app.schemas.funds import FundDashboardSummary, FundUpdateRequest
 from app.services.email_sender import send_email
-from app.services.notification_service import add_admin_notifications
+from app.services.notification_service import add_admin_notifications, add_user_notification
 from app.services.status_transitions import FUND_TRANSITIONS, can_transition
 
 
@@ -177,6 +177,11 @@ async def update_fund_profile(
         fund.status = FundStatus.PENDING_REVIEW
         fund.moderation_comment = None
         fund.approved_at = None
+        await add_admin_notifications(
+            session,
+            title="Фонд на модерации",
+            body=f"Фонд «{fund.name}» отправил профиль на проверку.",
+        )
 
     await session.commit()
     return await get_fund_by_id(session, fund.id)
@@ -190,6 +195,14 @@ async def moderate_fund(
     moderation_comment: str | None,
 ) -> Fund:
     fund = await get_fund_by_id(session, fund_id)
+    if target_status == FundStatus.APPROVED:
+        await add_user_notification(
+            session,
+            user_id=fund.representative_user_id,
+            title="Фонд одобрен",
+            body=f"Фонд «{fund.name}» прошёл проверку. Теперь можно создавать задания.",
+        )
+
     if target_status in {FundStatus.NEEDS_CHANGES, FundStatus.REJECTED}:
         if not moderation_comment or not moderation_comment.strip():
             raise FundModerationCommentRequiredError
@@ -249,6 +262,7 @@ async def add_fund_document(
         fund_id=fund.id,
         document_type=document_type,
         file_url=relative_path.as_posix(),
+        is_public=True,
     )
     session.add(document)
     await add_admin_notifications(

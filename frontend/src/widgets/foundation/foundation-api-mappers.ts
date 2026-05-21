@@ -16,7 +16,7 @@ import type { FoundationDocumentItem } from "@/widgets/foundation-registration/f
 import type { FoundationProfileForm } from "@/widgets/foundation/foundation-profile-data";
 import type { FoundationApplicationItem, FoundationApplicationStatus, FoundationTaskItem, FoundationTaskStatus, FoundationTone } from "@/widgets/foundation/foundation-data";
 import type { FoundationTaskFormValues } from "@/widgets/foundation/ui/create-task-form";
-import { getCategoryLabel } from "@/widgets/volunteer-feed/task-dictionaries";
+import { getCategoryLabel, getSkillLabel } from "@/widgets/volunteer-feed/task-dictionaries";
 
 function formatDate(value?: string | null, fallback = "дата не указана") {
   if (!value) return fallback;
@@ -59,8 +59,10 @@ function applicationStatus(status: ApplicationStatus): FoundationApplicationStat
     accepted: "accepted",
     applied: "review",
     canceled: "rejected",
+    clarify: "clarify",
     completion_confirmed: "completed",
     hours_awarded: "confirmed",
+    not_completed: "not_completed",
     rejected: "rejected"
   };
 
@@ -96,6 +98,7 @@ export function mapTaskResponseToFoundationTask(task: TaskResponse, applications
   return {
     id: task.id,
     taskId: task.id,
+    imageUrl: task.image_url,
     title: task.title,
     description: task.description,
     category: getCategoryLabel(task.category),
@@ -107,7 +110,12 @@ export function mapTaskResponseToFoundationTask(task: TaskResponse, applications
     capacity: task.participant_limit ?? 100,
     responses: taskApplications.length,
     hours: Number(task.expected_hours),
+    instructions: task.requirements ?? "",
+    location: task.location ?? task.online_url ?? "",
+    requirements: splitLines(task.requirements),
+    skills: task.required_skills?.map(getSkillLabel).filter(Boolean) ?? [],
     status: taskStatus(task.status),
+    taskType: task.task_type,
     moderationComment: task.moderation_comment ?? undefined,
     contactVisibility: "after_acceptance",
     contacts: taskContacts(task)
@@ -118,25 +126,30 @@ export function mapApplicationResponseToFoundationApplication(application: Appli
   const volunteer = application.volunteer;
   const task = application.task;
   const status = applicationStatus(application.status);
+  const interests = mapLabels(volunteer?.interests);
+  const skills = mapLabels(volunteer?.skills);
+  const proBonoSkills = mapLabels(volunteer?.pro_bono_skills);
 
   return {
     id: application.id,
     volunteer: volunteer?.full_name || volunteer?.email || "Волонтёр",
+    volunteerEmail: volunteer?.email || undefined,
+    volunteerPhone: volunteer?.phone || undefined,
     role: volunteer?.position || volunteer?.department || "Волонтёр",
     city: volunteer?.city || "Город не указан",
     avatar: "",
     taskTitle: task?.title ?? "Задание",
-    skills: [],
-    proBonoSkills: task?.task_type === "pro_bono" ? task.required_skills ?? [] : [],
-    interests: task ? [getCategoryLabel(task.category)] : [],
+    skills,
+    proBonoSkills,
+    interests,
     hoursHistory: 0,
     completedActivities: 0,
-    relevance: 78,
+    relevance: 0,
     status,
     comment: application.fund_comment || application.volunteer_comment || application.completion_comment || applicationCommentByStatus(status),
     nextStep: applicationNextStepByStatus(status),
     appliedAt: formatDate(application.created_at),
-    attendanceDecision: status === "confirmed" || status === "completed" ? "participated" : "pending",
+    attendanceDecision: status === "confirmed" || status === "completed" ? "participated" : status === "rejected" ? "missed" : "pending",
     taskId: application.task_id
   };
 }
@@ -184,10 +197,12 @@ export function mapDashboardToReportMetrics(summary: FundDashboardSummary) {
 }
 
 export function mapFundProfileToCurrentFoundation(profile: FundProfileResponse, summary?: FundDashboardSummary) {
+  const helpCategories = mapHelpCategories(profile.help_categories);
+
   return {
     id: profile.id,
     name: profile.name,
-    focus: profile.help_categories?.join(", ") || "Направления помощи",
+    focus: helpCategories.join(", ") || "Направления помощи",
     city: profile.region || "Регион не указан",
     activeTasks: summary?.tasks_published ?? 0,
     volunteersNeeded: summary?.applications_applied ?? 0,
@@ -200,7 +215,7 @@ export function mapFundProfileToCurrentFoundation(profile: FundProfileResponse, 
     website: profile.website_url || "",
     socials: "",
     trust: fundTrustLabel(profile.status),
-    categories: profile.help_categories?.length ? profile.help_categories : ["Помощь"],
+    categories: helpCategories.length ? helpCategories : ["Помощь"],
     helpDirections: splitPlannedHelp(profile.planned_help)
   };
 }
@@ -220,10 +235,12 @@ export function mapFundProfileToProfileForm(profile: FundProfileResponse): Found
     socials: "",
     contactName: profile.contact_person || profile.representative?.full_name || "",
     contactRole: profile.contact_position || "",
-    categories: profile.help_categories || [],
+    categories: mapHelpCategories(profile.help_categories),
     activityTypes: splitPlannedHelp(profile.planned_help),
-    logoUploaded: false,
-    coverUploaded: false
+    logoUploaded: Boolean(profile.logo_url),
+    logoFileName: profile.logo_url?.split("/").pop(),
+    coverUploaded: Boolean(profile.cover_url),
+    coverFileName: profile.cover_url?.split("/").pop()
   };
 }
 
@@ -232,6 +249,7 @@ export function mapFundDocuments(profile: FundProfileResponse): FoundationDocume
     id: document.document_type,
     title: document.document_type,
     description: "Документ фонда",
+    fileUrl: document.file_url,
     fileName: document.file_url.split("/").pop() || document.file_url,
     status: "uploaded"
   }));
@@ -279,7 +297,7 @@ export function buildTaskCreateRequest(values: FoundationTaskFormValues): TaskCr
     required_skills: values.skills,
     requirements: values.requirements.join("\n") || null,
     starts_at: startsAt,
-    task_type: values.category.toLowerCase().includes("pro bono") || values.skills.length ? "pro_bono" : "regular",
+    task_type: values.taskType,
     title: values.title.trim()
   };
 }
@@ -303,16 +321,46 @@ function buildTaskDescription(values: FoundationTaskFormValues) {
 }
 
 function mapUiCategoryToBackend(category: string): HelpCategory {
+  const supportedCategories: HelpCategory[] = [
+    "children",
+    "communications",
+    "content",
+    "design",
+    "disability",
+    "ecology",
+    "education",
+    "elderly",
+    "events",
+    "it",
+    "legal",
+    "logistics",
+    "pro_bono",
+    "sport",
+    "targeted_help"
+  ];
+  if (supportedCategories.includes(category as HelpCategory)) return category as HelpCategory;
+
   const lower = category.toLowerCase();
+  if (lower.includes("адрес")) return "targeted_help";
+  if (lower.includes("дизайн")) return "design";
   if (lower.includes("эко")) return "ecology";
+  if (lower.includes("it") || lower.includes("разработ")) return "it";
+  if (lower.includes("контент")) return "content";
+  if (lower.includes("коммуникац")) return "communications";
+  if (lower.includes("логист")) return "logistics";
+  if (lower.includes("образ")) return "education";
+  if (lower.includes("событ")) return "events";
+  if (lower.includes("спорт")) return "sport";
+  if (lower.includes("юрид")) return "legal";
+  if (lower.includes("pro bono") || lower.includes("профессион")) return "pro_bono";
   if (lower.includes("пожил")) return "elderly";
   if (lower.includes("овз") || lower.includes("инклю")) return "disability";
   return "children";
 }
 
 function mapUiDuration(value: string): TaskCreateRequest["duration_type"] {
-  if (value === "Регулярное") return "regular";
-  if (value === "По договорённости") return "long_term";
+  if (value === "Регулярное" || value === "Регулярные") return "regular";
+  if (value === "По договорённости" || value === "Долгосрочное" || value === "Долгосрочные") return "long_term";
   return "one_time";
 }
 
@@ -360,6 +408,27 @@ function splitPlannedHelp(value: string | null) {
     .filter(Boolean);
 }
 
+function splitLines(value: string | null | undefined) {
+  return (value ?? "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function mapHelpCategories(categories: string[] | null | undefined) {
+  return (categories ?? [])
+    .map((category) => getCategoryLabel(category))
+    .filter(Boolean);
+}
+
+function mapLabels(values: string[] | null | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => {
+    const skill = getSkillLabel(value);
+    if (skill !== value) return skill;
+    return getCategoryLabel(value);
+  }).filter(Boolean)));
+}
+
 function fundTrustLabel(status: FundStatus) {
   const labels: Record<FundStatus, string> = {
     approved: "Проверенная организация",
@@ -373,10 +442,10 @@ function fundTrustLabel(status: FundStatus) {
 
 function applicationCommentByStatus(status: FoundationApplicationStatus) {
   const comments: Record<FoundationApplicationStatus, string> = {
-    accepted: "Заявка принята. Контакты и инструкции доступны волонтёру.",
+    accepted: "Волонтёр назначен на задачу. Контакты и инструкции доступны.",
     clarify: "Фонд запросил уточнение перед финальным решением.",
-    completed: "Участие отмечено как завершённое.",
-    confirmed: "Участие подтверждено фондом.",
+    completed: "Фонд подтвердил выполнение. Часы ожидают проверки.",
+    confirmed: "Администратор начислил часы.",
     not_completed: "Участие закрыто как невыполненное с комментарием.",
     rejected: "Заявка отклонена с комментарием фонда.",
     review: "Заявка ожидает решения фонда."
@@ -386,10 +455,10 @@ function applicationCommentByStatus(status: FoundationApplicationStatus) {
 
 function applicationNextStepByStatus(status: FoundationApplicationStatus) {
   const steps: Record<FoundationApplicationStatus, string> = {
-    accepted: "Дождитесь активности и подтвердите участие",
+    accepted: "После завершения задания подтвердите выполнение участника",
     clarify: "Дождитесь ответа волонтёра",
-    completed: "Проверьте результат участия",
-    confirmed: "Участие закрыто",
+    completed: "Ожидает начисления часов администратором",
+    confirmed: "Часы начислены",
     not_completed: "Результат зафиксирован",
     rejected: "Заявка закрыта",
     review: "Примите решение по заявке"

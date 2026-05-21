@@ -4,12 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Award, Bell, CheckCircle2, Clock3, Download, FileBarChart, MapPin, Search, Star, XCircle } from "lucide-react";
-import { adminService, reportsService, volunteersService } from "@/shared/api";
+import { adminService, getApiErrorMessage, notificationsService, reportsService, volunteersService } from "@/shared/api";
 import type { PlatformAnalyticsReport } from "@/shared/api/types";
 import { mapAdminCompletionItem, mapAdminNotification, mapAdminVolunteerDirectoryItem } from "@/widgets/admin/admin-api-mappers";
 import {
   adminHourCases,
-  adminNotifications,
   adminVolunteers,
   analyticsBars,
   applicationStatusConfig,
@@ -210,19 +209,68 @@ export function AdminAnalyticsPage() {
 }
 
 export function AdminReportsPage() {
-  const reports = ["Сводка по фондам", "Часы по волонтёрам", "Активности по категориям", "Модерационные решения", "Конверсия откликов", "Завершённые участия"];
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const reports = [
+    {
+      id: "platform",
+      title: "Полный отчёт платформы",
+      text: "Excel с листами по участникам и сводной аналитике.",
+      actions: [{ label: "Скачать XLSX", fileName: "platform-report.xlsx", run: () => reportsService.downloadFullPlatformReport() }]
+    },
+    {
+      id: "participants",
+      title: "Участники и часы",
+      text: "Волонтёры, отклики, выполненные задания и начисленные часы.",
+      actions: [
+        { label: "CSV", fileName: "participants-report.csv", run: () => reportsService.downloadParticipantsReport("csv") },
+        { label: "XLSX", fileName: "participants-report.xlsx", run: () => reportsService.downloadParticipantsReport("xlsx") }
+      ]
+    },
+    {
+      id: "analytics",
+      title: "Сводная аналитика",
+      text: "Фонды, задания, отклики, публикации и ожидание начисления часов.",
+      actions: [
+        { label: "CSV", fileName: "platform-analytics.csv", run: () => reportsService.downloadAnalyticsReport("csv") },
+        { label: "XLSX", fileName: "platform-analytics.xlsx", run: () => reportsService.downloadAnalyticsReport("xlsx") }
+      ]
+    }
+  ];
+
+  async function downloadReport(actionId: string, fileName: string, run: () => Promise<Blob>) {
+    setDownloading(actionId);
+    setDownloadError(null);
+    try {
+      downloadBlob(await run(), fileName);
+    } catch (error) {
+      setDownloadError(getApiErrorMessage(error));
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   return (
-    <AdminPageShell eyebrow="Отчёты" title="Экспорт и отчётность" description="Подготовленный UI для CSV/Excel. Реальный экспорт подключится на backend-этапе.">
+    <AdminPageShell eyebrow="Отчёты" title="Экспорт и отчётность" description="Скачивание реальных CSV и Excel отчётов по данным платформы.">
+      {downloadError ? <AdminEmptyState title="Не удалось скачать отчёт" text={downloadError} /> : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {reports.map((title) => (
-          <article key={title} className="rounded-[1.45rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+        {reports.map((report) => (
+          <article key={report.id} className="rounded-[1.45rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
             <span className="grid size-12 place-items-center rounded-2xl bg-brand">
               <Download className="size-5" />
             </span>
-            <h2 className="mt-5 text-xl font-black">{title}</h2>
-            <p className="mt-2 text-sm font-bold text-black/46">CSV / Excel</p>
-            <button disabled className="mt-5 h-11 w-full rounded-xl bg-[#f4f3ee] text-sm font-black text-black/34">Экспорт будет доступен позже</button>
+            <h2 className="mt-5 text-xl font-black">{report.title}</h2>
+            <p className="mt-2 min-h-12 text-sm font-bold leading-6 text-black/46">{report.text}</p>
+            <div className="mt-5 flex gap-2">
+              {report.actions.map((action) => {
+                const actionId = `${report.id}-${action.label}`;
+                return (
+                  <button key={actionId} onClick={() => { void downloadReport(actionId, action.fileName, action.run); }} disabled={downloading !== null} className="h-11 flex-1 rounded-xl bg-brand px-3 text-sm font-black text-black disabled:bg-[#f4f3ee] disabled:text-black/34">
+                    {downloading === actionId ? "Готовим..." : action.label}
+                  </button>
+                );
+              })}
+            </div>
           </article>
         ))}
       </section>
@@ -230,8 +278,19 @@ export function AdminReportsPage() {
   );
 }
 
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  window.URL.revokeObjectURL(url);
+}
+
 export function AdminNotificationsPage() {
-  const [notifications, setNotifications] = useState<AdminNotification[]>(adminNotifications);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const unreadCount = notifications.filter((item) => item.unread).length;
 
   useEffect(() => {
@@ -239,24 +298,37 @@ export function AdminNotificationsPage() {
 
     async function loadNotifications() {
       try {
-        const items = await adminService.getAdminNotifications({ limit: 50, offset: 0 });
+        const items = await notificationsService.getRoleNotifications("admin", { limit: 100, offset: 0 });
         if (!active) return;
         setNotifications(items.map(mapAdminNotification));
-      } catch {
-        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+        setError(null);
+      } catch (loadError) {
+        if (!active) return;
+        setNotifications([]);
+        setError(getApiErrorMessage(loadError));
+      } finally {
+        if (active) setLoading(false);
       }
     }
 
     void loadNotifications();
+    const interval = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
 
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
-  function markRead(id: string) {
+  async function markRead(id: string) {
     setNotifications((items) => items.map((item) => item.id === id ? { ...item, unread: false } : item));
-    void adminService.markAdminNotificationRead(id);
+    try {
+      await notificationsService.markRoleNotificationRead("admin", id);
+    } catch (readError) {
+      setError(getApiErrorMessage(readError));
+    }
   }
 
   return (
@@ -267,8 +339,11 @@ export function AdminNotificationsPage() {
           <AdminStatusBadge tone="review">Непрочитанные {unreadCount}</AdminStatusBadge>
         </div>
         <div className="mt-5 space-y-3">
+          {loading ? <AdminEmptyState title="Загружаем уведомления..." /> : null}
+          {!loading && error ? <AdminEmptyState title="Не удалось загрузить уведомления" text={error} /> : null}
+          {!loading && !error && !notifications.length ? <AdminEmptyState title="Уведомлений пока нет" text="Новые фонды, задания и запросы часов появятся здесь." /> : null}
           {notifications.map((item) => (
-            <Link key={item.id} href={item.target} onClick={() => markRead(item.id)} className="grid gap-4 rounded-[1.35rem] bg-[#fffdf7] p-4 transition hover:-translate-y-0.5 hover:bg-brand/12 md:grid-cols-[56px_1fr_auto] md:items-center">
+            <Link key={item.id} href={item.target} onClick={() => { void markRead(item.id); }} className="grid gap-4 rounded-[1.35rem] bg-[#fffdf7] p-4 transition hover:-translate-y-0.5 hover:bg-brand/12 md:grid-cols-[56px_1fr_auto] md:items-center">
               <span className="relative grid size-12 place-items-center rounded-2xl bg-white">
                 <Bell className="size-5" />
                 {item.unread ? <span className="absolute right-2 top-2 size-2 rounded-full bg-brand" /> : null}
@@ -283,6 +358,15 @@ export function AdminNotificationsPage() {
         </div>
       </section>
     </AdminPageShell>
+  );
+}
+
+function AdminEmptyState({ title, text }: { title: string; text?: string }) {
+  return (
+    <section className="rounded-[1.35rem] bg-[#fffdf7] p-6 text-center">
+      <p className="text-xl font-black">{title}</p>
+      {text ? <p className="mt-2 text-sm font-bold leading-6 text-black/52">{text}</p> : null}
+    </section>
   );
 }
 

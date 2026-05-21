@@ -119,7 +119,7 @@ export async function apiRequest<TResponse, TBody = unknown>({
   if (!response.ok) {
     const errorPayload = toApiErrorPayload(payload);
     throw new ApiError({
-      message: getApiPayloadMessage(errorPayload, response.statusText || "API request failed"),
+      message: getApiPayloadMessage(errorPayload, "Не получилось сохранить изменения. Проверьте данные и попробуйте ещё раз."),
       method: requestMethod,
       payload: errorPayload,
       status: response.status,
@@ -153,7 +153,7 @@ export async function apiRequestBlob<TBody = unknown>({
     const payload = await parseJsonPayload(response);
     const errorPayload = toApiErrorPayload(payload);
     throw new ApiError({
-      message: getApiPayloadMessage(errorPayload, response.statusText || "API request failed"),
+      message: getApiPayloadMessage(errorPayload, "Не получилось получить файл. Попробуйте ещё раз."),
       method: requestMethod,
       payload: errorPayload,
       status: response.status,
@@ -177,4 +177,3 @@ export const apiClient = {
   request: apiRequest,
   requestBlob: apiRequestBlob
 };
-

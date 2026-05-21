@@ -6,9 +6,10 @@ import { Button } from "@/shared/ui/button";
 import { Dropdown } from "@/shared/ui/overlays";
 import { roleLabels, type AppRole } from "@/shared/config/navigation";
 
-export function Topbar({ role }: { role: AppRole }) {
-  const initials = role === "volunteer" ? "АС" : role === "foundation" ? "ФД" : "АД";
-  const name = role === "volunteer" ? "Анна Соколова" : role === "foundation" ? "Фонд спорта" : "Мария, модератор";
+export function Topbar({ displayName, role, unreadNotifications }: { displayName: string | null; role: AppRole; unreadNotifications: number }) {
+  const name = displayName ?? roleLabels[role];
+  const initials = getInitials(name);
+  const notificationHref = role === "admin" ? "/admin/notifications" : role === "volunteer" ? "/volunteer/notifications" : "/foundation/notifications";
 
   return (
     <header className="sticky top-0 z-30 mx-3 flex h-[86px] items-center justify-between gap-4 bg-[#fffdf7]/92 px-1 backdrop-blur-xl md:mx-6">
@@ -29,9 +30,13 @@ export function Topbar({ role }: { role: AppRole }) {
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <Button variant="quiet" size="icon" className="relative rounded-full bg-white shadow-[0_10px_24px_rgba(34,28,8,0.06)]" aria-label="Уведомления" asChild>
-          <Link href={role === "admin" ? "/admin/notifications" : role === "volunteer" ? "/volunteer/notifications" : "/foundation"}>
-          <Bell className="size-5" />
-          <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-brand text-[10px] font-black text-black">3</span>
+          <Link href={notificationHref}>
+            <Bell className="size-5" />
+            {unreadNotifications > 0 ? (
+              <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-black text-black">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            ) : null}
           </Link>
         </Button>
         <Dropdown
@@ -53,4 +58,17 @@ export function Topbar({ role }: { role: AppRole }) {
       </div>
     </header>
   );
+}
+
+function getInitials(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "П";
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }

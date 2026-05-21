@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { LockKeyhole, Mail, MapPin, Phone, UserRound } from "lucide-react";
 import { interestOptions, skillOptions } from "@/widgets/auth/model/auth-data";
+import { tasksService } from "@/shared/api/services/tasks";
 import {
   buildVolunteerRegisterRequest,
   defaultVolunteerRegistrationForm,
@@ -18,11 +19,28 @@ export function RegisterForm() {
   const [form, setForm] = useState(defaultVolunteerRegistrationForm);
   const [interests, setInterests] = useState(["Экология", "Образование"]);
   const [skills, setSkills] = useState(["Презентации", "Дизайн"]);
+  const [dictionarySkills, setDictionarySkills] = useState(skillOptions);
   const [agree, setAgree] = useState(false);
   const { clearFeedback, error, registerVolunteer, submitting, success } = useVolunteerRegistration();
   const valid = useMemo(() => {
     return isVolunteerRegistrationValid({ agree, form, interests });
   }, [form, interests, agree]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    tasksService.getTaskSkills()
+      .then((options) => {
+        if (mounted && options.length) setDictionarySkills(options.filter((item) => item.group !== "interest").map((item) => item.label));
+      })
+      .catch(() => {
+        if (mounted) setDictionarySkills(skillOptions);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function update(field: keyof typeof form, value: string) {
     clearFeedback();
@@ -44,7 +62,7 @@ export function RegisterForm() {
   return (
     <form onSubmit={handleSubmit}>
       <h2 className="text-3xl font-black">Регистрация волонтёра</h2>
-      <p className="mt-2 text-sm leading-6 text-black/56">Профиль помогает подбирать задания, pro bono активности и корректно учитывать часы.</p>
+      <p className="mt-2 text-sm leading-6 text-black/56">Профиль помогает подбирать задания, экспертные активности и корректно учитывать часы.</p>
       <div className="mt-5">
         <RegistrationRoleCards value={role} onChange={setRole} />
       </div>
@@ -60,7 +78,7 @@ export function RegisterForm() {
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <OptionChips label="Интересы" options={interestOptions} selected={interests} onToggle={(value) => toggle(interests, setInterests, value)} />
-        <OptionChips label="Профессиональные навыки / pro bono" options={skillOptions} selected={skills} onToggle={(value) => toggle(skills, setSkills, value)} />
+        <OptionChips label="Профессиональные навыки" options={dictionarySkills} selected={skills} onToggle={(value) => toggle(skills, setSkills, value)} />
       </div>
       <label className="mt-5 flex gap-3 rounded-2xl bg-[#fffdf7] p-4 text-sm font-bold leading-6 text-black/62">
         <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} className="mt-1 size-4 shrink-0 accent-brand" />

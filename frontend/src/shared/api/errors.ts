@@ -50,6 +50,9 @@ export function getApiErrorMessage(error: unknown) {
   }
 
   if (error instanceof Error && error.message) {
+    if (error.message === "Failed to fetch" || error.message.includes("NetworkError")) {
+      return "Не удалось связаться с платформой. Проверьте подключение и попробуйте ещё раз.";
+    }
     return error.message;
   }
 
@@ -75,4 +78,3 @@ export function getApiPayloadMessage(payload: ApiErrorPayload | null, fallback: 
 
   return fallback;
 }
-

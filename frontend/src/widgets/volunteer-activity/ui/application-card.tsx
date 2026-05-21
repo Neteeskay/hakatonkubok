@@ -2,7 +2,7 @@
 
 import { Calendar, ChevronDown, CheckCircle2, Clock, MapPin, MessageCircle, XCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 import type { VolunteerApplicationItem } from "@/widgets/volunteer-activity/activity-data";
 import { ApplicationContactPanel } from "@/widgets/volunteer-activity/ui/application-contact-panel";
 
@@ -16,7 +16,7 @@ const stageStyles: Record<VolunteerApplicationItem["stage"], { badge: string; ic
 };
 
 export function ApplicationCard({ application, onOpen }: { application: VolunteerApplicationItem; onOpen: (application: VolunteerApplicationItem) => void }) {
-  const visual = taskVisuals[application.task.id] ?? taskVisuals["task-001"];
+  const visual = getTaskVisual(application.task.id, application.task.imageUrl);
   const tone = stageStyles[application.stage];
   const StatusIcon = tone.iconNode;
 

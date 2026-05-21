@@ -17,15 +17,16 @@ import {
   UsersRound,
   type LucideIcon
 } from "lucide-react";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import { getApiErrorMessage } from "@/shared/api/errors";
-import { authService } from "@/shared/api/services/auth";
 import { volunteersService } from "@/shared/api/services/volunteers";
 import type {
   UserResponse,
   VolunteerAchievementStatsResponse,
   VolunteerHoursDynamicsItemResponse,
   VolunteerHoursSummaryResponse,
-  VolunteerHistoryItemResponse
+  VolunteerHistoryItemResponse,
+  VolunteerProfileResponse
 } from "@/shared/api/types";
 import {
   emptyProfileDraft,
@@ -36,7 +37,7 @@ import {
 } from "@/widgets/volunteer-profile/profile-edit-drawer";
 import { ProfileCard, ProfileSectionTitle, RoundIcon, SoftBadge } from "@/widgets/volunteer-profile/profile-ui";
 import { SkillChip } from "@/widgets/volunteer-profile/ui/skill-chip";
-import { taskVisuals } from "@/widgets/volunteer-feed/task-dictionaries";
+import { getCategoryLabel, getSkillLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 import { mapAchievementResponseToComputed } from "@/widgets/volunteer-achievements/achievement-api-mappers";
 import type { ComputedAchievement } from "@/widgets/volunteer-achievements/achievement-data";
 import { ProfileBadgesPreview } from "@/widgets/volunteer-achievements/ui/profile-badges-preview";
@@ -47,12 +48,14 @@ const emptySkillsSnapshot: ProfileSkillsSnapshot = {
   skills: []
 };
 
+type ProfileUserResponse = UserResponse | VolunteerProfileResponse;
+
 export function VolunteerProfilePage() {
   const [editing, setEditing] = useState(false);
   const [editFocus, setEditFocus] = useState<ProfileEditFocus>("basic");
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(emptyProfileDraft);
   const [skillsSnapshot, setSkillsSnapshot] = useState<ProfileSkillsSnapshot>(emptySkillsSnapshot);
-  const [user, setUser] = useState<UserResponse | null>(null);
+  const [user, setUser] = useState<ProfileUserResponse | null>(null);
   const [hoursSummary, setHoursSummary] = useState<VolunteerHoursSummaryResponse | null>(null);
   const [hoursDynamics, setHoursDynamics] = useState<VolunteerHoursDynamicsItemResponse[]>([]);
   const [history, setHistory] = useState<VolunteerHistoryItemResponse[]>([]);
@@ -71,6 +74,7 @@ export function VolunteerProfilePage() {
   const displayName = profileDraft.name || "Профиль волонтёра";
   const memberSince = user?.created_at ? `Волонтёр с ${formatDate(user.created_at, { month: "long", year: "numeric" })}` : "Волонтёр";
   const initials = getInitials(displayName);
+  const avatarUrl = resolveApiFileUrl(profileDraft.avatarUrl);
 
   useEffect(() => {
     let active = true;
@@ -80,7 +84,7 @@ export function VolunteerProfilePage() {
       setError(null);
 
       try {
-        const currentUser = await authService.getCurrentUser();
+        const currentUser = await volunteersService.getMyVolunteerProfile();
         if (!active) return;
 
         const nextDraft = mapUserToProfileDraft(currentUser);
@@ -141,12 +145,17 @@ export function VolunteerProfilePage() {
       pro_bono_skills: draft.proBono,
       skills: draft.skills
     });
-    const nextDraft = mapUserToProfileDraft(response, draft);
+    const nextDraft = mapUserToProfileDraft({ ...response, avatar_url: response.avatar_url ?? draft.avatarUrl }, draft);
 
     setUser(response);
     setProfileDraft(nextDraft);
     setSkillsSnapshot(toSkillsSnapshot(nextDraft));
     setSuccess("Профиль сохранён");
+  }
+
+  async function handleAvatarUpload(file: File) {
+    const response = await volunteersService.uploadMyAvatar(file);
+    return response.avatar_url;
   }
 
   return (
@@ -156,8 +165,14 @@ export function VolunteerProfilePage() {
         <div className="absolute inset-y-0 right-0 hidden w-[60%] bg-gradient-to-r from-white via-white/60 to-transparent md:block" />
         <div className="relative z-10 grid gap-6 md:grid-cols-[150px_1fr] md:items-center">
           <div className="relative size-36 overflow-hidden rounded-full bg-brand/20 shadow-[0_18px_44px_rgba(34,28,8,0.12)]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_32%,#fff_0_9%,transparent_10%),linear-gradient(145deg,#FFE300,#FFE300)]" />
-            <span className="absolute inset-0 grid place-items-center text-5xl font-black">{initials}</span>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_32%,#fff_0_9%,transparent_10%),linear-gradient(145deg,#FFE300,#FFE300)]" />
+                <span className="absolute inset-0 grid place-items-center text-5xl font-black">{initials}</span>
+              </>
+            )}
             <button onClick={() => openEditor()} className="absolute bottom-2 right-2 grid size-10 place-items-center rounded-full bg-white shadow-[0_8px_20px_rgba(34,28,8,0.18)]" aria-label="Редактировать фото">
               <Edit3 className="size-4" />
             </button>
@@ -261,7 +276,7 @@ export function VolunteerProfilePage() {
                 <tr key={`${row.task.id}-${row.period}`} className="group">
                   <td className="rounded-l-2xl bg-[#fffdf7] p-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-14 w-20 rounded-xl bg-cover bg-center" style={{ backgroundImage: `url('${taskVisuals[row.task.id]?.image ?? "/peoples.png"}')` }} />
+                      <div className="h-14 w-20 rounded-xl bg-cover bg-center" style={{ backgroundImage: `url('${getTaskVisual(row.task.id).image}')` }} />
                       <div>
                         <p className="font-black">{row.task.title}</p>
                         <p className="mt-1 text-xs text-black/48">{row.task.foundation}</p>
@@ -304,6 +319,7 @@ export function VolunteerProfilePage() {
         initialFocus={editFocus}
         profileDraft={profileDraft}
         skillsSnapshot={skillsSnapshot}
+        onAvatarUpload={handleAvatarUpload}
         onSave={handleSaveProfile}
       />
     </div>
@@ -322,16 +338,19 @@ function EditableSectionTitle({ title, onEdit }: { title: string; onEdit: () => 
   );
 }
 
-function mapUserToProfileDraft(user: UserResponse, previous?: ProfileDraft): ProfileDraft {
+function mapUserToProfileDraft(user: ProfileUserResponse, previous?: ProfileDraft): ProfileDraft {
+  const username = "username" in user ? user.username : null;
+
   return {
-    about: previous?.about ?? "",
+    about: user.about ?? previous?.about ?? "",
+    avatarUrl: user.avatar_url ?? previous?.avatarUrl ?? null,
     city: user.city ?? "",
     email: user.email,
-    interests: user.interests?.filter(Boolean) ?? [],
-    name: user.full_name ?? user.username ?? user.email,
+    interests: mapProfileLabels(user.interests),
+    name: user.full_name ?? username ?? user.email,
     phone: user.phone ?? "",
-    proBono: previous?.proBono ?? [],
-    skills: user.skills?.filter(Boolean) ?? []
+    proBono: mapProfileLabels(user.pro_bono_skills ?? previous?.proBono),
+    skills: mapProfileLabels(user.skills)
   };
 }
 
@@ -341,6 +360,14 @@ function toSkillsSnapshot(draft: ProfileDraft): ProfileSkillsSnapshot {
     proBono: draft.proBono,
     skills: draft.skills
   };
+}
+
+function mapProfileLabels(values: string[] | null | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => {
+    const skill = getSkillLabel(value);
+    if (skill !== value) return skill;
+    return getCategoryLabel(value);
+  }).filter(Boolean)));
 }
 
 function buildProfileStats(
@@ -355,7 +382,7 @@ function buildProfileStats(
 
   return [
     { icon: Clock, value: String(totalHours), label: "часов помощи", helper: `Записей: ${summary?.entries_count ?? 0}`, progress: Math.min(100, totalHours) },
-    { icon: CalendarCheck, value: String(completedTasks), label: "заданий выполнено", helper: "По данным backend", progress: Math.min(100, completedTasks * 8) },
+    { icon: CalendarCheck, value: String(completedTasks), label: "заданий выполнено", helper: "По данным платформы", progress: Math.min(100, completedTasks * 8) },
     { icon: UsersRound, value: String(funds), label: "фондов поддержано", helper: "Из истории участия", progress: Math.min(100, funds * 12) },
     { icon: Flame, value: String(activeDays), label: "дней активности", helper: "Серия активных дней", progress: Math.min(100, activeDays * 10) }
   ] satisfies { icon: LucideIcon; value: string; label: string; helper: string; progress: number }[];
@@ -410,14 +437,15 @@ function mapProfileTimeline(history: VolunteerHistoryItemResponse[], achievement
 }
 
 function historyStatusLabel(status: VolunteerHistoryItemResponse["status"]) {
-  if (status === "hours_awarded" || status === "completion_confirmed") return "Выполнено";
+  if (status === "hours_awarded") return "Часы начислены";
+  if (status === "completion_confirmed") return "Часы на проверке";
   if (status === "accepted") return "Подтверждено фондом";
   if (status === "rejected" || status === "canceled") return "Отклонено";
   return "На рассмотрении";
 }
 
 function historyTone(status: VolunteerHistoryItemResponse["status"]): "green" | "violet" | "red" {
-  if (status === "hours_awarded" || status === "completion_confirmed") return "green";
+  if (status === "hours_awarded") return "green";
   if (status === "rejected" || status === "canceled") return "red";
   return "violet";
 }

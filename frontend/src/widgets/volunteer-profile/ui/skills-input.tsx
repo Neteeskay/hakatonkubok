@@ -13,6 +13,7 @@ export function SkillsInput({
   value,
   onChange,
   groups,
+  options,
   tone = "brand"
 }: {
   label: string;
@@ -20,12 +21,13 @@ export function SkillsInput({
   value: string[];
   onChange: (skills: string[]) => void;
   groups: SkillOption["group"][];
+  options?: SkillOption[];
   tone?: "brand" | "violet";
 }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const cleanQuery = cleanSkillLabel(query);
-  const suggestions = useMemo(() => findSkillSuggestions(query, value, groups), [groups, query, value]);
+  const suggestions = useMemo(() => findSkillSuggestions(query, value, groups, options), [groups, options, query, value]);
   const duplicate = cleanQuery ? hasSkill(value, cleanQuery) : false;
   const invalid = cleanQuery.length > 0 && !isValidSkill(cleanQuery);
   const canAddCustom = cleanQuery.length > 1 && !duplicate && !invalid;

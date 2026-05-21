@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { roleNavigation, type AppRole } from "@/shared/config/navigation";
 import { cn } from "@/shared/lib/utils";
 
-export function MobileNav({ role }: { role: AppRole }) {
+export function MobileNav({ role, unreadNotifications }: { role: AppRole; unreadNotifications: number }) {
   const pathname = usePathname();
   const navigation = roleNavigation[role].slice(0, 5);
 
@@ -14,8 +14,11 @@ export function MobileNav({ role }: { role: AppRole }) {
       {navigation.map((item) => {
         const active = pathname === item.href;
         return (
-          <Link key={item.href} href={item.href} className={cn("grid h-12 place-items-center rounded-lg text-foreground/52", active && "bg-brand-soft text-foreground")}>
+          <Link key={item.href} href={item.href} className={cn("relative grid h-12 place-items-center rounded-lg text-foreground/52", active && "bg-brand-soft text-foreground")}>
             <item.icon className="size-5" />
+            {item.href.endsWith("/notifications") && unreadNotifications > 0 ? (
+              <span className="absolute right-3 top-2 size-2 rounded-full bg-brand" />
+            ) : null}
             <span className="sr-only">{item.label}</span>
           </Link>
         );

@@ -14,6 +14,10 @@ class ApplicationVolunteerShort(BaseModel):
     city: str | None = None
     department: str | None = None
     position: str | None = None
+    phone: str | None = None
+    interests: list[str] | None = None
+    skills: list[str] | None = None
+    pro_bono_skills: list[str] | None = None
 
     model_config = {"from_attributes": True}
 

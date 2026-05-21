@@ -1,7 +1,8 @@
 "use client";
 
-import { FileUp, Trash2 } from "lucide-react";
+import { ExternalLink, FileUp, Trash2 } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import { cn } from "@/shared/lib/utils";
 import { documentStatusConfig, type FoundationDocumentItem } from "@/widgets/foundation-registration/foundation-registration-data";
 
@@ -10,6 +11,7 @@ export function FoundationDocumentCard({ document, onUpload, onRemove }: { docum
   const status = documentStatusConfig[document.status];
   const Icon = status.icon;
   const uploaded = Boolean(document.fileName);
+  const fileUrl = resolveApiFileUrl(document.fileUrl);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -41,6 +43,12 @@ export function FoundationDocumentCard({ document, onUpload, onRemove }: { docum
           <div className="mt-4 flex gap-2">
             <input ref={inputRef} type="file" className="sr-only" onChange={handleFileChange} />
             <button type="button" onClick={() => inputRef.current?.click()} className="h-9 rounded-xl bg-brand px-3 text-xs font-black text-black">{uploaded ? "Заменить файл" : "Загрузить"}</button>
+            {fileUrl ? (
+              <a href={fileUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-black text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]">
+                Открыть
+                <ExternalLink className="size-3.5" />
+              </a>
+            ) : null}
             {uploaded ? (
               <button type="button" onClick={onRemove} className="grid size-9 place-items-center rounded-xl bg-[#fff1f1] text-[#c83c3c]">
                 <Trash2 className="size-4" />

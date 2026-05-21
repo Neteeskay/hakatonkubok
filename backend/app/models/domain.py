@@ -295,6 +295,7 @@ class VolunteerTask(Base, TimestampMixin):
     required_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     expected_hours: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     materials_url: Mapped[str | None] = mapped_column(String(700))
+    image_url: Mapped[str | None] = mapped_column(String(700))
     status: Mapped[TaskStatus] = mapped_column(
         Enum(TaskStatus, name="task_status", values_callable=enum_values),
         default=TaskStatus.DRAFT,
@@ -360,7 +361,7 @@ class TaskApplication(Base, TimestampMixin):
             name="task_application_canceled_at_required",
         ),
         CheckConstraint(
-            "status NOT IN ('clarify', 'accepted', 'rejected', 'completion_confirmed', 'hours_awarded') "
+            "status NOT IN ('clarify', 'accepted', 'rejected', 'not_completed', 'completion_confirmed', 'hours_awarded') "
             "OR decided_at IS NOT NULL",
             name="task_application_decided_at_required",
         ),
@@ -562,5 +563,3 @@ class ReportExport(Base):
     )
 
     requester: Mapped[User] = relationship(back_populates="report_exports")
-
-

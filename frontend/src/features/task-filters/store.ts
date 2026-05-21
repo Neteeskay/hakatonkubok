@@ -6,6 +6,7 @@ interface TaskFiltersState {
   search: string;
   category: string;
   deadline: string;
+  duration: string;
   proBono: boolean;
   skill: string;
   hours: string;
@@ -16,6 +17,7 @@ interface TaskFiltersState {
   setSearch: (search: string) => void;
   setCategory: (category: string) => void;
   setDeadline: (deadline: string) => void;
+  setDuration: (duration: string) => void;
   setProBono: (proBono: boolean) => void;
   setSkill: (skill: string) => void;
   setHours: (hours: string) => void;
@@ -30,6 +32,7 @@ const defaultFilters = {
   search: "",
   category: "Все категории",
   deadline: "Любой дедлайн",
+  duration: "Любая длительность",
   proBono: false,
   skill: "Любые навыки",
   hours: "Любые часы",
@@ -44,6 +47,7 @@ export const useTaskFilters = create<TaskFiltersState>((set) => ({
   setSearch: (search) => set({ search }),
   setCategory: (category) => set({ category }),
   setDeadline: (deadline) => set({ deadline }),
+  setDuration: (duration) => set({ duration }),
   setProBono: (proBono) => set({ proBono }),
   setSkill: (skill) => set({ skill }),
   setHours: (hours) => set({ hours }),
