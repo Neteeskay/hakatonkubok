@@ -1,18 +1,71 @@
+"use client";
+
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Award, Clock, ListChecks, Send, UserCheck } from "lucide-react";
 import { volunteersService } from "@/shared/api";
 import { resolveApiFileUrl } from "@/shared/api/config";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { StatCard } from "@/shared/ui/stat-card";
+import type { PublicVolunteerProfileResponse } from "@/shared/api/types";
 import { getCategoryLabel, getSkillLabel } from "@/widgets/volunteer-feed/task-dictionaries";
 
-export default async function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const volunteer = await volunteersService.getPublicVolunteerProfile(id).catch(() => null);
+export default function ProfilePage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const [volunteer, setVolunteer] = useState<PublicVolunteerProfileResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadVolunteer() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const profile = await volunteersService.getPublicVolunteerProfile(id);
+        if (!active) return;
+        setVolunteer(profile);
+      } catch (requestError) {
+        if (!active) return;
+        setVolunteer(null);
+        setError(getApiErrorMessage(requestError));
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadVolunteer();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-sm font-bold text-foreground/58">Загружаем профиль волонтёра...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!volunteer) {
-    notFound();
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-lg font-black">Профиль не найден</p>
+          <p className="mt-2 text-sm font-bold text-foreground/58">{error ?? "Не удалось открыть публичный профиль."}</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const hours = Number(volunteer.stats.total_hours);
@@ -40,8 +93,18 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
       <section className="rounded-[2rem] bg-white p-6 shadow-[0_22px_70px_rgba(34,28,8,0.08),inset_0_0_0_1px_rgba(24,20,7,0.06)] md:p-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_25rem] lg:items-end">
           <div className="flex flex-col gap-5 md:flex-row md:items-center">
-            <div className="grid size-24 place-items-center overflow-hidden rounded-[1.6rem] bg-brand text-3xl font-black text-brand-foreground">
-              {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : initials || "В"}
+            <div className="relative grid size-24 place-items-center overflow-hidden rounded-[1.6rem] bg-brand text-3xl font-black text-brand-foreground">
+              <span>{initials || "В"}</span>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full rounded-[1.6rem] object-cover"
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
             </div>
             <div>
               <p className="text-sm font-extrabold uppercase text-black/48">{volunteer.stats.profile_level_title}</p>

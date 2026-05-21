@@ -8,15 +8,22 @@ const STATIC_ASSETS = [
   "/logo.png",
   "/stoloto.png",
   "/pwa/icon-192.png",
-  "/pwa/icon-512.png",
-  "/pwa/maskable-512.png"
+  "/pwa/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        STATIC_ASSETS.map((asset) =>
+          cache.add(asset).catch((error) => {
+            console.warn("Failed to precache asset:", asset, error);
+          })
+        )
+      )
+    )
   );
 });
 
@@ -49,6 +56,10 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
+        if (!response.ok || response.type !== "basic") {
+          return response;
+        }
+
         const responseClone = response.clone();
 
         caches.open(CACHE_NAME).then((cache) => {

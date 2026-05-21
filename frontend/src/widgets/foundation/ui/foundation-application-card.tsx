@@ -47,7 +47,17 @@ export function FoundationApplicationCard({
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="flex min-w-0 gap-4">
               <span className="relative grid size-[4.6rem] shrink-0 place-items-center rounded-[1.45rem] bg-brand text-lg font-black text-black shadow-[0_18px_38px_rgba(255,227,0,0.24)]">
-                {initials(item.volunteer)}
+                <span>{initials(item.volunteer)}</span>
+                {item.avatar ? (
+                  <img
+                    src={item.avatar}
+                    alt=""
+                    className="absolute inset-0 h-full w-full rounded-[1.45rem] object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                ) : null}
                 <span className={cn("absolute -bottom-2 -right-2 grid size-8 place-items-center rounded-full border-4 border-white", styles.icon)}>
                   <Icon className="size-4" />
                 </span>

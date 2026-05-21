@@ -122,7 +122,7 @@ export function AdminVolunteersPage() {
         {visible.map((volunteer) => (
           <article key={volunteer.id} className="rounded-[1.6rem] bg-white p-5 shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_rgba(34,28,8,0.075)]">
             <div className="flex items-start gap-4">
-              <Image src={volunteer.avatar} alt={volunteer.name} width={72} height={72} className="size-16 rounded-[1.25rem] object-cover" />
+              <img src={volunteer.avatar} alt={volunteer.name} className="size-16 rounded-[1.25rem] object-cover" onError={(event) => { event.currentTarget.src = "/logo.png"; }} />
               <div>
                 <AdminStatusBadge tone={volunteer.status === "active" ? "success" : "wait"}>{volunteer.status === "active" ? "Активен" : "Новый"}</AdminStatusBadge>
                 <h2 className="mt-3 text-xl font-black">{volunteer.name}</h2>
@@ -378,7 +378,7 @@ function HourCaseCard({ item, onApprove }: { item: AdminHourCase; onApprove: (id
     <article className="rounded-[1.6rem] bg-white p-5 shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
       <div className="grid gap-5 lg:grid-cols-[1fr_280px] lg:items-center">
         <div className="flex items-start gap-4">
-          <Image src={item.volunteerAvatar} alt={item.volunteer} width={72} height={72} className="size-16 rounded-[1.25rem] object-cover" />
+          <img src={item.volunteerAvatar} alt={item.volunteer} className="size-16 rounded-[1.25rem] object-cover" onError={(event) => { event.currentTarget.src = "/logo.png"; }} />
           <div>
             <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
             <h2 className="mt-3 text-2xl font-black">{item.volunteer}</h2>
@@ -506,7 +506,7 @@ function VolunteerProfilePreview({ volunteer }: { volunteer: AdminVolunteer }) {
       <section className="relative overflow-hidden rounded-[1.55rem] bg-[#fffdf7] p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)]">
         <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[url('/backTaskVolounteer.png')] bg-cover bg-center opacity-35 md:block" />
         <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center">
-          <Image src={volunteer.avatar} alt={volunteer.name} width={132} height={132} className="size-32 rounded-[1.8rem] object-cover shadow-[0_20px_50px_rgba(34,28,8,0.12)]" />
+          <img src={volunteer.avatar} alt={volunteer.name} className="size-32 rounded-[1.8rem] object-cover shadow-[0_20px_50px_rgba(34,28,8,0.12)]" onError={(event) => { event.currentTarget.src = "/logo.png"; }} />
           <div className="min-w-0 flex-1">
             <AdminStatusBadge tone={volunteer.status === "active" ? "success" : "wait"}>{volunteer.status === "active" ? "Активен" : "Новый"}</AdminStatusBadge>
             <h3 className="mt-3 text-4xl font-black leading-tight text-black">{volunteer.name}</h3>

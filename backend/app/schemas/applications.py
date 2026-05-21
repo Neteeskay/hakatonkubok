@@ -10,6 +10,7 @@ from app.schemas.tasks import TaskResponse
 class ApplicationVolunteerShort(BaseModel):
     id: UUID
     email: str
+    avatar_url: str | None = None
     full_name: str | None = None
     city: str | None = None
     department: str | None = None

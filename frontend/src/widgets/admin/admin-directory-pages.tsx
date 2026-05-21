@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { adminService } from "@/shared/api";
-import { mapAdminFundDetail, mapAdminFundListItem } from "@/widgets/admin/admin-api-mappers";
+import { mapAdminFundDetail, mapAdminFundListItem, mapAdminTaskDetail, mapAdminTaskDirectoryItem } from "@/widgets/admin/admin-api-mappers";
 import { adminFoundations, adminTasks, foundationStatusConfig, taskStatusConfig, type AdminTask, type AdminTaskStatus } from "@/widgets/admin/admin-data";
 import { AdminDetailOverlay } from "@/widgets/admin/ui/admin-detail-overlay";
 import { AdminPageShell } from "@/widgets/admin/ui/admin-page-shell";
@@ -88,9 +88,38 @@ export function AdminTasksPage() {
   const [selected, setSelected] = useState<AdminTask | null>(null);
   const visible = useMemo(() => items.filter((item) => `${item.title} ${item.foundation} ${item.category}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTasks() {
+      try {
+        const tasks = await adminService.getAdminTaskDirectory({ limit: 50, offset: 0 });
+        if (isMounted) {
+          setItems(tasks.map(mapAdminTaskDirectoryItem));
+        }
+      } catch {
+        // Keep the existing mock data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadTasks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   function updateStatus(id: string, status: AdminTaskStatus, comment?: string) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, status, moderatorComment: comment ?? item.moderatorComment } : item));
     setSelected(null);
+  }
+
+  async function openTask(task: AdminTask) {
+    try {
+      setSelected(mapAdminTaskDetail(await adminService.getAdminTask(task.id)));
+    } catch {
+      setSelected(task);
+    }
   }
 
   return (
@@ -102,8 +131,8 @@ export function AdminTasksPage() {
           return (
             <article key={task.id} className="overflow-hidden rounded-[1.6rem] bg-white shadow-[0_20px_60px_rgba(34,28,8,0.05),inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5">
               <div className="grid md:grid-cols-[220px_1fr]">
-                <div className="relative min-h-[210px] bg-[#fffdf7]">
-                  <Image src={task.image} alt={task.title} fill sizes="220px" className="object-cover" />
+                <div className="relative min-h-[210px] overflow-hidden bg-[#fffdf7]">
+                  <div className="absolute inset-0 bg-cover bg-center transition duration-500 hover:scale-[1.03]" style={{ backgroundImage: `url('${task.image}')` }} role="img" aria-label={task.title} />
                   <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                     <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
                     {task.proBono ? <AdminStatusBadge tone="done">Pro bono</AdminStatusBadge> : null}
@@ -119,7 +148,7 @@ export function AdminTasksPage() {
                     <MiniMetric value={`${task.filled}/${task.spots}`} label="места" />
                     <MiniMetric value={`${task.hours} ч`} label="часы" />
                   </div>
-                  <button onClick={() => setSelected(task)} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black transition hover:-translate-y-0.5">
+                  <button onClick={() => { void openTask(task); }} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black transition hover:-translate-y-0.5">
                     Открыть детали
                     <ArrowRight className="size-4" />
                   </button>

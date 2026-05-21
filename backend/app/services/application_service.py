@@ -57,9 +57,10 @@ class TaskNotClosedError(ApplicationError):
     pass
 
 
-def application_load_options() -> tuple[object, object, object]:
+def application_load_options() -> tuple[object, ...]:
     return (
         selectinload(TaskApplication.task).selectinload(VolunteerTask.fund),
+        selectinload(TaskApplication.task).selectinload(VolunteerTask.applications),
         selectinload(TaskApplication.volunteer),
         selectinload(TaskApplication.hour_ledger),
     )

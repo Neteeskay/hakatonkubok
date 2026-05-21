@@ -4,13 +4,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { ArrowRight, Download, Plus, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileText,
+  MessageCircle,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Star,
+  UserPlus,
+  XCircle,
+  type LucideIcon
+} from "lucide-react";
 import { applicationsService, fundsService, getApiErrorMessage, notificationsService, tasksService } from "@/shared/api";
 import type { HelpCategoryResponse, NotificationResponse, SkillOptionResponse, TaskFilterOptionsResponse } from "@/shared/api";
 import {
   currentFoundation,
   foundationMetrics,
+  foundationToneStyles,
   reportMetrics,
+  type FoundationTone,
   type FoundationApplicationItem,
   type FoundationApplicationStatus,
   type FoundationTaskItem,
@@ -410,15 +427,32 @@ export function FoundationNotificationsPage() {
         {loading ? <StateBlock title="Загружаем уведомления..." /> : error ? <StateBlock title="Не удалось загрузить уведомления" text={error} /> : null}
         {!loading && !error && !items.length ? <StateBlock title="Уведомлений пока нет" text="Когда появятся новые события по заданиям и откликам, они будут здесь." /> : null}
         <div className="grid gap-3">
-          {items.map((item) => (
-            <button key={item.id} onClick={() => { void markRead(item); }} className={`grid gap-3 rounded-[1.35rem] bg-white p-4 text-left shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)] transition hover:-translate-y-0.5 hover:bg-brand/10 md:grid-cols-[1fr_auto] md:items-center ${item.is_read ? "opacity-70" : ""}`}>
-              <span>
-                <span className="block text-sm font-black">{item.title}</span>
-                <span className="mt-1 block whitespace-pre-line text-sm font-bold leading-6 text-black/54">{item.body}</span>
-              </span>
-              <span className="rounded-full bg-[#fffdf7] px-3 py-1.5 text-xs font-black text-black/44">{formatNotificationDate(item.created_at)}</span>
-            </button>
-          ))}
+          {items.map((item) => {
+            const meta = getFoundationNotificationMeta(item);
+            const styles = foundationToneStyles[meta.tone];
+            const Icon = meta.icon;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => { void markRead(item); }}
+                className={`grid gap-4 rounded-[1.35rem] bg-white p-4 text-left shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_16px_42px_rgba(34,28,8,0.04)] transition hover:-translate-y-0.5 hover:bg-brand/10 md:grid-cols-[56px_1fr_auto] md:items-center ${item.is_read ? "opacity-72" : ""}`}
+              >
+                <span className={`relative grid size-12 place-items-center rounded-2xl ${styles.icon}`}>
+                  <Icon className="size-5" />
+                  {!item.is_read ? <span className="absolute right-2 top-2 size-2 rounded-full bg-black" /> : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="block text-sm font-black">{item.title}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${styles.badge}`}>{meta.label}</span>
+                  </span>
+                  <span className="mt-1 block whitespace-pre-line text-sm font-bold leading-6 text-black/54">{item.body}</span>
+                </span>
+                <span className="rounded-full bg-[#fffdf7] px-3 py-1.5 text-xs font-black text-black/44">{formatNotificationDate(item.created_at)}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </FoundationPageShell>
@@ -760,6 +794,48 @@ function formatNotificationDate(value: string) {
     minute: "2-digit",
     month: "short"
   }).format(date);
+}
+
+function getFoundationNotificationMeta(notification: NotificationResponse): { icon: LucideIcon; label: string; tone: FoundationTone } {
+  const content = `${notification.title} ${notification.body}`.toLowerCase();
+
+  if (content.includes("отклик") || content.includes("волонт")) {
+    return { icon: UserPlus, label: "Отклик", tone: "blue" };
+  }
+
+  if (content.includes("час") || content.includes("начисл")) {
+    return { icon: Star, label: "Часы", tone: "green" };
+  }
+
+  if (content.includes("доработ") || content.includes("уточн")) {
+    return { icon: RotateCcw, label: "Уточнение", tone: "violet" };
+  }
+
+  if (content.includes("отклон") || content.includes("отмен")) {
+    return { icon: XCircle, label: "Важно", tone: "red" };
+  }
+
+  if (content.includes("задани") && (content.includes("публикац") || content.includes("опублик"))) {
+    return { icon: FileText, label: "Задание", tone: "gold" };
+  }
+
+  if (content.includes("модерац") || content.includes("провер")) {
+    return { icon: Clock3, label: "Проверка", tone: "gold" };
+  }
+
+  if (content.includes("выполн") || content.includes("заверш")) {
+    return { icon: CheckCircle2, label: "Выполнение", tone: "green" };
+  }
+
+  if (content.includes("сообщ") || content.includes("коммент")) {
+    return { icon: MessageCircle, label: "Сообщение", tone: "violet" };
+  }
+
+  if (content.includes("задани") || content.includes("публикац")) {
+    return { icon: FileText, label: "Задание", tone: "gold" };
+  }
+
+  return { icon: Bell, label: "Событие", tone: "neutral" };
 }
 
 function TaskStatusFilters({ active, onChange }: { active: "all" | FoundationTaskStatus; onChange: (status: "all" | FoundationTaskStatus) => void }) {

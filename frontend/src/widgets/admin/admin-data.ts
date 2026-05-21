@@ -371,7 +371,7 @@ export const adminHourCases: AdminHourCase[] = [
     taskTitle: "Онлайн-уроки для школьников",
     foundation: "Добрые руки",
     volunteer: "Анна Соколова",
-    volunteerAvatar: "/avatars/avatar-anna.png",
+    volunteerAvatar: "/logo.png",
     city: "Москва",
     confirmedByFoundation: "8 июня 2026",
     requestedHours: 2,
@@ -385,7 +385,7 @@ export const adminHourCases: AdminHourCase[] = [
     taskTitle: "Фасовка продуктовых наборов",
     foundation: "Добрые руки",
     volunteer: "Павел Ким",
-    volunteerAvatar: "/avatars/avatar-pavel.png",
+    volunteerAvatar: "/logo.png",
     city: "Казань",
     confirmedByFoundation: "31 мая 2026",
     requestedHours: 4,
@@ -396,9 +396,9 @@ export const adminHourCases: AdminHourCase[] = [
 ];
 
 export const adminVolunteers: AdminVolunteer[] = [
-  { id: "vol-001", name: "Анна Соколова", avatar: "/avatars/avatar-anna.png", city: "Москва", role: "Продуктовый дизайнер", skills: ["Figma", "Презентации", "UX/UI"], interests: ["Помощь детям", "Образование", "Pro bono"], proSkills: ["Product Design", "Figma", "Storytelling"], badges: ["Первые шаги", "Командный игрок", "Мастер помощи"], categories: [{ label: "Образование", value: 38 }, { label: "Pro bono", value: 32 }, { label: "Животные", value: 18 }], hours: 56, activities: 12, status: "active", history: ["Презентация для фонда", "Онлайн-уроки"] },
-  { id: "vol-002", name: "Илья Мельников", avatar: "/avatars/avatar-ilya.png", city: "Москва", role: "Event-координатор", skills: ["Логистика", "События"], interests: ["Спорт", "События", "Дети"], proSkills: ["Event management", "Навигация", "Коммуникации"], badges: ["Надёжный волонтёр", "Офлайн-герой"], categories: [{ label: "События", value: 46 }, { label: "Спорт", value: 24 }, { label: "Дети", value: 18 }], hours: 34, activities: 7, status: "active", history: ["Семейный спортивный день"] },
-  { id: "vol-003", name: "Мария Титова", avatar: "/avatars/avatar-maria.png", city: "Онлайн", role: "Аналитик", skills: ["BI", "Data Analysis"], interests: ["Экология", "Образование", "Pro bono"], proSkills: ["BI", "Data Analysis", "Research"], badges: ["PRO Bono Expert", "10 часов помощи", "Онлайн-волонтёр"], categories: [{ label: "Pro bono", value: 52 }, { label: "Экология", value: 18 }, { label: "Образование", value: 12 }], hours: 82, activities: 18, status: "active", history: ["Аудит анкеты", "Отчётность фонда"] }
+  { id: "vol-001", name: "Анна Соколова", avatar: "/logo.png", city: "Москва", role: "Продуктовый дизайнер", skills: ["Figma", "Презентации", "UX/UI"], interests: ["Помощь детям", "Образование", "Pro bono"], proSkills: ["Product Design", "Figma", "Storytelling"], badges: ["Первые шаги", "Командный игрок", "Мастер помощи"], categories: [{ label: "Образование", value: 38 }, { label: "Pro bono", value: 32 }, { label: "Животные", value: 18 }], hours: 56, activities: 12, status: "active", history: ["Презентация для фонда", "Онлайн-уроки"] },
+  { id: "vol-002", name: "Илья Мельников", avatar: "/logo.png", city: "Москва", role: "Event-координатор", skills: ["Логистика", "События"], interests: ["Спорт", "События", "Дети"], proSkills: ["Event management", "Навигация", "Коммуникации"], badges: ["Надёжный волонтёр", "Офлайн-герой"], categories: [{ label: "События", value: 46 }, { label: "Спорт", value: 24 }, { label: "Дети", value: 18 }], hours: 34, activities: 7, status: "active", history: ["Семейный спортивный день"] },
+  { id: "vol-003", name: "Мария Титова", avatar: "/logo.png", city: "Онлайн", role: "Аналитик", skills: ["BI", "Data Analysis"], interests: ["Экология", "Образование", "Pro bono"], proSkills: ["BI", "Data Analysis", "Research"], badges: ["PRO Bono Expert", "10 часов помощи", "Онлайн-волонтёр"], categories: [{ label: "Pro bono", value: 52 }, { label: "Экология", value: 18 }, { label: "Образование", value: 12 }], hours: 82, activities: 18, status: "active", history: ["Аудит анкеты", "Отчётность фонда"] }
 ];
 
 export const adminNotifications: AdminNotification[] = [

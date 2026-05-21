@@ -162,7 +162,7 @@ export function TaskReviewPanel({
     <div className="space-y-5">
       <section className="grid gap-5 rounded-[1.55rem] bg-white p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)] lg:grid-cols-[360px_1fr]">
         <div className="relative min-h-[260px] overflow-hidden rounded-[1.35rem] bg-[#fffdf7]">
-          <Image src={task.image} alt={task.title} fill sizes="360px" className="object-cover" />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${task.image}')` }} role="img" aria-label={task.title} />
           <div className="absolute left-3 top-3 flex flex-wrap gap-2">
             <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
             {task.proBono ? <AdminStatusBadge tone="done">Pro bono</AdminStatusBadge> : null}

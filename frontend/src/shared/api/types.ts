@@ -344,6 +344,7 @@ export interface TaskFeedQuery {
 }
 
 export interface ApplicationVolunteerShort {
+  avatar_url: string | null;
   city: string | null;
   department: string | null;
   email: string;
@@ -758,6 +759,7 @@ export interface AdminCompletionItemResponse {
   task_id: Uuid;
   updated_at: DateTimeString;
   volunteer: {
+    avatar_url: string | null;
     city: string | null;
     department: string | null;
     email: string;
@@ -789,6 +791,7 @@ export interface AdminHourLedgerResponse {
 export interface AdminVolunteerDirectoryItemResponse {
   active_tasks: number;
   applications_total: number;
+  avatar_url: string | null;
   city: string | null;
   completed_tasks: number;
   created_at: DateTimeString | null;

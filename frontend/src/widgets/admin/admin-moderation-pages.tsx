@@ -216,8 +216,8 @@ function TaskModerationCard({ task, onOpen }: { task: AdminTask; onOpen: (task: 
   return (
     <article className="overflow-hidden rounded-[1.65rem] bg-white shadow-[0_22px_64px_rgba(34,28,8,0.055),inset_0_0_0_1px_rgba(24,20,7,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_72px_rgba(34,28,8,0.075)]">
       <div className="grid gap-0 md:grid-cols-[240px_1fr]">
-        <div className="relative min-h-[230px] bg-[#fffdf7]">
-          <Image src={task.image} alt={task.title} fill sizes="240px" className="object-cover" />
+        <div className="relative min-h-[230px] overflow-hidden bg-[#fffdf7]">
+          <div className="absolute inset-0 bg-cover bg-center transition duration-500 hover:scale-[1.03]" style={{ backgroundImage: `url('${task.image}')` }} role="img" aria-label={task.title} />
           <div className="absolute left-3 top-3 flex flex-wrap gap-2">
             <AdminStatusBadge tone={status.tone}>{status.label}</AdminStatusBadge>
             {task.proBono ? <AdminStatusBadge tone="done">Pro bono</AdminStatusBadge> : null}

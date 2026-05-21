@@ -11,6 +11,7 @@ import type {
   PublicVolunteerProfileResponse,
   PlatformAnalyticsReport
 } from "@/shared/api/types";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import type { AdminFoundation, AdminHourCase, AdminNotification, AdminTask, AdminTone, AdminVolunteer } from "@/widgets/admin/admin-data";
 import { getCategoryLabel, getSkillLabel, getTaskVisual } from "@/widgets/volunteer-feed/task-dictionaries";
 
@@ -33,6 +34,10 @@ function formatDateTime(value: string | null | undefined) {
 function getFileNameFromUrl(value: string) {
   const normalized = value.split("?")[0]?.split("#")[0] ?? value;
   return decodeURIComponent(normalized.split("/").filter(Boolean).at(-1) ?? value);
+}
+
+function avatarUrl(value?: string | null) {
+  return resolveApiFileUrl(value) ?? "/logo.png";
 }
 
 function mapDocumentStatus(status: AdminFundDetailResponse["status"]): AdminFoundation["documents"][number]["status"] {
@@ -216,7 +221,7 @@ export function mapAdminCompletionItem(item: AdminCompletionItemResponse, fundNa
     taskId: item.task_id,
     taskTitle: item.task.title,
     volunteer: item.volunteer.full_name ?? item.volunteer.email,
-    volunteerAvatar: "/logo.png"
+    volunteerAvatar: avatarUrl(item.volunteer.avatar_url)
   };
 }
 
@@ -225,7 +230,7 @@ export function mapAdminVolunteerDirectoryItem(volunteer: AdminVolunteerDirector
   const completedTasks = profile?.stats.completed_tasks ?? volunteer.completed_tasks;
   return {
     activities: completedTasks,
-    avatar: profile?.avatar_url && profile.avatar_url.startsWith("/") && !profile.avatar_url.startsWith("/uploads") ? profile.avatar_url : "/avatars/avatar-anna.png",
+    avatar: avatarUrl(profile?.avatar_url ?? volunteer.avatar_url),
     badges: profile?.achievements.filter((achievement) => achievement.is_awarded).map((achievement) => achievement.title) ?? [],
     categories: [
       { label: "Выполнено", value: Math.min(100, completedTasks * 10) },

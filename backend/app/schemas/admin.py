@@ -24,6 +24,7 @@ class AdminUserShort(AdminOrmModel):
     id: UUID
     role: UserRole
     email: str
+    avatar_url: str | None = None
     full_name: str | None = None
     city: str | None = None
     department: str | None = None

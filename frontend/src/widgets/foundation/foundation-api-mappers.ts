@@ -16,6 +16,7 @@ import type { FoundationDocumentItem } from "@/widgets/foundation-registration/f
 import type { FoundationProfileForm } from "@/widgets/foundation/foundation-profile-data";
 import type { FoundationApplicationItem, FoundationApplicationStatus, FoundationTaskItem, FoundationTaskStatus, FoundationTone } from "@/widgets/foundation/foundation-data";
 import type { FoundationTaskFormValues } from "@/widgets/foundation/ui/create-task-form";
+import { resolveApiFileUrl } from "@/shared/api/config";
 import { getCategoryLabel, getSkillLabel } from "@/widgets/volunteer-feed/task-dictionaries";
 
 function formatDate(value?: string | null, fallback = "дата не указана") {
@@ -137,7 +138,7 @@ export function mapApplicationResponseToFoundationApplication(application: Appli
     volunteerPhone: volunteer?.phone || undefined,
     role: volunteer?.position || volunteer?.department || "Волонтёр",
     city: volunteer?.city || "Город не указан",
-    avatar: "",
+    avatar: resolveApiFileUrl(volunteer?.avatar_url) ?? "",
     taskTitle: task?.title ?? "Задание",
     skills,
     proBonoSkills,

@@ -6,7 +6,7 @@ import { Button } from "@/shared/ui/button";
 import { Dropdown } from "@/shared/ui/overlays";
 import { roleLabels, type AppRole } from "@/shared/config/navigation";
 
-export function Topbar({ displayName, role, unreadNotifications }: { displayName: string | null; role: AppRole; unreadNotifications: number }) {
+export function Topbar({ avatarUrl, displayName, role, unreadNotifications }: { avatarUrl?: string | null; displayName: string | null; role: AppRole; unreadNotifications: number }) {
   const name = displayName ?? roleLabels[role];
   const initials = getInitials(name);
   const notificationHref = role === "admin" ? "/admin/notifications" : role === "volunteer" ? "/volunteer/notifications" : "/foundation/notifications";
@@ -42,7 +42,19 @@ export function Topbar({ displayName, role, unreadNotifications }: { displayName
         <Dropdown
           label={
             <span className="flex items-center gap-3 rounded-full">
-              <span className="grid size-12 place-items-center rounded-full bg-brand text-sm font-black text-black shadow-[0_14px_30px_rgba(255,227,0,0.28)]">{initials}</span>
+              <span className="relative grid size-12 place-items-center overflow-hidden rounded-full bg-brand text-sm font-black text-black shadow-[0_14px_30px_rgba(255,227,0,0.28)]">
+                <span>{initials}</span>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                ) : null}
+              </span>
               <span className="hidden text-left leading-tight md:block">
                 <span className="block text-sm font-black">{name}</span>
                 <span className="block text-xs text-foreground/54">{roleLabels[role]}</span>
