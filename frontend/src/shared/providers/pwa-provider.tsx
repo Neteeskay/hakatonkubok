@@ -8,10 +8,8 @@ export function PwaProvider() {
       return;
     }
 
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch((error) => {
-        console.error("Service Worker registration failed:", error);
-      });
+    navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.error("Service Worker registration failed:", error);
     });
   }, []);
 

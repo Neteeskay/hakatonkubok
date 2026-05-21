@@ -22,7 +22,7 @@ def upgrade() -> None:
                 CREATE TYPE fund_status AS ENUM ('draft', 'pending_review', 'approved', 'needs_changes', 'rejected');
             END IF;
             IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'help_category') THEN
-                CREATE TYPE help_category AS ENUM ('children', 'elderly', 'disability', 'ecology');
+                CREATE TYPE help_category AS ENUM ('children', 'elderly', 'disability', 'ecology', 'events', 'logistics', 'it', 'design', 'legal', 'communications', 'content', 'education', 'sport', 'targeted_help', 'pro_bono');
             END IF;
             IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'participation_format') THEN
                 CREATE TYPE participation_format AS ENUM ('online', 'offline');

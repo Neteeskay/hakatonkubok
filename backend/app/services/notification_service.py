@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain import Notification, User
@@ -50,3 +50,17 @@ async def mark_notification_read(
     await session.commit()
     await session.refresh(notification)
     return notification
+
+
+async def mark_all_user_notifications_read(
+    session: AsyncSession,
+    user: User,
+) -> int:
+    result = await session.execute(
+        update(Notification)
+        .where(Notification.user_id == user.id)
+        .where(Notification.is_read.is_(False))
+        .values(is_read=True)
+    )
+    await session.commit()
+    return int(result.rowcount or 0)

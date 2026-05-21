@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -147,3 +147,44 @@ class VolunteerProfileUpdateRequest(BaseModel):
         if not self.model_fields_set:
             raise ValueError("at least one field is required")
         return self
+
+
+class VolunteerHoursSummaryResponse(BaseModel):
+    total_hours: Decimal
+    entries_count: int
+    tasks_count: int
+    first_awarded_at: datetime | None = None
+    last_awarded_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class VolunteerHoursLedgerItemResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    task_id: UUID
+    task_title: str
+    fund_id: UUID | None = None
+    fund_name: str | None = None
+    category: HelpCategory
+    hours: Decimal
+    awarded_at: datetime
+    admin_comment: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class VolunteerHoursDynamicsItemResponse(BaseModel):
+    period: datetime | date
+    hours: Decimal
+    entries_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class VolunteerHoursByCategoryItemResponse(BaseModel):
+    category: HelpCategory
+    hours: Decimal
+    tasks_count: int
+
+    model_config = {"from_attributes": True}

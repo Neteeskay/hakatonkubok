@@ -16,6 +16,10 @@ from app.schemas.volunteers import (
     VolunteerAchievementsOverviewResponse,
     VolunteerHistoryItemResponse,
     VolunteerProfileUpdateRequest,
+    VolunteerHoursByCategoryItemResponse,
+    VolunteerHoursDynamicsItemResponse,
+    VolunteerHoursLedgerItemResponse,
+    VolunteerHoursSummaryResponse,
 )
 from app.services.achievement_service import (
     get_volunteer_achievement_overview,
@@ -29,6 +33,14 @@ from app.services.notification_service import (
 )
 from app.services.report_service import build_volunteer_year_statistics_pdf
 from app.services.volunteer_history_service import list_volunteer_history
+
+from app.services.volunteer_hours_service import (
+    get_volunteer_hours_summary,
+    list_volunteer_hours_by_category,
+    list_volunteer_hours_dynamics,
+    list_volunteer_hours_ledger,
+)
+
 
 router = APIRouter()
 
@@ -124,6 +136,54 @@ async def read_my_notification(
             status_code=status.HTTP_404_NOT_FOUND, detail="notification not found"
         ) from exc
     return NotificationResponse.model_validate(notification)
+
+
+@router.get("/me/hours/summary", response_model=VolunteerHoursSummaryResponse)
+async def get_my_hours_summary(
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> VolunteerHoursSummaryResponse:
+    summary = await get_volunteer_hours_summary(session, current_user.id)
+    return VolunteerHoursSummaryResponse.model_validate(summary)
+
+
+@router.get("/me/hours/ledger", response_model=list[VolunteerHoursLedgerItemResponse])
+async def get_my_hours_ledger(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[VolunteerHoursLedgerItemResponse]:
+    ledger = await list_volunteer_hours_ledger(
+        session,
+        current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+    return [VolunteerHoursLedgerItemResponse.model_validate(item) for item in ledger]
+
+
+@router.get("/me/hours/dynamics", response_model=list[VolunteerHoursDynamicsItemResponse])
+async def get_my_hours_dynamics(
+    months: int = Query(default=12, ge=1, le=36),
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[VolunteerHoursDynamicsItemResponse]:
+    dynamics = await list_volunteer_hours_dynamics(
+        session,
+        current_user.id,
+        months=months,
+    )
+    return [VolunteerHoursDynamicsItemResponse.model_validate(item) for item in dynamics]
+
+
+@router.get("/me/hours/by-category", response_model=list[VolunteerHoursByCategoryItemResponse])
+async def get_my_hours_by_category(
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> list[VolunteerHoursByCategoryItemResponse]:
+    categories = await list_volunteer_hours_by_category(session, current_user.id)
+    return [VolunteerHoursByCategoryItemResponse.model_validate(item) for item in categories]
 
 
 @router.get("/me/statistics.pdf")

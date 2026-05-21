@@ -54,6 +54,17 @@ class HelpCategory(StrEnum):
     ELDERLY = "elderly"
     DISABILITY = "disability"
     ECOLOGY = "ecology"
+    EVENTS = "events"
+    LOGISTICS = "logistics"
+    IT = "it"
+    DESIGN = "design"
+    LEGAL = "legal"
+    COMMUNICATIONS = "communications"
+    CONTENT = "content"
+    EDUCATION = "education"
+    SPORT = "sport"
+    TARGETED_HELP = "targeted_help"
+    PRO_BONO = "pro_bono"
 
 
 class AchievementCode(StrEnum):

@@ -24,6 +24,10 @@ from app.schemas.admin import (
     AwardHoursRequest,
     FundModerationRequest,
     TaskModerationRequest,
+    AdminNotificationReadCount,
+    AdminFundDirectoryItem,
+    AdminTaskDirectoryItem,
+    AdminVolunteerDirectoryItem,
 )
 from app.schemas.reports import ParticipantReportRow
 from app.services.report_service import (
@@ -60,7 +64,13 @@ from app.services.task_service import (
     list_tasks_for_admin,
     moderate_task,
 )
-
+from app.schemas.notifications import NotificationResponse
+from app.services.notification_service import (
+    NotificationNotFoundError,
+    list_user_notifications,
+    mark_all_user_notifications_read,
+    mark_notification_read,
+)
 
 router = APIRouter()
 
@@ -154,6 +164,50 @@ def _employee_id_for_email(email: str) -> str:
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "admin"}
+
+
+@router.get("/notifications", response_model=list[NotificationResponse])
+async def list_admin_notifications(
+    unread_only: bool = Query(default=False),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+) -> list[NotificationResponse]:
+    notifications = await list_user_notifications(
+        session,
+        admin,
+        unread_only=unread_only,
+        limit=limit,
+        offset=offset,
+    )
+    return [NotificationResponse.model_validate(notification) for notification in notifications]
+
+
+@router.patch("/notifications/{notification_id}/read", response_model=NotificationResponse)
+async def mark_admin_notification_read(
+    notification_id: UUID,
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationResponse:
+    try:
+        notification = await mark_notification_read(session, admin, notification_id)
+    except NotificationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="notification not found",
+        ) from exc
+
+    return NotificationResponse.model_validate(notification)
+
+
+@router.patch("/notifications/read-all", response_model=AdminNotificationReadCount)
+async def mark_all_admin_notifications_read(
+    admin: User = Depends(require_roles(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+) -> AdminNotificationReadCount:
+    updated_count = await mark_all_user_notifications_read(session, admin)
+    return AdminNotificationReadCount(updated_count=updated_count)
 
 
 @router.get("/funds", response_model=list[AdminFundListItem])
@@ -446,6 +500,226 @@ async def award_volunteer_hours(
     await sync_volunteer_achievements(session, application.volunteer_id)
 
     return ledger
+
+
+@router.get("/directory/funds", response_model=list[AdminFundDirectoryItem])
+async def list_admin_funds_directory(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+    status_filter: FundStatus | None = Query(default=None, alias="status"),
+    search: str | None = Query(default=None, min_length=2),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
+) -> list[AdminFundDirectoryItem]:
+    funds = await list_funds(session, status=status_filter)
+
+    if search:
+        search_value = search.strip().lower()
+        funds = [fund for fund in funds if search_value in fund.name.lower()]
+
+    items: list[AdminFundDirectoryItem] = []
+
+    for fund in funds[offset : offset + limit]:
+        active_tasks = await session.scalar(
+            select(func.count(VolunteerTask.id))
+            .where(VolunteerTask.fund_id == fund.id)
+            .where(VolunteerTask.status == TaskStatus.PUBLISHED)
+        )
+
+        volunteers = await session.scalar(
+            select(func.count(func.distinct(TaskApplication.volunteer_id)))
+            .join(VolunteerTask, VolunteerTask.id == TaskApplication.task_id)
+            .where(VolunteerTask.fund_id == fund.id)
+            .where(
+                TaskApplication.status.in_(
+                    [
+                        ApplicationStatus.ACCEPTED,
+                        ApplicationStatus.COMPLETION_CONFIRMED,
+                        ApplicationStatus.HOURS_AWARDED,
+                    ]
+                )
+            )
+        )
+
+        hours = await session.scalar(
+            select(func.coalesce(func.sum(VolunteerHourLedger.hours), 0))
+            .join(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
+            .where(VolunteerTask.fund_id == fund.id)
+        )
+
+        items.append(
+            AdminFundDirectoryItem(
+                id=fund.id,
+                name=fund.name,
+                status=fund.status,
+                description=fund.description,
+                categories=fund.help_categories or [],
+                logo=None,
+                region=fund.region,
+                contact_person=fund.contact_person,
+                contact_email=fund.contact_email,
+                active_tasks=int(active_tasks or 0),
+                volunteers=int(volunteers or 0),
+                hours=Decimal(hours or 0),
+                created_at=fund.created_at,
+                updated_at=fund.updated_at,
+            )
+        )
+
+    return items
+
+
+@router.get("/directory/tasks", response_model=list[AdminTaskDirectoryItem])
+async def list_admin_tasks_directory(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+    status_filter: TaskStatus | None = Query(default=None, alias="status"),
+    fund_id: UUID | None = None,
+    search: str | None = Query(default=None, min_length=2),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
+) -> list[AdminTaskDirectoryItem]:
+    tasks = await list_tasks_for_admin(session, status=status_filter)
+
+    if fund_id is not None:
+        tasks = [task for task in tasks if task.fund_id == fund_id]
+
+    if search:
+        search_value = search.strip().lower()
+        tasks = [
+            task
+            for task in tasks
+            if search_value in task.title.lower()
+            or search_value in task.description.lower()
+            or (task.fund is not None and search_value in task.fund.name.lower())
+        ]
+
+    items: list[AdminTaskDirectoryItem] = []
+
+    for task in tasks[offset : offset + limit]:
+        status_rows = await session.execute(
+            select(TaskApplication.status, func.count(TaskApplication.id))
+            .where(TaskApplication.task_id == task.id)
+            .group_by(TaskApplication.status)
+        )
+
+        counts = {row[0]: int(row[1] or 0) for row in status_rows.all()}
+
+        filled_spots = (
+            counts.get(ApplicationStatus.ACCEPTED, 0)
+            + counts.get(ApplicationStatus.COMPLETION_CONFIRMED, 0)
+            + counts.get(ApplicationStatus.HOURS_AWARDED, 0)
+        )
+
+        available_spots = (
+            None
+            if task.participant_limit is None
+            else max(task.participant_limit - filled_spots, 0)
+        )
+
+        items.append(
+            AdminTaskDirectoryItem(
+                id=task.id,
+                fund_id=task.fund_id,
+                fund_name=task.fund.name if task.fund is not None else "Фонд удалён",
+                title=task.title,
+                description=task.description,
+                category=task.category,
+                participation_format=task.participation_format,
+                duration_type=task.duration_type,
+                task_type=task.task_type,
+                city=task.city,
+                starts_at=task.starts_at,
+                ends_at=task.ends_at,
+                deadline_at=task.deadline_at,
+                participant_limit=task.participant_limit,
+                filled_spots=filled_spots,
+                available_spots=available_spots,
+                applications_total=sum(counts.values()),
+                applications_applied=counts.get(ApplicationStatus.APPLIED, 0),
+                applications_accepted=counts.get(ApplicationStatus.ACCEPTED, 0),
+                applications_rejected=counts.get(ApplicationStatus.REJECTED, 0),
+                applications_canceled=counts.get(ApplicationStatus.CANCELED, 0),
+                applications_completion_confirmed=counts.get(
+                    ApplicationStatus.COMPLETION_CONFIRMED,
+                    0,
+                ),
+                applications_hours_awarded=counts.get(
+                    ApplicationStatus.HOURS_AWARDED,
+                    0,
+                ),
+                expected_hours=task.expected_hours,
+                status=task.status,
+                created_at=task.created_at,
+                updated_at=task.updated_at,
+            )
+        )
+
+    return items
+
+
+@router.get("/volunteers", response_model=list[AdminVolunteerDirectoryItem])
+async def list_volunteers_for_admin(
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_roles(UserRole.ADMIN)),
+    search: str | None = Query(default=None, min_length=2),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
+) -> list[AdminVolunteerDirectoryItem]:
+    stmt = (
+        select(User)
+        .where(User.role == UserRole.VOLUNTEER)
+        .order_by(User.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+
+    if search:
+        search_value = f"%{search.strip()}%"
+        stmt = stmt.where(
+            User.full_name.ilike(search_value)
+            | User.email.ilike(search_value)
+            | User.city.ilike(search_value)
+        )
+
+    volunteers = await session.scalars(stmt)
+    items: list[AdminVolunteerDirectoryItem] = []
+
+    for volunteer in volunteers:
+        application_counts_rows = await session.execute(
+            select(TaskApplication.status, func.count(TaskApplication.id))
+            .where(TaskApplication.volunteer_id == volunteer.id)
+            .group_by(TaskApplication.status)
+        )
+
+        counts = {row[0]: int(row[1] or 0) for row in application_counts_rows.all()}
+
+        hours = await session.scalar(
+            select(func.coalesce(func.sum(VolunteerHourLedger.hours), 0)).where(
+                VolunteerHourLedger.volunteer_id == volunteer.id
+            )
+        )
+
+        items.append(
+            AdminVolunteerDirectoryItem(
+                id=volunteer.id,
+                email=volunteer.email,
+                full_name=volunteer.full_name,
+                city=volunteer.city,
+                department=volunteer.department,
+                position=volunteer.position,
+                interests=volunteer.interests,
+                skills=volunteer.skills,
+                applications_total=sum(counts.values()),
+                completed_tasks=counts.get(ApplicationStatus.HOURS_AWARDED, 0),
+                active_tasks=counts.get(ApplicationStatus.ACCEPTED, 0)
+                + counts.get(ApplicationStatus.COMPLETION_CONFIRMED, 0),
+                hours=Decimal(hours or 0),
+                created_at=volunteer.created_at,
+            )
+        )
+
+    return items
 
 
 @router.get("/dashboard", response_model=AdminDashboardSummary)

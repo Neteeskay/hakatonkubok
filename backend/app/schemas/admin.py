@@ -185,3 +185,69 @@ class AdminDashboardSummary(BaseModel):
     completions_waiting_hours: int
     awarded_hours_total: Decimal
 
+
+class AdminNotificationReadCount(BaseModel):
+    updated_count: int
+
+
+class AdminFundDirectoryItem(AdminOrmModel):
+    id: UUID
+    name: str
+    status: FundStatus
+    description: str | None = None
+    categories: list[str] = []
+    logo: str | None = None
+    region: str | None = None
+    contact_person: str | None = None
+    contact_email: str | None = None
+    active_tasks: int = 0
+    volunteers: int = 0
+    hours: Decimal = Decimal("0")
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AdminTaskDirectoryItem(AdminOrmModel):
+    id: UUID
+    fund_id: UUID
+    fund_name: str
+    title: str
+    description: str
+    category: HelpCategory
+    participation_format: ParticipationFormat
+    duration_type: DurationType
+    task_type: TaskType
+    city: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    deadline_at: datetime | None = None
+    participant_limit: int | None = None
+    filled_spots: int = 0
+    available_spots: int | None = None
+    applications_total: int = 0
+    applications_applied: int = 0
+    applications_accepted: int = 0
+    applications_rejected: int = 0
+    applications_canceled: int = 0
+    applications_completion_confirmed: int = 0
+    applications_hours_awarded: int = 0
+    expected_hours: Decimal
+    status: TaskStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminVolunteerDirectoryItem(AdminOrmModel):
+    id: UUID
+    email: str
+    full_name: str | None = None
+    city: str | None = None
+    department: str | None = None
+    position: str | None = None
+    interests: list[str] | None = None
+    skills: list[str] | None = None
+    applications_total: int = 0
+    completed_tasks: int = 0
+    active_tasks: int = 0
+    hours: Decimal = Decimal("0")
+    created_at: datetime | None = None
