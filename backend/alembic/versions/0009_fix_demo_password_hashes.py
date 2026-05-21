@@ -3,7 +3,7 @@
 from alembic import op
 
 revision = "0009_fix_demo_password_hashes"
-down_revision = "0008_harden_sqlalchemy_relationships"
+down_revision = "0007_harden_domain_models"
 branch_labels = None
 depends_on = None
 

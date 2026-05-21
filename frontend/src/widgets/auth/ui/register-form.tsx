@@ -1,19 +1,39 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { LockKeyhole, Mail, MapPin, Phone, UserRound } from "lucide-react";
+import { ApiError, authService, getApiErrorMessage } from "@/shared/api";
 import { interestOptions, skillOptions } from "@/widgets/auth/model/auth-data";
 import { AuthField, OptionChips } from "@/widgets/auth/ui/auth-field";
 import { RegistrationRoleCards } from "@/widgets/auth/ui/registration-role-cards";
 import type { RegistrationRole } from "@/widgets/auth/model/auth-types";
 
+function getRegisterErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 403) {
+      return "Email не найден в базе сотрудников. Используйте корпоративную почту, добавленную администратором.";
+    }
+
+    if (error.status === 409 && error.message === "email already exists") {
+      return "Пользователь с таким email уже зарегистрирован.";
+    }
+
+    if (error.status === 409 && error.message === "employee_id already exists") {
+      return "Сотрудник с таким employee ID уже зарегистрирован.";
+    }
+  }
+
+  return getApiErrorMessage(error);
+}
+
 export function RegisterForm() {
+  const router = useRouter();
   const [role, setRole] = useState<RegistrationRole>("volunteer");
   const [form, setForm] = useState({
     firstName: "Анна",
     lastName: "Смирнова",
-    email: "anna.smirnova@stoloto.ru",
+    email: "anna.smirnova@stoloto.local",
     password: "",
     confirm: "",
     city: "Москва",
@@ -22,20 +42,56 @@ export function RegisterForm() {
   const [interests, setInterests] = useState(["Экология", "Образование"]);
   const [skills, setSkills] = useState(["Презентации", "Дизайн"]);
   const [agree, setAgree] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const valid = useMemo(() => {
-    return form.firstName.length > 1 && form.lastName.length > 1 && form.email.includes("@") && form.password.length >= 6 && form.password === form.confirm && form.city.length > 1 && form.phone.length >= 7 && interests.length > 0 && agree;
+    return form.firstName.length > 1 && form.lastName.length > 1 && form.email.includes("@") && form.password.length >= 8 && form.password === form.confirm && form.city.length > 1 && form.phone.length >= 7 && interests.length > 0 && agree;
   }, [form, interests, agree]);
 
   function update(field: keyof typeof form, value: string) {
+    setError(null);
+    setSuccess(null);
     setForm((current) => ({ ...current, [field]: value }));
   }
 
   function toggle(list: string[], setter: (value: string[]) => void, value: string) {
+    setError(null);
+    setSuccess(null);
     setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const email = form.email.trim().toLowerCase();
+      await authService.registerVolunteer({
+        city: form.city.trim() || null,
+        email,
+        full_name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        interests,
+        password: form.password,
+        phone: form.phone.trim() || null,
+        skills
+      });
+      setSuccess("Профиль создан. Выполняем вход.");
+      await authService.login({ login: email, password: form.password });
+      router.push("/volunteer/profile");
+    } catch (submitError) {
+      setError(getRegisterErrorMessage(submitError));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <section>
+    <form onSubmit={handleSubmit}>
       <h2 className="text-3xl font-black">Регистрация волонтёра</h2>
       <p className="mt-2 text-sm leading-6 text-black/56">Профиль помогает подбирать задания, pro bono активности и корректно учитывать часы.</p>
       <div className="mt-5">
@@ -48,7 +104,7 @@ export function RegisterForm() {
         <AuthField label="Телефон" value={form.phone} onChange={(value) => update("phone", value)} placeholder="+7 999 000-00-00" type="tel" icon={Phone} />
         <AuthField label="Город" value={form.city} onChange={(value) => update("city", value)} placeholder="Москва" icon={MapPin} />
         <div />
-        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" type="password" icon={LockKeyhole} invalid={form.password.length > 0 && form.password.length < 6} />
+        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 8 символов" type="password" icon={LockKeyhole} invalid={form.password.length > 0 && form.password.length < 8} />
         <AuthField label="Подтверждение" value={form.confirm} onChange={(value) => update("confirm", value)} placeholder="Повторите пароль" type="password" icon={LockKeyhole} invalid={form.confirm.length > 0 && form.confirm !== form.password} />
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -59,9 +115,19 @@ export function RegisterForm() {
         <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} className="mt-1 size-4 shrink-0 accent-brand" />
         Согласен с правилами платформы и обработкой данных для участия в волонтёрских активностях.
       </label>
-      <Link href={valid ? "/volunteer/profile" : "#"} aria-disabled={!valid} className={`mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl text-sm font-black shadow-[0_14px_32px_rgba(255,227,0,0.28)] ${valid ? "bg-brand text-black" : "pointer-events-none bg-[#efeee8] text-black/32"}`}>
-        Создать профиль
-      </Link>
-    </section>
+      <button type="submit" disabled={!valid || submitting} aria-disabled={!valid} className={`mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl text-sm font-black shadow-[0_14px_32px_rgba(255,227,0,0.28)] ${valid && !submitting ? "bg-brand text-black" : "bg-[#efeee8] text-black/32"}`}>
+        {submitting ? "Создаём профиль..." : "Создать профиль"}
+      </button>
+      {error ? (
+        <p className="mt-4 rounded-2xl bg-[#fff1f1] p-4 text-sm font-bold leading-6 text-[#c83c3c]" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="mt-4 rounded-2xl bg-[#e8f8e8] p-4 text-sm font-bold leading-6 text-[#247a31]" aria-live="polite">
+          {success}
+        </p>
+      ) : null}
+    </form>
   );
 }

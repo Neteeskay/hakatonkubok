@@ -29,7 +29,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
       - ./uploads:/app/uploads
     depends_on:
       db:
@@ -46,12 +45,32 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
-    command:
-      - sh
-      - -ec
-      - |
-        alembic upgrade head
-        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres-data:

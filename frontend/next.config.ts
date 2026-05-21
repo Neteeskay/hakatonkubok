@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   outputFileTracingRoot: root,
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"]
