@@ -22,6 +22,7 @@ from app.models.domain import (
 from app.models.enums import ApplicationStatus, FundStatus, TaskStatus
 from app.schemas.funds import FundDashboardSummary, FundUpdateRequest
 from app.services.email_sender import send_email
+from app.services.notification_service import add_admin_notifications
 from app.services.status_transitions import FUND_TRANSITIONS, can_transition
 
 
@@ -250,6 +251,11 @@ async def add_fund_document(
         file_url=relative_path.as_posix(),
     )
     session.add(document)
+    await add_admin_notifications(
+        session,
+        title="Документы фонда отправлены",
+        body=f"Фонд «{fund.name}» загрузил документ «{document_type}». Проверьте заявку фонда.",
+    )
     await session.commit()
     await session.refresh(document)
     return document

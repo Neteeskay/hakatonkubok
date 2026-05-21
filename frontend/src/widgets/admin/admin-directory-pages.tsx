@@ -1,8 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Search } from "lucide-react";
+import { adminService } from "@/shared/api";
+import { mapAdminFundDetail, mapAdminFundListItem } from "@/widgets/admin/admin-api-mappers";
 import { adminFoundations, adminTasks, foundationStatusConfig, taskStatusConfig, type AdminTask, type AdminTaskStatus } from "@/widgets/admin/admin-data";
 import { AdminDetailOverlay } from "@/widgets/admin/ui/admin-detail-overlay";
 import { AdminPageShell } from "@/widgets/admin/ui/admin-page-shell";
@@ -11,7 +13,39 @@ import { AdminStatusBadge } from "@/widgets/admin/ui/admin-status-badge";
 
 export function AdminFoundationsPage() {
   const [query, setQuery] = useState("");
-  const visible = useMemo(() => adminFoundations.filter((item) => `${item.name} ${item.region} ${item.categories.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [query]);
+  const [items, setItems] = useState(adminFoundations);
+  const visible = useMemo(() => items.filter((item) => `${item.name} ${item.region} ${item.categories.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFunds() {
+      try {
+        const funds = await adminService.getAdminFunds({ limit: 50, offset: 0 });
+        const detailedFunds = await Promise.all(
+          funds.map(async (fund) => {
+            try {
+              return mapAdminFundDetail(await adminService.getAdminFund(fund.id));
+            } catch {
+              return mapAdminFundListItem(fund);
+            }
+          })
+        );
+
+        if (isMounted) {
+          setItems(detailedFunds);
+        }
+      } catch {
+        // Keep the existing mock data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadFunds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <AdminPageShell eyebrow="Фонды" title="Реестр организаций" description="Все фонды платформы: статус проверки, активность, задания, волонтёры и часы.">

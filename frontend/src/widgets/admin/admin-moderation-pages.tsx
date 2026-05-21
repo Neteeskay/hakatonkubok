@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Mail, MapPin, Phone } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { adminService } from "@/shared/api";
+import { mapAdminFundDetail, mapAdminFundListItem, mapAdminTaskDetail, mapAdminTaskDirectoryItem } from "@/widgets/admin/admin-api-mappers";
 import {
   adminFoundations,
   adminTasks,
@@ -25,16 +27,60 @@ export function AdminFoundationModerationPage() {
   const [selected, setSelected] = useState<AdminFoundation | null>(null);
   const visible = active === "all" ? items : items.filter((item) => item.status === active);
 
-  function updateStatus(id: string, status: AdminFoundationStatus, comment?: string) {
-    setItems((current) => current.map((item) => item.id === id ? { ...item, status, adminComment: comment ?? item.adminComment } : item));
-    setSelected(null);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFunds() {
+      try {
+        const funds = await adminService.getAdminFunds({ limit: 50, offset: 0 });
+        const detailedFunds = await Promise.all(
+          funds.map(async (fund) => {
+            try {
+              return mapAdminFundDetail(await adminService.getAdminFund(fund.id));
+            } catch {
+              return mapAdminFundListItem(fund);
+            }
+          })
+        );
+
+        if (isMounted) {
+          setItems(detailedFunds);
+        }
+      } catch {
+        // Keep the existing mock data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadFunds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function moderateFoundation(id: string, status: "approved" | "needs_changes" | "rejected", comment?: string) {
+    try {
+      const updated = mapAdminFundDetail(await adminService.moderateAdminFund(id, { comment, target_status: status }));
+      setItems((current) => current.map((item) => item.id === id ? updated : item));
+      setSelected(null);
+    } catch {
+      // Do not fake moderation state locally: status/comment must come from backend.
+    }
+  }
+
+  async function openFoundation(foundation: AdminFoundation) {
+    try {
+      setSelected(mapAdminFundDetail(await adminService.getAdminFund(foundation.id)));
+    } catch {
+      setSelected(foundation);
+    }
   }
 
   return (
     <AdminPageShell eyebrow="Модерация фондов" title="Проверка организаций" description="Проверяйте данные фонда, документы, контакты и принимайте понятное решение без переключения контекста.">
       <FoundationFilters active={active} onChange={setActive} />
       <section className="grid gap-4 xl:grid-cols-2">
-        {visible.map((foundation) => <FoundationModerationCard key={foundation.id} foundation={foundation} onOpen={setSelected} />)}
+        {visible.map((foundation) => <FoundationModerationCard key={foundation.id} foundation={foundation} onOpen={(item) => void openFoundation(item)} />)}
       </section>
       {selected ? (
         <AdminDetailOverlay
@@ -45,9 +91,9 @@ export function AdminFoundationModerationPage() {
         >
           <FoundationReviewPanel
             foundation={selected}
-            onApprove={() => updateStatus(selected.id, "approved")}
-            onRevision={(comment) => updateStatus(selected.id, "revision", comment)}
-            onReject={(comment) => updateStatus(selected.id, "rejected", comment)}
+            onApprove={() => void moderateFoundation(selected.id, "approved")}
+            onRevision={(comment) => void moderateFoundation(selected.id, "needs_changes", comment)}
+            onReject={(comment) => void moderateFoundation(selected.id, "rejected", comment)}
           />
         </AdminDetailOverlay>
       ) : null}
@@ -61,16 +107,50 @@ export function AdminTaskModerationPage() {
   const [selected, setSelected] = useState<AdminTask | null>(null);
   const visible = active === "all" ? items : items.filter((item) => item.status === active);
 
-  function updateStatus(id: string, status: AdminTaskStatus, comment?: string) {
-    setItems((current) => current.map((item) => item.id === id ? { ...item, status, moderatorComment: comment ?? item.moderatorComment } : item));
-    setSelected(null);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTasks() {
+      try {
+        const tasks = await adminService.getAdminTaskDirectory({ limit: 50, offset: 0 });
+        if (isMounted) {
+          setItems(tasks.map(mapAdminTaskDirectoryItem));
+        }
+      } catch {
+        // Keep the existing mock data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadTasks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function moderateTask(id: string, status: "published" | "needs_changes" | "rejected", comment?: string) {
+    try {
+      const updated = mapAdminTaskDetail(await adminService.moderateAdminTask(id, { comment, target_status: status }));
+      setItems((current) => current.map((item) => item.id === id ? updated : item));
+      setSelected(null);
+    } catch {
+      // Do not fake moderation state locally: status/comment must come from backend.
+    }
+  }
+
+  async function openTask(task: AdminTask) {
+    try {
+      setSelected(mapAdminTaskDetail(await adminService.getAdminTask(task.id)));
+    } catch {
+      setSelected(task);
+    }
   }
 
   return (
     <AdminPageShell eyebrow="Модерация заданий" title="Проверка публикаций" description="Оцените описание, сроки, контакты после принятия, требования и количество часов перед публикацией задания.">
       <TaskFilters active={active} onChange={setActive} />
       <section className="grid gap-4 xl:grid-cols-2">
-        {visible.map((task) => <TaskModerationCard key={task.id} task={task} onOpen={setSelected} />)}
+        {visible.map((task) => <TaskModerationCard key={task.id} task={task} onOpen={(item) => void openTask(item)} />)}
       </section>
       {selected ? (
         <AdminDetailOverlay
@@ -81,9 +161,9 @@ export function AdminTaskModerationPage() {
         >
           <TaskReviewPanel
             task={selected}
-            onApprove={() => updateStatus(selected.id, "published")}
-            onRevision={(comment) => updateStatus(selected.id, "returned", comment)}
-            onReject={(comment) => updateStatus(selected.id, "rejected", comment)}
+            onApprove={() => void moderateTask(selected.id, "published")}
+            onRevision={(comment) => void moderateTask(selected.id, "needs_changes", comment)}
+            onReject={(comment) => void moderateTask(selected.id, "rejected", comment)}
           />
         </AdminDetailOverlay>
       ) : null}

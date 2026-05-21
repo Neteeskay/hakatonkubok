@@ -92,7 +92,16 @@ const fallbackParticipantsTask: FoundationTaskItem = {
   capacity: 0,
   responses: 0,
   hours: 0,
-  status: "published"
+  status: "published",
+  contactVisibility: "after_acceptance",
+  contacts: {
+    telegram: "",
+    whatsapp: "",
+    email: "",
+    phone: "",
+    chatLink: "",
+    instruction: ""
+  }
 };
 
 export function FoundationDashboardPage() {
@@ -196,11 +205,10 @@ export function CreateTaskPage() {
 }
 
 export function FoundationParticipantsPage() {
-<<<<<<< Updated upstream
   const { applications, error, loading, setApplications, tasks } = useFoundationWorkspaceData();
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const setApplicationStatus = async (id: string, status: FoundationApplicationStatus) => {
+  const setApplicationStatus = async (id: string, status: FoundationApplicationStatus, comment?: string) => {
     setActionError(null);
 
     try {
@@ -210,21 +218,16 @@ export function FoundationParticipantsPage() {
       }
 
       const updatedApplication = status === "accepted"
-        ? await applicationsService.acceptFundApplication(id, { fund_comment: "Заявка принята фондом." })
+        ? await applicationsService.acceptFundApplication(id, { fund_comment: comment ?? "Заявка принята фондом." })
         : status === "rejected"
-          ? await applicationsService.rejectFundApplication(id, { fund_comment: "Заявка отклонена фондом." })
-          : await applicationsService.confirmFundApplicationCompletion(id, { completion_comment: "Участие подтверждено фондом." });
+          ? await applicationsService.rejectFundApplication(id, { fund_comment: comment ?? "Заявка отклонена фондом." })
+          : await applicationsService.confirmFundApplicationCompletion(id, { completion_comment: comment ?? "Участие подтверждено фондом." });
       const mappedApplication = mapApplicationResponseToFoundationApplication(updatedApplication);
 
       setApplications((items) => items.map((item) => item.id === id ? mappedApplication : item));
     } catch (statusError) {
       setActionError(getApiErrorMessage(statusError));
     }
-=======
-  const [applications, setApplications] = useState<FoundationApplicationItem[]>(foundationApplications);
-  const setApplicationStatus = (id: string, status: FoundationApplicationStatus, comment?: string) => {
-    setApplications((items) => items.map((item) => item.id === id ? { ...item, status, comment: applicationCommentByStatus(status, comment), nextStep: applicationNextStepByStatus(status), attendanceDecision: applicationAttendanceByStatus(status) } : item));
->>>>>>> Stashed changes
   };
   const tasksWithApplications = tasks.filter((task) => applications.some((item) => item.taskId === task.taskId || item.taskTitle === task.title));
   const orphanApplications = applications.filter((item) => !tasks.some((task) => item.taskId === task.taskId || item.taskTitle === task.title));
@@ -322,7 +325,6 @@ export function FoundationReportsPage() {
 }
 
 export function FoundationProfilePage() {
-<<<<<<< Updated upstream
   const { documents, error, foundation, loading, metrics, profileForm, tasks } = useFoundationWorkspaceData();
 
   const saveProfile = async (form: Parameters<typeof buildFundUpdateRequest>[0]) => {
@@ -357,9 +359,6 @@ export function FoundationProfilePage() {
       ) : null}
     </FoundationPageShell>
   );
-=======
-  return <FoundationProfileWorkspace />;
->>>>>>> Stashed changes
 }
 
 function FoundationPageShell({ eyebrow, title, description, action, children }: { eyebrow: string; title: string; description: string; action?: ReactNode; children: ReactNode }) {
@@ -406,11 +405,7 @@ function TaskApplicationsSection({
 }: {
   task: FoundationTaskItem;
   applications: FoundationApplicationItem[];
-<<<<<<< Updated upstream
-  onStatusChange: (id: string, status: FoundationApplicationStatus) => Promise<void> | void;
-=======
-  onStatusChange: (id: string, status: FoundationApplicationStatus, comment?: string) => void;
->>>>>>> Stashed changes
+  onStatusChange: (id: string, status: FoundationApplicationStatus, comment?: string) => Promise<void> | void;
 }) {
   return (
     <section className="overflow-hidden rounded-[1.65rem] bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_20px_60px_rgba(34,28,8,0.05)]">

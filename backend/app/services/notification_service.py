@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain import Notification, User
+from app.models.enums import UserRole
 
 
 class NotificationNotFoundError(Exception):
@@ -64,3 +65,30 @@ async def mark_all_user_notifications_read(
     )
     await session.commit()
     return int(result.rowcount or 0)
+
+
+async def add_user_notification(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    title: str,
+    body: str,
+) -> Notification:
+    notification = Notification(user_id=user_id, title=title, body=body)
+    session.add(notification)
+    return notification
+
+
+async def add_admin_notifications(
+    session: AsyncSession,
+    *,
+    title: str,
+    body: str,
+) -> list[Notification]:
+    admins = await session.scalars(select(User).where(User.role == UserRole.ADMIN))
+    notifications = [
+        Notification(user_id=admin.id, title=title, body=body)
+        for admin in admins.all()
+    ]
+    session.add_all(notifications)
+    return notifications

@@ -1,6 +1,7 @@
 import { apiClient } from "@/shared/api/client";
 import type {
   NotificationResponse,
+  PublicVolunteerProfileResponse,
   Uuid,
   UserResponse,
   VolunteerAchievementsOverviewResponse,
@@ -21,6 +22,10 @@ export async function getMyVolunteerHistory(params?: { limit?: number; offset?: 
   return apiClient.get<VolunteerHistoryItemResponse[]>("/volunteers/me/history", {
     query: params
   });
+}
+
+export async function getPublicVolunteerProfile(volunteerId: Uuid) {
+  return apiClient.get<PublicVolunteerProfileResponse>(`/volunteers/${volunteerId}/public`, { auth: false });
 }
 
 export async function getMyVolunteerNotifications(params?: { limit?: number; offset?: number; unread_only?: boolean }) {
@@ -74,6 +79,7 @@ export const volunteersService = {
   getMyVolunteerHoursDynamics,
   getMyVolunteerHoursLedger,
   getMyVolunteerHoursSummary,
+  getPublicVolunteerProfile,
   getMyVolunteerNotifications,
   getMyVolunteerHistory,
   markMyNotificationRead,

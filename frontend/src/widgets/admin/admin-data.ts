@@ -44,7 +44,7 @@ export interface AdminFoundation {
   legalAddress?: string;
   cover?: string;
   plannedActivities: string[];
-  documents: { title: string; status: "uploaded" | "verified" | "replace"; fileName: string }[];
+  documents: { fileName: string; fileUrl?: string; status: "uploaded" | "verified" | "replace"; title: string }[];
   status: AdminFoundationStatus;
   registeredAt: string;
   adminComment?: string;
