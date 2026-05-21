@@ -46,6 +46,22 @@ function buildPlannedHelp(form: FoundationRegistrationForm) {
   return lines.length ? lines.join("\n") : null;
 }
 
+function emailError(value: string) {
+  return value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ? "Введите email в формате name@example.ru." : null;
+}
+
+function phoneError(value: string) {
+  return value && value.replace(/\D/g, "").length < 10 ? "Телефон должен содержать минимум 10 цифр." : null;
+}
+
+function passwordError(value: string) {
+  return value && value.length < 6 ? "Пароль должен быть не короче 6 символов." : null;
+}
+
+function passwordConfirmError(password: string, confirm: string) {
+  return confirm && password !== confirm ? "Пароли не совпадают." : null;
+}
+
 export function FoundationRegistrationPage() {
   const [step, setStep] = useState<FoundationRegistrationStep>("main");
   const [submitted, setSubmitted] = useState(false);
@@ -229,12 +245,12 @@ function MainInfoStep({ form, update, toggleArray }: { form: FoundationRegistrat
       <div className="grid gap-4 md:grid-cols-2">
         <FormField label="Наименование фонда" value={form.name} onChange={(value) => update("name", value)} placeholder="Фонд добрых спортивных инициатив" />
         <FormField label="Регион деятельности" value={form.region} onChange={(value) => update("region", value)} placeholder="Москва и Московская область" />
-        <FormField label="ИНН" value={form.inn} onChange={(value) => update("inn", value.replace(/\D/g, "").slice(0, 12))} placeholder="7701234567" invalid={form.inn.length > 0 && !/^\d{10}(\d{2})?$/.test(form.inn)} />
-        <FormField label="ОГРН" value={form.ogrn} onChange={(value) => update("ogrn", value.replace(/\D/g, "").slice(0, 15))} placeholder="1127700000000" invalid={form.ogrn.length > 0 && !/^\d{13,15}$/.test(form.ogrn)} />
-        <FormField label="Сайт" value={form.website} onChange={(value) => update("website", value)} placeholder="fond.ru или https://fond.ru" invalid={form.website.trim().length > 0 && !isOptionalUrlValid(form.website)} />
-        <FormField label="Email для входа" value={form.accountEmail} onChange={(value) => update("accountEmail", value)} placeholder="account@fond.ru" icon={Mail} invalid={form.accountEmail.length > 0 && !/\S+@\S+\.\S+/.test(form.accountEmail)} />
-        <FormField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" icon={LockKeyhole} inputType="password" invalid={form.password.length > 0 && form.password.length < 6} />
-        <FormField label="Подтверждение пароля" value={form.passwordConfirm} onChange={(value) => update("passwordConfirm", value)} placeholder="Повторите пароль" icon={LockKeyhole} inputType="password" invalid={form.passwordConfirm.length > 0 && form.password !== form.passwordConfirm} />
+        <FormField label="ИНН" value={form.inn} onChange={(value) => update("inn", value.replace(/\D/g, "").slice(0, 12))} placeholder="7701234567" invalid={form.inn.length > 0 && !/^\d{10}(\d{2})?$/.test(form.inn)} error={form.inn.length > 0 && !/^\d{10}(\d{2})?$/.test(form.inn) ? "ИНН должен содержать 10 или 12 цифр." : null} />
+        <FormField label="ОГРН" value={form.ogrn} onChange={(value) => update("ogrn", value.replace(/\D/g, "").slice(0, 15))} placeholder="1127700000000" invalid={form.ogrn.length > 0 && !/^\d{13,15}$/.test(form.ogrn)} error={form.ogrn.length > 0 && !/^\d{13,15}$/.test(form.ogrn) ? "ОГРН должен содержать от 13 до 15 цифр." : null} />
+        <FormField label="Сайт" value={form.website} onChange={(value) => update("website", value)} placeholder="fond.ru или https://fond.ru" invalid={form.website.trim().length > 0 && !isOptionalUrlValid(form.website)} error={form.website.trim().length > 0 && !isOptionalUrlValid(form.website) ? "Укажите сайт в формате fond.ru или https://fond.ru." : null} />
+        <FormField label="Email для входа" value={form.accountEmail} onChange={(value) => update("accountEmail", value)} placeholder="account@fond.ru" icon={Mail} invalid={Boolean(emailError(form.accountEmail))} error={emailError(form.accountEmail)} />
+        <FormField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" icon={LockKeyhole} inputType="password" invalid={Boolean(passwordError(form.password))} error={passwordError(form.password)} />
+        <FormField label="Подтверждение пароля" value={form.passwordConfirm} onChange={(value) => update("passwordConfirm", value)} placeholder="Повторите пароль" icon={LockKeyhole} inputType="password" invalid={Boolean(passwordConfirmError(form.password, form.passwordConfirm))} error={passwordConfirmError(form.password, form.passwordConfirm)} />
         <TextField label="Краткое описание деятельности" value={form.description} onChange={(value) => update("description", value)} placeholder="Расскажите, кому помогает фонд и какие активности проводит" />
         <ChipGroup label="Категории помощи" options={foundationCategoryOptions} selected={form.categories} onToggle={(value) => toggleArray("categories", value)} />
         <ChipGroup label="Виды волонтёрской помощи" options={foundationActivityOptions} selected={form.activityTypes} onToggle={(value) => toggleArray("activityTypes", value)} />
@@ -268,8 +284,8 @@ function ContactsStep({ form, update }: { form: FoundationRegistrationForm; upda
       <div className="grid gap-4 md:grid-cols-2">
         <FormField label="Имя контактного лица" value={form.contactName} onChange={(value) => update("contactName", value)} placeholder="Мария Иванова" />
         <FormField label="Должность" value={form.contactRole} onChange={(value) => update("contactRole", value)} placeholder="Координатор программ" />
-        <FormField label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="volunteer@fond.ru" icon={Mail} invalid={form.email.length > 0 && !/\S+@\S+\.\S+/.test(form.email)} />
-        <FormField label="Телефон" value={form.phone} onChange={(value) => update("phone", maskPhone(value))} placeholder="+7 900 000-00-00" icon={Phone} invalid={form.phone.length > 0 && form.phone.replace(/\D/g, "").length < 10} />
+        <FormField label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="volunteer@fond.ru" icon={Mail} invalid={Boolean(emailError(form.email))} error={emailError(form.email)} />
+        <FormField label="Телефон" value={form.phone} onChange={(value) => update("phone", maskPhone(value))} placeholder="+7 900 000-00-00" icon={Phone} invalid={Boolean(phoneError(form.phone))} error={phoneError(form.phone)} />
         <FormField label="Telegram" value={form.telegram} onChange={(value) => update("telegram", value)} placeholder="@fond_volunteer" icon={Send} />
         <FormField label="WhatsApp" value={form.whatsapp} onChange={(value) => update("whatsapp", maskPhone(value))} placeholder="+7 900 000-00-00" icon={Smartphone} />
         <label className="block md:col-span-2">
@@ -362,7 +378,7 @@ function FoundationPendingScreen({ form, documents, notice, onEdit }: { form: Fo
   );
 }
 
-function FormField({ label, value, onChange, placeholder, invalid, icon: Icon, inputType = "text" }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; invalid?: boolean; icon?: LucideIcon; inputType?: "text" | "password" }) {
+function FormField({ label, value, onChange, placeholder, invalid, error, icon: Icon, inputType = "text" }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; invalid?: boolean; error?: string | null; icon?: LucideIcon; inputType?: "text" | "password" }) {
   return (
     <label className="block">
       <span className="text-xs font-black uppercase tracking-[0.12em] text-black/36">{label}</span>
@@ -370,6 +386,7 @@ function FormField({ label, value, onChange, placeholder, invalid, icon: Icon, i
         {Icon ? <Icon className="size-4 text-black/42" /> : null}
         <input type={inputType} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-black/30" />
       </span>
+      {error ? <span className="mt-2 block text-xs font-bold leading-5 text-[#c83c3c]">{error}</span> : null}
     </label>
   );
 }

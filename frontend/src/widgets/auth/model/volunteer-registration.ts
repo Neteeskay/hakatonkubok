@@ -39,6 +39,19 @@ export const volunteerOnboardingRegistrationForm: VolunteerRegistrationFormState
   position: "Контент-менеджер"
 };
 
+export function isEmailValid(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+export function getVolunteerRegistrationFieldErrors(form: VolunteerRegistrationFormState) {
+  return {
+    confirm: form.confirm && form.confirm !== form.password ? "Пароли не совпадают." : null,
+    email: form.email && !isEmailValid(form.email) ? "Введите email в формате name@example.ru." : null,
+    password: form.password && form.password.length < 6 ? "Пароль должен быть не короче 6 символов." : null,
+    phone: form.phone && form.phone.replace(/\D/g, "").length < 10 ? "Телефон должен содержать минимум 10 цифр." : null
+  };
+}
+
 export function isVolunteerRegistrationValid({
   agree,
   form,
@@ -47,7 +60,7 @@ export function isVolunteerRegistrationValid({
   return (
     form.firstName.trim().length > 1 &&
     form.lastName.trim().length > 1 &&
-    form.email.trim().includes("@") &&
+    isEmailValid(form.email) &&
     form.password.length >= 6 &&
     form.password === form.confirm &&
     form.city.trim().length > 1 &&

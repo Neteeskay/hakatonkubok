@@ -6,6 +6,7 @@ import { cn } from "@/shared/lib/utils";
 import { Logo } from "@/widgets/navigation/logo";
 import {
   buildVolunteerRegisterRequest,
+  getVolunteerRegistrationFieldErrors,
   isVolunteerRegistrationValid,
   volunteerOnboardingRegistrationForm
 } from "@/widgets/auth/model/volunteer-registration";
@@ -19,6 +20,7 @@ export default function VolunteerRegisterPage() {
   const [agree, setAgree] = useState(false);
   const [checked, setChecked] = useState(false);
   const { clearFeedback, error, registerVolunteer, submitting, success } = useVolunteerRegistration();
+  const fieldErrors = getVolunteerRegistrationFieldErrors(form);
 
   const valid = useMemo(() => {
     return isVolunteerRegistrationValid({ agree, form, interests: onboardingInterests });
@@ -49,11 +51,12 @@ export default function VolunteerRegisterPage() {
     <AuthRegistrationShell title="Регистрация волонтёра" description="Сценарий через корпоративную почту или employee id. Данные сотрудника подтягиваются для onboarding.">
       <form onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-3 rounded-[1.35rem] bg-white/70 p-5">
-          <OnboardingField icon={Mail} value={form.email} onChange={(value) => update("email", value)} type="email" />
+          <OnboardingField error={fieldErrors.email} icon={Mail} invalid={Boolean(fieldErrors.email)} value={form.email} onChange={(value) => update("email", value)} type="email" />
           <OnboardingField icon={UserRound} value={form.employeeId ?? ""} onChange={(value) => update("employeeId", value)} prefix="Employee ID:" />
           <OnboardingField
             icon={LockKeyhole}
-            invalid={form.password.length > 0 && form.password.length < 6}
+            error={fieldErrors.password}
+            invalid={Boolean(fieldErrors.password)}
             onChange={(value) => update("password", value)}
             placeholder="Пароль от 6 символов"
             type="password"
@@ -61,7 +64,8 @@ export default function VolunteerRegisterPage() {
           />
           <OnboardingField
             icon={LockKeyhole}
-            invalid={form.confirm.length > 0 && form.confirm !== form.password}
+            error={fieldErrors.confirm}
+            invalid={Boolean(fieldErrors.confirm)}
             onChange={(value) => update("confirm", value)}
             placeholder="Повторите пароль"
             type="password"
@@ -115,6 +119,7 @@ export default function VolunteerRegisterPage() {
 
 function OnboardingField({
   icon: Icon,
+  error,
   invalid,
   onChange,
   placeholder,
@@ -123,6 +128,7 @@ function OnboardingField({
   value
 }: {
   icon: LucideIcon;
+  error?: string | null;
   invalid?: boolean;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -131,19 +137,22 @@ function OnboardingField({
   value: string;
 }) {
   return (
-    <label className={cn(
-      "flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-bold text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0)] transition focus-within:shadow-[inset_0_0_0_2px_rgba(255,227,0,0.85)]",
-      invalid && "shadow-[inset_0_0_0_2px_rgba(239,68,68,0.72)]"
-    )}>
-      <Icon className="size-4 shrink-0" />
-      {prefix ? <span className="shrink-0">{prefix}</span> : null}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        type={type}
-        className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-black/32"
-      />
+    <label className="block">
+      <span className={cn(
+        "flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-bold text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0)] transition focus-within:shadow-[inset_0_0_0_2px_rgba(255,227,0,0.85)]",
+        invalid && "shadow-[inset_0_0_0_2px_rgba(239,68,68,0.72)]"
+      )}>
+        <Icon className="size-4 shrink-0" />
+        {prefix ? <span className="shrink-0">{prefix}</span> : null}
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          type={type}
+          className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-black/32"
+        />
+      </span>
+      {error ? <span className="mt-2 block px-1 text-xs font-bold leading-5 text-[#c83c3c]">{error}</span> : null}
     </label>
   );
 }

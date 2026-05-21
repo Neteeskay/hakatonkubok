@@ -11,7 +11,8 @@ export function AuthField({
   placeholder,
   type = "text",
   icon: Icon,
-  invalid
+  invalid,
+  error
 }: {
   label: string;
   value: string;
@@ -20,6 +21,7 @@ export function AuthField({
   type?: "text" | "email" | "password" | "tel";
   icon?: LucideIcon;
   invalid?: boolean;
+  error?: string | null;
 }) {
   const [visible, setVisible] = useState(false);
   const isPassword = type === "password";
@@ -47,6 +49,7 @@ export function AuthField({
           </button>
         ) : null}
       </span>
+      {error ? <span className="mt-2 block text-xs font-bold leading-5 text-[#c83c3c]">{error}</span> : null}
     </label>
   );
 }

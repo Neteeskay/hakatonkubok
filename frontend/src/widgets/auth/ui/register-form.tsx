@@ -7,6 +7,7 @@ import { tasksService } from "@/shared/api/services/tasks";
 import {
   buildVolunteerRegisterRequest,
   defaultVolunteerRegistrationForm,
+  getVolunteerRegistrationFieldErrors,
   isVolunteerRegistrationValid
 } from "@/widgets/auth/model/volunteer-registration";
 import { useVolunteerRegistration } from "@/widgets/auth/model/use-volunteer-registration";
@@ -22,6 +23,7 @@ export function RegisterForm() {
   const [dictionarySkills, setDictionarySkills] = useState(skillOptions);
   const [agree, setAgree] = useState(false);
   const { clearFeedback, error, registerVolunteer, submitting, success } = useVolunteerRegistration();
+  const fieldErrors = getVolunteerRegistrationFieldErrors(form);
   const valid = useMemo(() => {
     return isVolunteerRegistrationValid({ agree, form, interests });
   }, [form, interests, agree]);
@@ -69,12 +71,12 @@ export function RegisterForm() {
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <AuthField label="Имя" value={form.firstName} onChange={(value) => update("firstName", value)} placeholder="Анна" icon={UserRound} />
         <AuthField label="Фамилия" value={form.lastName} onChange={(value) => update("lastName", value)} placeholder="Смирнова" icon={UserRound} />
-        <AuthField label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="name@stoloto.ru" type="email" icon={Mail} invalid={form.email.length > 0 && !form.email.includes("@")} />
-        <AuthField label="Телефон" value={form.phone} onChange={(value) => update("phone", value)} placeholder="+7 999 000-00-00" type="tel" icon={Phone} />
+        <AuthField label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="name@stoloto.ru" type="email" icon={Mail} invalid={Boolean(fieldErrors.email)} error={fieldErrors.email} />
+        <AuthField label="Телефон" value={form.phone} onChange={(value) => update("phone", value)} placeholder="+7 999 000-00-00" type="tel" icon={Phone} invalid={Boolean(fieldErrors.phone)} error={fieldErrors.phone} />
         <AuthField label="Город" value={form.city} onChange={(value) => update("city", value)} placeholder="Москва" icon={MapPin} />
         <div />
-        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" type="password" icon={LockKeyhole} invalid={form.password.length > 0 && form.password.length < 6} />
-        <AuthField label="Подтверждение" value={form.confirm} onChange={(value) => update("confirm", value)} placeholder="Повторите пароль" type="password" icon={LockKeyhole} invalid={form.confirm.length > 0 && form.confirm !== form.password} />
+        <AuthField label="Пароль" value={form.password} onChange={(value) => update("password", value)} placeholder="Минимум 6 символов" type="password" icon={LockKeyhole} invalid={Boolean(fieldErrors.password)} error={fieldErrors.password} />
+        <AuthField label="Подтверждение" value={form.confirm} onChange={(value) => update("confirm", value)} placeholder="Повторите пароль" type="password" icon={LockKeyhole} invalid={Boolean(fieldErrors.confirm)} error={fieldErrors.confirm} />
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <OptionChips label="Интересы" options={interestOptions} selected={interests} onToggle={(value) => toggle(interests, setInterests, value)} />
