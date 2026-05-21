@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { authService, fundsService, notificationsService, NOTIFICATIONS_CHANGED_EVENT } from "@/shared/api";
+import { authService, fundsService, notificationsService, NOTIFICATIONS_CHANGED_EVENT, PROFILE_CHANGED_EVENT } from "@/shared/api";
 import { resolveApiFileUrl } from "@/shared/api/config";
 import { Sidebar } from "@/widgets/navigation/sidebar";
 import { Topbar } from "@/widgets/navigation/topbar";
@@ -47,9 +47,11 @@ export function AppShell({ children, role }: { children: ReactNode; role: AppRol
       void loadShellData();
     };
     window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
+    window.addEventListener(PROFILE_CHANGED_EVENT, refresh);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
+      window.removeEventListener(PROFILE_CHANGED_EVENT, refresh);
     };
   }, [loadShellData]);
 

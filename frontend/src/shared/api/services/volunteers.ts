@@ -16,8 +16,18 @@ import type {
   VolunteerProfileUpdateRequest
 } from "@/shared/api/types";
 
+export const PROFILE_CHANGED_EVENT = "platform-profile-changed";
+
+export function emitProfileChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT));
+  }
+}
+
 export async function updateMyVolunteerProfile(payload: VolunteerProfileUpdateRequest) {
-  return apiClient.patch<UserResponse, VolunteerProfileUpdateRequest>("/volunteers/me", payload);
+  const response = await apiClient.patch<UserResponse, VolunteerProfileUpdateRequest>("/volunteers/me", payload);
+  emitProfileChanged();
+  return response;
 }
 
 export async function getMyVolunteerProfile() {
@@ -28,7 +38,9 @@ export async function uploadMyAvatar(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  return apiClient.post<{ avatar_url: string }, FormData>("/volunteers/me/avatar", formData);
+  const response = await apiClient.post<{ avatar_url: string }, FormData>("/volunteers/me/avatar", formData);
+  emitProfileChanged();
+  return response;
 }
 
 export async function getMyVolunteerHistory(params?: { limit?: number; offset?: number }) {
@@ -90,6 +102,7 @@ export async function downloadMyVolunteerStatistics(year?: number) {
 
 export const volunteersService = {
   downloadMyVolunteerStatistics,
+  emitProfileChanged,
   getMyVolunteerAchievements,
   getMyVolunteerAchievementsOverview,
   getMyVolunteerProfile,

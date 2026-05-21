@@ -21,9 +21,14 @@ def make_user(role: UserRole) -> SimpleNamespace:
         email="volunteer@stoloto.local" if role == UserRole.VOLUNTEER else "fund@example.org",
         full_name="Test User",
         city="Nizhny Novgorod",
+        avatar_url="uploads/volunteers/avatar.png" if role == UserRole.VOLUNTEER else None,
+        phone="+7 900 000-00-00" if role == UserRole.VOLUNTEER else None,
         employee_id="EMP-1" if role == UserRole.VOLUNTEER else None,
         department="IT" if role == UserRole.VOLUNTEER else None,
         position="Developer" if role == UserRole.VOLUNTEER else None,
+        interests=["children"] if role == UserRole.VOLUNTEER else None,
+        skills=["python"] if role == UserRole.VOLUNTEER else None,
+        pro_bono_skills=["analytics"] if role == UserRole.VOLUNTEER else None,
         created_at=datetime.now(UTC),
         is_active=True,
     )
@@ -135,3 +140,32 @@ async def test_fund_accepts_application(
     body = response.json()
     assert body["id"] == str(application_id)
     assert body["status"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_fund_application_includes_volunteer_avatar(
+    fund_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = make_application(ApplicationStatus.APPLIED)
+    application.volunteer = make_user(UserRole.VOLUNTEER)
+
+    async def fake_list_fund_applications(
+        session: object,
+        *,
+        current_user: object,
+        task_id: UUID | None = None,
+        status: ApplicationStatus | None = None,
+    ) -> list[SimpleNamespace]:
+        assert current_user.role == UserRole.FUND
+        assert task_id is None
+        assert status is None
+        return [application]
+
+    monkeypatch.setattr(applications_endpoint, "list_fund_applications", fake_list_fund_applications)
+
+    response = await fund_client.get("/api/v1/applications/fund")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["volunteer"]["avatar_url"] == "uploads/volunteers/avatar.png"
