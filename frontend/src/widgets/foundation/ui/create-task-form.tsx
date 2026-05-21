@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+<<<<<<< Updated upstream
 import { ArrowRight, CheckCircle2, Link2, Mail, MessageCircle, Phone, Send, Smartphone, X, type LucideIcon } from "lucide-react";
 import { getApiErrorMessage } from "@/shared/api";
+=======
+import { ArrowRight, CheckCircle2, Eye, Link2, LockKeyhole, Mail, MessageCircle, Phone, Send, Smartphone, X, type LucideIcon } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
+>>>>>>> Stashed changes
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
-import type { FoundationTaskItem } from "@/widgets/foundation/foundation-data";
+import type { FoundationContactVisibility, FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 
 const forbiddenWords = ["деньги", "сбор средств", "пожертвования", "донат", "перевод", "fundraising", "собрать сумму"];
 const categories = ["События", "Логистика", "IT / разработка", "Дизайн", "Юридическая помощь", "Коммуникации", "Контент", "Образование", "Помощь детям", "Экология", "Спорт", "Адресная помощь", "Pro bono"];
@@ -56,6 +61,7 @@ export function CreateTaskForm({
   const [category, setCategory] = useState(initialTask?.category ?? "События");
   const [city, setCity] = useState(initialTask?.city === "Онлайн" ? "Онлайн" : initialTask?.city ?? "Москва");
   const [period, setPeriod] = useState(initialTask?.period?.includes("Регуляр") ? "Регулярное" : "Разовое");
+<<<<<<< Updated upstream
   const [location, setLocation] = useState("");
   const [deadline, setDeadline] = useState(initialTask?.deadline ?? "");
   const [capacity, setCapacity] = useState(initialTask ? String(initialTask.capacity) : "");
@@ -69,6 +75,15 @@ export function CreateTaskForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+=======
+  const [contactVisibility, setContactVisibility] = useState<FoundationContactVisibility>(initialTask?.contactVisibility ?? "after_acceptance");
+  const [telegram, setTelegram] = useState(initialTask?.contacts.telegram ?? "");
+  const [whatsapp, setWhatsapp] = useState(initialTask?.contacts.whatsapp ?? "");
+  const [email, setEmail] = useState(initialTask?.contacts.email ?? "");
+  const [phone, setPhone] = useState(initialTask?.contacts.phone ?? "");
+  const [chatLink, setChatLink] = useState(initialTask?.contacts.chatLink ?? "");
+  const [contactNote, setContactNote] = useState(initialTask?.contacts.instruction ?? "");
+>>>>>>> Stashed changes
 
   const text = `${title} ${description} ${instructions} ${contactNote}`.toLowerCase();
   const fundraisingDetected = useMemo(() => forbiddenWords.some((word) => text.includes(word)), [text]);
@@ -140,10 +155,28 @@ export function CreateTaskForm({
       <section className="rounded-[1.65rem] bg-white p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_18px_52px_rgba(34,28,8,0.045)] md:p-6">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-2xl font-black">Контакты после принятия</h2>
-            <p className="mt-1 max-w-2xl text-sm font-bold leading-6 text-black/48">Заполненные контакты будут доступны волонтёру только после принятия заявки.</p>
+            <h2 className="text-2xl font-black">Контакты для связи</h2>
+            <p className="mt-1 max-w-2xl text-sm font-bold leading-6 text-black/48">Фонд сам выбирает, когда волонтёр увидит организационную информацию.</p>
           </div>
         </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          <ContactVisibilityCard
+            icon={LockKeyhole}
+            title="После подтверждения участия"
+            text="До назначения волонтёр видит аккуратное сообщение, а контакты открываются после принятия заявки."
+            active={contactVisibility === "after_acceptance"}
+            onClick={() => setContactVisibility("after_acceptance")}
+          />
+          <ContactVisibilityCard
+            icon={Eye}
+            title="Показывать сразу"
+            text="Контакты и инструкция доступны сразу в карточке задания и отклике."
+            active={contactVisibility === "immediate"}
+            onClick={() => setContactVisibility("immediate")}
+          />
+        </div>
+
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <ContactField icon={Send} label="Telegram" placeholder="@fond_volunteer" value={telegram} onChange={setTelegram} />
           <ContactField icon={Smartphone} label="WhatsApp" placeholder="+7 900 000-00-00" value={whatsapp} onChange={setWhatsapp} />
@@ -170,7 +203,21 @@ export function CreateTaskForm({
           </div>
           <button
             disabled={!canSubmit}
+<<<<<<< Updated upstream
             onClick={submitTask}
+=======
+            onClick={() => onSubmit?.({
+              title,
+              description,
+              category,
+              city,
+              format: format as FoundationTaskItem["format"],
+              status: "moderation",
+              moderationComment: undefined,
+              contactVisibility,
+              contacts: { telegram, whatsapp, email, phone, chatLink, instruction: contactNote }
+            })}
+>>>>>>> Stashed changes
             className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)] transition hover:brightness-95 disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none"
           >
             {submitting ? "Отправляем..." : submitLabel}
@@ -179,6 +226,44 @@ export function CreateTaskForm({
         </div>
       </section>
     </div>
+  );
+}
+
+function ContactVisibilityCard({
+  icon: Icon,
+  title,
+  text,
+  active,
+  onClick
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group flex min-h-32 items-start gap-4 rounded-[1.35rem] p-4 text-left transition duration-300",
+        active
+          ? "bg-brand shadow-[0_18px_42px_rgba(255,227,0,0.24)]"
+          : "bg-[#fffdf7] shadow-[inset_0_0_0_1px_rgba(24,20,7,0.065)] hover:-translate-y-0.5 hover:bg-brand/12"
+      )}
+    >
+      <span className={cn("grid size-11 shrink-0 place-items-center rounded-2xl", active ? "bg-black text-white" : "bg-white text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]")}>
+        <Icon className="size-5" />
+      </span>
+      <span>
+        <span className="block text-base font-black">{title}</span>
+        <span className="mt-2 block text-sm font-bold leading-6 text-black/56">{text}</span>
+        <span className="mt-4 inline-flex rounded-full bg-white/70 px-3 py-1 text-[11px] font-black text-black/55">
+          {active ? "Выбранный сценарий" : "Выбрать сценарий"}
+        </span>
+      </span>
+    </button>
   );
 }
 

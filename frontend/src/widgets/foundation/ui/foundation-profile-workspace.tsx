@@ -3,9 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+<<<<<<< Updated upstream
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Eye, Mail, MessageCircle, Pencil, Phone, Save, X, type LucideIcon } from "lucide-react";
 import { getApiErrorMessage } from "@/shared/api";
+=======
+import { useMemo, useState } from "react";
+import { CheckCircle2, Eye, Mail, MapPin, MessageCircle, Pencil, Phone, Save, Sparkles, X, type LucideIcon } from "lucide-react";
+>>>>>>> Stashed changes
 import { cn } from "@/shared/lib/utils";
 import {
   foundationCategoryOptions,
@@ -106,6 +111,7 @@ export function FoundationProfileWorkspace({
 
   return (
     <div className="space-y-6">
+<<<<<<< Updated upstream
       <section className="overflow-hidden rounded-[1.8rem] bg-white shadow-[0_24px_72px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
         <div className="relative min-h-[260px] bg-[#fff9cf]">
           <div className="absolute inset-0 bg-[url('/backTaskVolounteer.png')] bg-cover bg-center opacity-85" />
@@ -122,18 +128,52 @@ export function FoundationProfileWorkspace({
                   <Eye className="size-4" />
                   Preview
                 </Link>
+=======
+      <section className="overflow-hidden rounded-[1.9rem] bg-white shadow-[0_26px_78px_rgba(34,28,8,0.065),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+        <div className="relative min-h-[420px] bg-[#fff9cf]">
+          <div className="absolute inset-0 bg-[url('/backTaskVolounteer.png')] bg-cover bg-center opacity-90" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_74%_18%,rgba(255,227,0,0.58),transparent_28%),linear-gradient(105deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0.88)_43%,rgba(255,255,255,0.26)_100%)]" />
+          <div className="absolute -bottom-20 -left-16 size-64 rounded-full bg-brand/36 blur-3xl" />
+          <div className="absolute right-8 top-8 hidden rounded-full bg-white/70 px-4 py-2 text-xs font-black text-black/52 backdrop-blur md:block">
+            Публичное превью обновляется после сохранения
+          </div>
+          <div className="relative z-10 min-h-[420px] p-5 md:p-7">
+            <div className="flex h-full flex-col justify-between">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex flex-wrap gap-2">
+                  <FoundationStatusBadge tone="green">{currentFoundation.trust}</FoundationStatusBadge>
+                  <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-black text-black/55 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055)]">
+                    <MapPin className="size-3.5" />
+                    {profile.region}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={beginEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(34,28,8,0.08)] transition hover:-translate-y-0.5">
+                    <Pencil className="size-4" />
+                    Редактировать
+                  </button>
+                  <Link href="/preview/foundations/fond-001" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-black text-black shadow-[0_12px_30px_rgba(255,227,0,0.24)] transition hover:-translate-y-0.5">
+                    <Eye className="size-4" />
+                    Смотреть как волонтёр
+                  </Link>
+                </div>
+>>>>>>> Stashed changes
               </div>
-            </div>
 
-            <div className="grid gap-5 md:grid-cols-[120px_1fr] md:items-end">
-              <div className="grid size-28 place-items-center overflow-hidden rounded-[2rem] bg-white shadow-[0_18px_50px_rgba(34,28,8,0.12)]">
-                <Image src="/logo.png" alt="Логотип фонда" width={84} height={84} className="h-auto w-20 object-contain" />
-              </div>
-              <div>
-                <h2 className="max-w-4xl text-4xl font-black leading-[0.98] md:text-5xl">{profile.name}</h2>
-                <p className="mt-4 max-w-3xl text-sm font-bold leading-7 text-black/58 md:text-base">{profile.description}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {profile.categories.map((item) => <span key={item} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-black/58 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">{item}</span>)}
+              <div className="mt-16 grid gap-5 md:grid-cols-[128px_1fr] md:items-end lg:mt-0">
+                <div className="grid size-32 place-items-center overflow-hidden rounded-[2rem] bg-white shadow-[0_20px_56px_rgba(34,28,8,0.14)]">
+                  <Image src="/logo.png" alt="Логотип фонда" width={92} height={92} className="h-auto w-24 object-contain" />
+                </div>
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/78 px-3 py-1.5 text-xs font-black text-black/52 backdrop-blur">
+                    <Sparkles className="size-3.5 text-black" />
+                    Профиль фонда
+                  </div>
+                  <h1 className="mt-4 max-w-4xl text-4xl font-black leading-[0.98] md:text-6xl">{profile.name}</h1>
+                  <p className="mt-4 max-w-3xl text-sm font-bold leading-7 text-black/60 md:text-base">{profile.description}</p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {profile.categories.map((item) => <span key={item} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-black/58 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">{item}</span>)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -201,12 +241,15 @@ export function FoundationProfileWorkspace({
               </div>
             </div>
           </ProfileBlock>
+<<<<<<< Updated upstream
 
           <ProfileBlock title="Документы">
             <div className="space-y-3">
               {documents.slice(0, 3).map((document) => <FoundationDocumentCard key={document.id} document={document} onUpload={(file) => uploadDocument(document.id, file)} onRemove={() => removeDocument(document.id)} />)}
             </div>
           </ProfileBlock>
+=======
+>>>>>>> Stashed changes
         </aside>
       </section>
     </div>

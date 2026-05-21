@@ -24,7 +24,7 @@ function getLoginErrorMessage(error: unknown) {
   return getApiErrorMessage(error);
 }
 
-export function LoginForm({ onRecovery }: { onRecovery: () => void }) {
+export function LoginForm() {
   const router = useRouter();
   const [login, setLogin] = useState("volunteer@stoloto.local");
   const [password, setPassword] = useState("password123");
@@ -96,13 +96,6 @@ export function LoginForm({ onRecovery }: { onRecovery: () => void }) {
           />
           Запомнить меня
         </label>
-        <button
-          type="button"
-          onClick={onRecovery}
-          className="text-sm font-black text-black transition hover:text-brand"
-        >
-          Забыли пароль?
-        </button>
       </div>
       <button
         type="submit"

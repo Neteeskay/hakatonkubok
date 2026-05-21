@@ -3,15 +3,14 @@
 import type { AuthMode } from "@/widgets/auth/model/auth-types";
 import { cn } from "@/shared/lib/utils";
 
-const modes: { value: AuthMode; label: string }[] = [
+const modes: { value: Exclude<AuthMode, "recovery">; label: string }[] = [
   { value: "login", label: "Вход" },
-  { value: "register", label: "Регистрация" },
-  { value: "recovery", label: "Доступ" }
+  { value: "register", label: "Регистрация" }
 ];
 
 export function AuthModeTabs({ mode, onChange }: { mode: AuthMode; onChange: (mode: AuthMode) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-full bg-[#f4f2ea] p-1">
+    <div className="grid grid-cols-2 gap-2 rounded-full bg-[#f4f2ea] p-1">
       {modes.map((item) => (
         <button
           key={item.value}

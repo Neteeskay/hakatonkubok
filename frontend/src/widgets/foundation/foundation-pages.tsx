@@ -196,6 +196,7 @@ export function CreateTaskPage() {
 }
 
 export function FoundationParticipantsPage() {
+<<<<<<< Updated upstream
   const { applications, error, loading, setApplications, tasks } = useFoundationWorkspaceData();
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -219,6 +220,11 @@ export function FoundationParticipantsPage() {
     } catch (statusError) {
       setActionError(getApiErrorMessage(statusError));
     }
+=======
+  const [applications, setApplications] = useState<FoundationApplicationItem[]>(foundationApplications);
+  const setApplicationStatus = (id: string, status: FoundationApplicationStatus, comment?: string) => {
+    setApplications((items) => items.map((item) => item.id === id ? { ...item, status, comment: applicationCommentByStatus(status, comment), nextStep: applicationNextStepByStatus(status), attendanceDecision: applicationAttendanceByStatus(status) } : item));
+>>>>>>> Stashed changes
   };
   const tasksWithApplications = tasks.filter((task) => applications.some((item) => item.taskId === task.taskId || item.taskTitle === task.title));
   const orphanApplications = applications.filter((item) => !tasks.some((task) => item.taskId === task.taskId || item.taskTitle === task.title));
@@ -316,6 +322,7 @@ export function FoundationReportsPage() {
 }
 
 export function FoundationProfilePage() {
+<<<<<<< Updated upstream
   const { documents, error, foundation, loading, metrics, profileForm, tasks } = useFoundationWorkspaceData();
 
   const saveProfile = async (form: Parameters<typeof buildFundUpdateRequest>[0]) => {
@@ -350,6 +357,9 @@ export function FoundationProfilePage() {
       ) : null}
     </FoundationPageShell>
   );
+=======
+  return <FoundationProfileWorkspace />;
+>>>>>>> Stashed changes
 }
 
 function FoundationPageShell({ eyebrow, title, description, action, children }: { eyebrow: string; title: string; description: string; action?: ReactNode; children: ReactNode }) {
@@ -396,7 +406,11 @@ function TaskApplicationsSection({
 }: {
   task: FoundationTaskItem;
   applications: FoundationApplicationItem[];
+<<<<<<< Updated upstream
   onStatusChange: (id: string, status: FoundationApplicationStatus) => Promise<void> | void;
+=======
+  onStatusChange: (id: string, status: FoundationApplicationStatus, comment?: string) => void;
+>>>>>>> Stashed changes
 }) {
   return (
     <section className="overflow-hidden rounded-[1.65rem] bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_20px_60px_rgba(34,28,8,0.05)]">
@@ -415,7 +429,7 @@ function TaskApplicationsSection({
         </Link>
       </div>
       <div className="space-y-3 p-4">
-        {applications.map((item) => <FoundationApplicationCard key={item.id} item={item} onStatusChange={onStatusChange} />)}
+        {applications.map((item) => <FoundationApplicationCard key={item.id} item={item} task={task} onStatusChange={onStatusChange} />)}
       </div>
     </section>
   );
@@ -440,14 +454,16 @@ function TaskStatusFilters({ active, onChange }: { active: "all" | FoundationTas
   );
 }
 
-function applicationCommentByStatus(status: FoundationApplicationStatus) {
+function applicationCommentByStatus(status: FoundationApplicationStatus, comment?: string) {
+  if (comment?.trim()) return comment.trim();
   const comments: Record<FoundationApplicationStatus, string> = {
     review: "Заявка ожидает решения фонда.",
     accepted: "Заявка принята. Контакты и инструкции доступны волонтёру.",
     clarify: "Фонд запросил уточнение перед финальным решением.",
     rejected: "Заявка отклонена с комментарием фонда.",
     completed: "Участие отмечено как завершённое.",
-    confirmed: "Участие подтверждено фондом."
+    confirmed: "Участие подтверждено фондом.",
+    not_completed: "Участие закрыто как невыполненное с комментарием."
   };
   return comments[status];
 }
@@ -459,9 +475,23 @@ function applicationNextStepByStatus(status: FoundationApplicationStatus) {
     clarify: "Дождитесь ответа волонтёра",
     rejected: "Заявка закрыта",
     completed: "Проверьте результат участия",
-    confirmed: "Участие закрыто"
+    confirmed: "Участие закрыто",
+    not_completed: "Результат зафиксирован"
   };
   return steps[status];
+}
+
+function applicationAttendanceByStatus(status: FoundationApplicationStatus): FoundationApplicationItem["attendanceDecision"] {
+  const decisions: Record<FoundationApplicationStatus, FoundationApplicationItem["attendanceDecision"]> = {
+    review: "pending",
+    accepted: "pending",
+    clarify: "pending",
+    rejected: "missed",
+    completed: "done",
+    confirmed: "participated",
+    not_completed: "missed"
+  };
+  return decisions[status];
 }
 
 function SectionHeader({ title, text, href, compact = false }: { title: string; text: string; href?: string; compact?: boolean }) {

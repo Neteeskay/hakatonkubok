@@ -5,7 +5,6 @@ import { AuthBrandPanel } from "@/widgets/auth/ui/auth-brand-panel";
 import { DemoLogin } from "@/widgets/auth/ui/demo-login";
 import { LoginForm } from "@/widgets/auth/ui/login-form";
 import { RegisterForm } from "@/widgets/auth/ui/register-form";
-import { RecoveryForm } from "@/widgets/auth/ui/recovery-form";
 import type { AuthMode } from "@/widgets/auth/model/auth-types";
 
 export function AuthPage() {
@@ -18,9 +17,8 @@ export function AuthPage() {
 
         <div className="flex min-h-full flex-col gap-5">
           <section className="rounded-[2rem] bg-white p-5 shadow-[0_26px_90px_rgba(34,28,8,0.1),inset_0_0_0_1px_rgba(24,20,7,0.06)] md:p-7">
-            {mode === "login" ? <LoginForm onRecovery={() => setMode("recovery")} /> : null}
+            {mode === "login" ? <LoginForm /> : null}
             {mode === "register" ? <RegisterForm /> : null}
-            {mode === "recovery" ? <RecoveryForm /> : null}
           </section>
           <DemoLogin />
         </div>

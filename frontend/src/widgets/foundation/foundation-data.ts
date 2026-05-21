@@ -2,8 +2,18 @@ import { BarChart3, CheckCircle2, Clock3, FileText, Inbox, RotateCcw, ShieldChec
 import { foundations, tasks } from "@/shared/config/mock-data";
 
 export type FoundationTaskStatus = "moderation" | "published" | "returned" | "rejected" | "completed" | "draft";
-export type FoundationApplicationStatus = "review" | "accepted" | "clarify" | "rejected" | "completed" | "confirmed";
+export type FoundationApplicationStatus = "review" | "accepted" | "clarify" | "rejected" | "completed" | "confirmed" | "not_completed";
 export type FoundationTone = "gold" | "green" | "blue" | "violet" | "red" | "neutral";
+export type FoundationContactVisibility = "after_acceptance" | "immediate";
+
+export interface FoundationTaskContact {
+  telegram: string;
+  whatsapp: string;
+  email: string;
+  phone: string;
+  chatLink: string;
+  instruction: string;
+}
 
 export interface FoundationTaskItem {
   id: string;
@@ -20,6 +30,8 @@ export interface FoundationTaskItem {
   hours: number;
   status: FoundationTaskStatus;
   moderationComment?: string;
+  contactVisibility: FoundationContactVisibility;
+  contacts: FoundationTaskContact;
   taskId: string;
 }
 
@@ -38,9 +50,20 @@ export interface FoundationApplicationItem {
   status: FoundationApplicationStatus;
   comment: string;
   nextStep: string;
+  appliedAt: string;
+  relevance: number;
   attendanceDecision: "pending" | "participated" | "missed" | "done";
   taskId: string;
 }
+
+const defaultTaskContacts: FoundationTaskContact = {
+  telegram: "@sportdobro_help",
+  whatsapp: "+7 900 120-45-67",
+  email: "volunteer@sport-dobro.ru",
+  phone: "+7 495 120-45-67",
+  chatLink: "https://t.me/sportdobro_team",
+  instruction: "После назначения координатор добавит волонтёра в рабочий чат и отправит короткий бриф."
+};
 
 export const currentFoundation = {
   ...foundations[0],
@@ -69,7 +92,9 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 18,
     responses: 21,
     hours: 5,
-    status: "published"
+    status: "published",
+    contactVisibility: "after_acceptance",
+    contacts: defaultTaskContacts
   },
   {
     id: "ft-002",
@@ -85,7 +110,13 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 4,
     responses: 7,
     hours: 3,
-    status: "moderation"
+    status: "moderation",
+    contactVisibility: "after_acceptance",
+    contacts: {
+      ...defaultTaskContacts,
+      telegram: "@sportdobro_design",
+      instruction: "После назначения координатор пришлёт материалы фонда, бренд-папку и ссылку на рабочий созвон."
+    }
   },
   {
     id: "ft-003",
@@ -102,6 +133,12 @@ export const foundationTasks: FoundationTaskItem[] = [
     responses: 14,
     hours: 8,
     status: "returned",
+    contactVisibility: "immediate",
+    contacts: {
+      ...defaultTaskContacts,
+      chatLink: "https://t.me/sportdobro_teens",
+      instruction: "Можно сразу написать координатору и уточнить расписание первой онлайн-встречи."
+    },
     moderationComment: "Добавьте контакты после отклика и уточните формат материалов для подростков."
   },
   {
@@ -118,7 +155,9 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 16,
     responses: 23,
     hours: 4,
-    status: "completed"
+    status: "completed",
+    contactVisibility: "after_acceptance",
+    contacts: defaultTaskContacts
   },
   {
     id: "ft-005",
@@ -134,7 +173,13 @@ export const foundationTasks: FoundationTaskItem[] = [
     capacity: 3,
     responses: 5,
     hours: 6,
-    status: "published"
+    status: "published",
+    contactVisibility: "after_acceptance",
+    contacts: {
+      ...defaultTaskContacts,
+      telegram: "@sportdobro_data",
+      instruction: "После назначения фонд откроет доступ к обезличенным данным и чек-листу аудита."
+    }
   }
 ];
 
@@ -154,6 +199,8 @@ export const foundationApplications: FoundationApplicationItem[] = [
     status: "review",
     comment: "Подходит по опыту, нужно уточнить сроки первого черновика.",
     nextStep: "Принять решение и оставить комментарий для волонтёра",
+    appliedAt: "20 мая, 12:40",
+    relevance: 92,
     attendanceDecision: "pending",
     taskId: "task-002"
   },
@@ -172,6 +219,8 @@ export const foundationApplications: FoundationApplicationItem[] = [
     status: "accepted",
     comment: "Принят в команду регистрации. Контакты отправлены волонтёру.",
     nextStep: "Дождаться активности и подтвердить факт участия",
+    appliedAt: "19 мая, 16:10",
+    relevance: 86,
     attendanceDecision: "pending",
     taskId: "task-001"
   },
@@ -190,6 +239,8 @@ export const foundationApplications: FoundationApplicationItem[] = [
     status: "clarify",
     comment: "Нужно запросить NDA и подтвердить опыт с чувствительными данными.",
     nextStep: "Запросить уточнение перед принятием заявки",
+    appliedAt: "18 мая, 09:25",
+    relevance: 78,
     attendanceDecision: "pending",
     taskId: "task-005"
   },
@@ -208,6 +259,8 @@ export const foundationApplications: FoundationApplicationItem[] = [
     status: "confirmed",
     comment: "Факт участия подтверждён фондом. Активность закрыта.",
     nextStep: "Участие закрыто и передано в следующий этап обработки",
+    appliedAt: "14 мая, 11:05",
+    relevance: 81,
     attendanceDecision: "participated",
     taskId: "task-004"
   }
@@ -237,12 +290,13 @@ export const taskStatusConfig: Record<FoundationTaskStatus, { label: string; ton
 };
 
 export const applicationStatusConfig: Record<FoundationApplicationStatus, { label: string; tone: FoundationTone; icon: LucideIcon; helper: string }> = {
-  review: { label: "На рассмотрении", tone: "blue", icon: Clock3, helper: "Нужно принять решение" },
-  accepted: { label: "Принят", tone: "green", icon: CheckCircle2, helper: "Контакты доступны волонтёру" },
+  review: { label: "На рассмотрении", tone: "gold", icon: Clock3, helper: "Нужно принять решение" },
+  accepted: { label: "Назначен", tone: "green", icon: CheckCircle2, helper: "Контакты доступны волонтёру" },
   clarify: { label: "Уточнения", tone: "violet", icon: RotateCcw, helper: "Запросите детали" },
   rejected: { label: "Отклонён", tone: "red", icon: XCircle, helper: "С комментарием фонда" },
   completed: { label: "Завершено", tone: "neutral", icon: ShieldCheck, helper: "Ожидает подтверждения" },
-  confirmed: { label: "Участие подтверждено", tone: "green", icon: ShieldCheck, helper: "Активность закрыта фондом" }
+  confirmed: { label: "Выполнено", tone: "green", icon: ShieldCheck, helper: "Активность закрыта фондом" },
+  not_completed: { label: "Не выполнено", tone: "red", icon: XCircle, helper: "Закрыто с комментарием" }
 };
 
 export const foundationToneStyles: Record<FoundationTone, { surface: string; icon: string; badge: string; text: string }> = {
