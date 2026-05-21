@@ -3,6 +3,12 @@ import type {
   NotificationResponse,
   Uuid,
   UserResponse,
+  VolunteerAchievementsOverviewResponse,
+  VolunteerAchievementResponse,
+  VolunteerHoursByCategoryItemResponse,
+  VolunteerHoursDynamicsItemResponse,
+  VolunteerHoursLedgerItemResponse,
+  VolunteerHoursSummaryResponse,
   VolunteerHistoryItemResponse,
   VolunteerProfileUpdateRequest
 } from "@/shared/api/types";
@@ -23,6 +29,32 @@ export async function getMyVolunteerNotifications(params?: { limit?: number; off
   });
 }
 
+export async function getMyVolunteerHoursSummary() {
+  return apiClient.get<VolunteerHoursSummaryResponse>("/volunteers/me/hours/summary");
+}
+
+export async function getMyVolunteerHoursLedger(params?: { limit?: number; offset?: number }) {
+  return apiClient.get<VolunteerHoursLedgerItemResponse[]>("/volunteers/me/hours/ledger", {
+    query: params
+  });
+}
+
+export async function getMyVolunteerHoursDynamics() {
+  return apiClient.get<VolunteerHoursDynamicsItemResponse[]>("/volunteers/me/hours/dynamics");
+}
+
+export async function getMyVolunteerHoursByCategory() {
+  return apiClient.get<VolunteerHoursByCategoryItemResponse[]>("/volunteers/me/hours/by-category");
+}
+
+export async function getMyVolunteerAchievements() {
+  return apiClient.get<VolunteerAchievementResponse[]>("/volunteers/me/achievements");
+}
+
+export async function getMyVolunteerAchievementsOverview() {
+  return apiClient.get<VolunteerAchievementsOverviewResponse>("/volunteers/me/achievements/overview");
+}
+
 export async function markMyNotificationRead(notificationId: Uuid) {
   return apiClient.patch<NotificationResponse, undefined>(`/volunteers/me/notifications/${notificationId}/read`, undefined);
 }
@@ -36,6 +68,12 @@ export async function downloadMyVolunteerStatistics(year?: number) {
 
 export const volunteersService = {
   downloadMyVolunteerStatistics,
+  getMyVolunteerAchievements,
+  getMyVolunteerAchievementsOverview,
+  getMyVolunteerHoursByCategory,
+  getMyVolunteerHoursDynamics,
+  getMyVolunteerHoursLedger,
+  getMyVolunteerHoursSummary,
   getMyVolunteerNotifications,
   getMyVolunteerHistory,
   markMyNotificationRead,

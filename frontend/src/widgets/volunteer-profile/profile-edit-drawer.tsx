@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, X } from "lucide-react";
-import { profileVolunteer } from "@/widgets/volunteer-profile/profile-data";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { SoftBadge } from "@/widgets/volunteer-profile/profile-ui";
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
 
-interface ProfileDraft {
+export interface ProfileDraft {
   name: string;
   city: string;
   email: string;
@@ -18,15 +18,15 @@ interface ProfileDraft {
   proBono: string[];
 }
 
-const initialDraft: ProfileDraft = {
-  name: profileVolunteer.name,
-  city: profileVolunteer.city,
-  email: "anna.smirnova@mail.ru",
-  phone: "+7 (999) 123-45-67",
-  about: "Помогаю фондам с событиями, визуальными материалами и наставничеством. Люблю проекты, где результат быстро виден людям.",
-  interests: ["Помощь животным", "Экология", "Образование", "Дети", "Пожилые люди", "Культура и искусство"],
-  skills: ["Маркетинг", "SMM", "Копирайтинг", "Презентации", "Аналитика", "Дизайн", "Планирование"],
-  proBono: ["Презентации", "Product Design", "Аудит анкет"]
+export const emptyProfileDraft: ProfileDraft = {
+  about: "",
+  city: "",
+  email: "",
+  interests: [],
+  name: "",
+  phone: "",
+  proBono: [],
+  skills: []
 };
 
 export type ProfileEditFocus = "basic" | "skills";
@@ -36,28 +36,33 @@ export function ProfileEditDrawer({
   open,
   onClose,
   initialFocus = "basic",
+  profileDraft,
   skillsSnapshot,
   onSave
 }: {
   open: boolean;
   onClose: () => void;
   initialFocus?: ProfileEditFocus;
+  profileDraft: ProfileDraft;
   skillsSnapshot: ProfileSkillsSnapshot;
-  onSave: (snapshot: ProfileSkillsSnapshot) => void;
+  onSave: (draft: ProfileDraft) => Promise<void> | void;
 }) {
-  const hydratedDraft = useMemo(() => ({ ...initialDraft, ...skillsSnapshot }), [skillsSnapshot]);
+  const hydratedDraft = useMemo(() => ({ ...emptyProfileDraft, ...profileDraft, ...skillsSnapshot }), [profileDraft, skillsSnapshot]);
   const [draft, setDraft] = useState(hydratedDraft);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const skillsRef = useRef<HTMLDivElement>(null);
   const isValid = draft.name.trim().length > 2 && draft.email.includes("@") && draft.phone.trim().length >= 7;
+  const initials = getInitials(draft.name || draft.email);
 
   useEffect(() => {
     if (open) {
       setDraft(hydratedDraft);
       setSaving(false);
       setSaved(false);
+      setSaveError(null);
       if (initialFocus === "skills") {
         window.setTimeout(() => skillsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 220);
       }
@@ -66,11 +71,13 @@ export function ProfileEditDrawer({
 
   function update(field: keyof ProfileDraft, value: string) {
     setSaved(false);
+    setSaveError(null);
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
   function updateList(field: keyof ProfileSkillsSnapshot, value: string[]) {
     setSaved(false);
+    setSaveError(null);
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
@@ -79,14 +86,19 @@ export function ProfileEditDrawer({
     setAvatar(URL.createObjectURL(file));
   }
 
-  function save() {
+  async function save() {
     if (!isValid) return;
     setSaving(true);
-    window.setTimeout(() => {
-      onSave({ interests: draft.interests, skills: draft.skills, proBono: draft.proBono });
-      setSaving(false);
+    setSaveError(null);
+
+    try {
+      await onSave(draft);
       setSaved(true);
-    }, 700);
+    } catch (error) {
+      setSaveError(getApiErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -105,7 +117,7 @@ export function ProfileEditDrawer({
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-black/38">Edit mode</p>
                 <h2 className="mt-2 text-3xl font-black">Редактировать профиль</h2>
-                <p className="mt-2 max-w-md text-sm leading-6 text-black/56">Изменения сохраняются локально в mock-сценарии, без backend.</p>
+                <p className="mt-2 max-w-md text-sm leading-6 text-black/56">Изменения сохраняются в профиле волонтёра.</p>
               </div>
               <button onClick={onClose} className="grid size-11 place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]" aria-label="Закрыть">
                 <X className="size-5" />
@@ -115,7 +127,7 @@ export function ProfileEditDrawer({
             <div className="mt-7 rounded-[1.45rem] bg-white p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
               <div className="flex items-center gap-4">
                 <div className="relative grid size-24 place-items-center overflow-hidden rounded-full bg-brand/20 text-3xl font-black">
-                  {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : "АС"}
+                  {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : initials}
                   <label className="absolute bottom-1 right-1 grid size-9 cursor-pointer place-items-center rounded-full bg-white shadow-[0_8px_20px_rgba(34,28,8,0.16)]">
                     <Camera className="size-4" />
                     <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleAvatar(event.target.files?.[0])} />
@@ -123,7 +135,7 @@ export function ProfileEditDrawer({
                 </div>
                 <div>
                   <p className="font-black">Фото профиля</p>
-                  <p className="mt-1 text-sm text-black/54">PNG/JPG, mock upload state.</p>
+                  <p className="mt-1 text-sm text-black/54">PNG/JPG.</p>
                   {avatar ? <SoftBadge tone="green">uploaded</SoftBadge> : null}
                 </div>
               </div>
@@ -173,6 +185,7 @@ export function ProfileEditDrawer({
                 <div className="min-h-6">
                   {!isValid ? <p className="text-sm font-bold text-red-500">Проверьте имя, email и телефон</p> : null}
                   {saved ? <p className="flex items-center gap-2 text-sm font-bold text-[#247a31]"><CheckCircle2 className="size-4" />Сохранено</p> : null}
+                  {saveError ? <p className="text-sm font-bold text-red-500">{saveError}</p> : null}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setDraft(hydratedDraft)} className="h-12 rounded-xl bg-white px-5 text-sm font-black text-black shadow-[inset_0_0_0_1px_rgba(24,20,7,0.1)]">Cancel</button>
@@ -188,6 +201,13 @@ export function ProfileEditDrawer({
       ) : null}
     </AnimatePresence>
   );
+}
+
+function getInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "В";
+  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? "";
+  return `${first}${second}`.toUpperCase();
 }
 
 function Field({ label, value, onChange, invalid }: { label: string; value: string; onChange: (value: string) => void; invalid?: boolean }) {

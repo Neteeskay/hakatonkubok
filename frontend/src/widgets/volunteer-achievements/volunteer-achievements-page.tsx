@@ -1,19 +1,76 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Award, CheckCircle2, Clock3, LockKeyhole, Sparkles, Star } from "lucide-react";
-import { AchievementCard } from "@/widgets/volunteer-achievements/ui/achievement-card";
+import { getApiErrorMessage } from "@/shared/api/errors";
+import { volunteersService } from "@/shared/api/services/volunteers";
+import type { ComputedAchievement } from "@/widgets/volunteer-achievements/achievement-data";
 import {
-  achievementSummary,
-  getNextAchievement,
-  getVolunteerAchievements
-} from "@/widgets/volunteer-achievements/achievement-data";
+  emptyAchievement,
+  mapAchievementResponseToComputed,
+  mapAchievementsOverviewToComputed
+} from "@/widgets/volunteer-achievements/achievement-api-mappers";
+import { AchievementCard } from "@/widgets/volunteer-achievements/ui/achievement-card";
 
 export function VolunteerAchievementsPage() {
-  const achievements = getVolunteerAchievements();
-  const summary = achievementSummary(achievements);
-  const next = getNextAchievement(achievements);
+  const [achievements, setAchievements] = useState<ComputedAchievement[]>([]);
+  const [nextAchievement, setNextAchievement] = useState<ComputedAchievement | null>(null);
+  const [confirmedHours, setConfirmedHours] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const summary = useMemo(() => achievementSummary(achievements), [achievements]);
+  const next = nextAchievement ?? getNextAchievement(achievements) ?? emptyAchievement;
   const unlocked = achievements.filter((achievement) => achievement.unlocked);
   const locked = achievements.filter((achievement) => !achievement.unlocked);
+  const lastUnlocked = unlocked.at(-1) ?? achievements[0] ?? emptyAchievement;
+  const biggestGoal = achievements.find((achievement) => achievement.id === "prosto-legend") ?? achievements.at(-1) ?? emptyAchievement;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAchievements() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const overview = await volunteersService.getMyVolunteerAchievementsOverview();
+        if (!active) return;
+
+        const mapped = mapAchievementsOverviewToComputed(overview);
+        setAchievements(mapped.achievements);
+        setNextAchievement(mapped.nextAchievement);
+        setConfirmedHours(Number(mapped.stats.total_hours));
+      } catch (overviewError) {
+        try {
+          const response = await volunteersService.getMyVolunteerAchievements();
+          if (!active) return;
+
+          setAchievements(response.map(mapAchievementResponseToComputed));
+          setNextAchievement(null);
+          setConfirmedHours(null);
+        } catch (listError) {
+          if (active) {
+            setError(getApiErrorMessage(listError instanceof Error ? listError : overviewError));
+            setAchievements([]);
+            setNextAchievement(null);
+            setConfirmedHours(null);
+          }
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadAchievements();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -31,10 +88,11 @@ export function VolunteerAchievementsPage() {
               Медали показывают не просто активность, а ваш вклад: часы, подтверждённые участия, pro bono задачи, категории помощи и надёжность.
             </p>
             <div className="mt-7 grid gap-3 md:grid-cols-3">
-              <HeroMetric icon={Award} value={`${summary.unlocked}/${summary.total}`} label="медалей открыто" />
-              <HeroMetric icon={LockKeyhole} value={`${summary.locked}`} label="осталось открыть" />
-              <HeroMetric icon={Clock3} value="56 ч" label="подтверждено" />
+              <HeroMetric icon={Award} value={loading ? "..." : `${summary.unlocked}/${summary.total}`} label="медалей открыто" />
+              <HeroMetric icon={LockKeyhole} value={loading ? "..." : `${summary.locked}`} label="осталось открыть" />
+              <HeroMetric icon={Clock3} value={loading ? "..." : `${Math.round(confirmedHours ?? 0)} ч`} label="подтверждено" />
             </div>
+            {error ? <p className="mt-4 rounded-xl bg-[#fff1f1] p-3 text-sm font-bold text-[#c83c3c]">{error}</p> : null}
           </div>
           <div className="rounded-[1.55rem] bg-[#fffdf7] p-5 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
             <div className="flex items-start gap-4">
@@ -66,8 +124,8 @@ export function VolunteerAchievementsPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <ProgressPanel title="Ближе всего" achievement={next} />
-        <ProgressPanel title="Последняя полученная" achievement={unlocked.at(-1) ?? achievements[0]} success />
-        <ProgressPanel title="Большая цель" achievement={achievements.find((achievement) => achievement.id === "prosto-legend") ?? achievements[0]} />
+        <ProgressPanel title="Последняя полученная" achievement={lastUnlocked} success />
+        <ProgressPanel title="Большая цель" achievement={biggestGoal} />
       </section>
 
       <section id="all-achievements" className="rounded-[1.8rem] bg-white p-5 shadow-[0_24px_72px_rgba(34,28,8,0.06),inset_0_0_0_1px_rgba(24,20,7,0.055)] md:p-6">
@@ -99,7 +157,7 @@ function HeroMetric({ icon: Icon, value, label }: { icon: typeof Award; value: s
   );
 }
 
-function ProgressPanel({ title, achievement, success = false }: { title: string; achievement: ReturnType<typeof getVolunteerAchievements>[number]; success?: boolean }) {
+function ProgressPanel({ title, achievement, success = false }: { title: string; achievement: ComputedAchievement; success?: boolean }) {
   return (
     <article className="rounded-[1.45rem] bg-white p-5 shadow-[0_18px_54px_rgba(34,28,8,0.045),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
       <div className="flex items-start gap-4">
@@ -117,4 +175,22 @@ function ProgressPanel({ title, achievement, success = false }: { title: string;
       </div>
     </article>
   );
+}
+
+function getNextAchievement(achievements: ComputedAchievement[]) {
+  return [...achievements]
+    .filter((achievement) => !achievement.unlocked)
+    .sort((a, b) => b.progress - a.progress)[0] ?? achievements[0];
+}
+
+function achievementSummary(achievements: ComputedAchievement[]) {
+  const unlocked = achievements.filter((achievement) => achievement.unlocked).length;
+  const total = achievements.length;
+
+  return {
+    locked: total - unlocked,
+    progress: total > 0 ? Math.round((unlocked / total) * 100) : 0,
+    total,
+    unlocked
+  };
 }

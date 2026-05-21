@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, LockKeyhole, Star } from "lucide-react";
-import { getNextAchievement, type ComputedAchievement } from "@/widgets/volunteer-achievements/achievement-data";
+import type { ComputedAchievement } from "@/widgets/volunteer-achievements/achievement-data";
 import { RoundIcon } from "@/widgets/volunteer-profile/profile-ui";
 
 export function ProfileBadgesPreview({ achievements }: { achievements: ComputedAchievement[] }) {
@@ -53,4 +53,10 @@ export function ProfileBadgesPreview({ achievements }: { achievements: ComputedA
       </div>
     </>
   );
+}
+
+function getNextAchievement(achievements: ComputedAchievement[]) {
+  return [...achievements]
+    .filter((achievement) => !achievement.unlocked)
+    .sort((a, b) => b.progress - a.progress)[0] ?? achievements[0];
 }

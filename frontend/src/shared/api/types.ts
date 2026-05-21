@@ -296,11 +296,111 @@ export interface TaskCompletionsConfirmRequest {
 }
 
 export interface VolunteerProfileUpdateRequest {
+  about?: string | null;
   city?: string | null;
   full_name?: string | null;
   interests?: string[] | null;
   phone?: string | null;
+  pro_bono_skills?: string[] | null;
   skills?: string[] | null;
+}
+
+export interface VolunteerAchievementCriterionResponse {
+  current: DecimalString;
+  is_completed: boolean;
+  key: string;
+  metadata: Record<string, unknown>;
+  progress_percent: DecimalString;
+  remaining: DecimalString;
+  target: DecimalString;
+  title: string;
+  unit: string;
+  unit_label: string;
+}
+
+export interface VolunteerAchievementResponse {
+  awarded_at: DateTimeString | null;
+  category: string | null;
+  category_label: string | null;
+  code: string;
+  criteria: VolunteerAchievementCriterionResponse[];
+  description: string;
+  is_awarded: boolean;
+  is_completed: boolean | null;
+  metadata: Record<string, unknown>;
+  progress_current: DecimalString;
+  progress_percent: DecimalString | null;
+  progress_target: DecimalString;
+  remaining: DecimalString | null;
+  sort_order: number | null;
+  title: string;
+  unit: string | null;
+  unit_label: string | null;
+}
+
+export interface VolunteerAchievementStatsResponse {
+  active_applications_count: number;
+  activity_span_days: number;
+  applications_count: number;
+  canceled_applications_count: number;
+  children_completed_count: number;
+  completed_tasks_count: number;
+  controlled_participations_count: number;
+  daily_activity_streak_days: number;
+  ecology_completed_count: number;
+  fast_response_count: number;
+  long_term_progress_percent: DecimalString;
+  offline_completed_count: number;
+  online_completed_count: number;
+  pro_bono_completed_count: number;
+  reliable_success_ratio_percent: DecimalString;
+  support_completed_count: number;
+  team_completed_count: number;
+  total_hours: DecimalString;
+  weekly_streak_weeks: number;
+}
+
+export interface VolunteerAchievementsOverviewResponse {
+  achievements: VolunteerAchievementResponse[];
+  awarded_count: number;
+  in_progress_count: number;
+  next_achievement: VolunteerAchievementResponse | null;
+  overall_progress_percent: DecimalString;
+  stats: VolunteerAchievementStatsResponse;
+  total_count: number;
+}
+
+export interface VolunteerHoursSummaryResponse {
+  entries_count: number;
+  first_awarded_at: DateTimeString | null;
+  last_awarded_at: DateTimeString | null;
+  tasks_count: number;
+  total_hours: DecimalString;
+}
+
+export interface VolunteerHoursLedgerItemResponse {
+  admin_comment: string | null;
+  application_id: Uuid;
+  awarded_at: DateTimeString;
+  category: HelpCategory;
+  fund_id: Uuid | null;
+  fund_name: string | null;
+  hours: DecimalString;
+  id: Uuid;
+  task_id: Uuid;
+  task_title: string;
+}
+
+export interface VolunteerHoursDynamicsItemResponse {
+  entries_count: number;
+  hours: DecimalString;
+  period: DateTimeString;
+}
+
+export interface VolunteerHoursByCategoryItemResponse {
+  category: HelpCategory;
+  hours: DecimalString;
+  tasks_count: number;
 }
 
 export interface VolunteerHistoryTaskResponse {

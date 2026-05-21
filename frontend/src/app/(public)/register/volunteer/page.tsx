@@ -1,31 +1,154 @@
-import Link from "next/link";
-import { ArrowRight, CheckCircle2, Mail, UserRound } from "lucide-react";
+"use client";
+
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowRight, CheckCircle2, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import { Logo } from "@/widgets/navigation/logo";
+import {
+  buildVolunteerRegisterRequest,
+  isVolunteerRegistrationValid,
+  volunteerOnboardingRegistrationForm
+} from "@/widgets/auth/model/volunteer-registration";
+import { useVolunteerRegistration } from "@/widgets/auth/model/use-volunteer-registration";
+
+const onboardingInterests = ["дети", "спорт", "дизайн", "события"];
+const onboardingSkills = ["Дизайн"];
 
 export default function VolunteerRegisterPage() {
+  const [form, setForm] = useState(volunteerOnboardingRegistrationForm);
+  const [agree, setAgree] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const { clearFeedback, error, registerVolunteer, submitting, success } = useVolunteerRegistration();
+
+  const valid = useMemo(() => {
+    return isVolunteerRegistrationValid({ agree, form, interests: onboardingInterests });
+  }, [agree, form]);
+
+  const fullName = `${form.firstName} ${form.lastName}`.trim();
+
+  function update(field: keyof typeof form, value: string) {
+    clearFeedback();
+    setChecked(false);
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid || submitting) return;
+
+    await registerVolunteer(
+      buildVolunteerRegisterRequest({
+        form,
+        interests: onboardingInterests,
+        skills: onboardingSkills
+      })
+    );
+  }
+
   return (
-    <AuthRegistrationShell title="Регистрация волонтёра" description="Mock-сценарий через корпоративную почту или employee id. Данные сотрудника подтягиваются для onboarding.">
-      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+    <AuthRegistrationShell title="Регистрация волонтёра" description="Сценарий через корпоративную почту или employee id. Данные сотрудника подтягиваются для onboarding.">
+      <form onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-3 rounded-[1.35rem] bg-white/70 p-5">
-          <label className="flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-bold text-black/62"><Mail className="size-4" /> anna.sokolova@stoloto.ru</label>
-          <label className="flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-bold text-black/62"><UserRound className="size-4" /> Employee ID: ST-2048</label>
-          <button className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black">Проверить сотрудника</button>
+          <OnboardingField icon={Mail} value={form.email} onChange={(value) => update("email", value)} type="email" />
+          <OnboardingField icon={UserRound} value={form.employeeId ?? ""} onChange={(value) => update("employeeId", value)} prefix="Employee ID:" />
+          <OnboardingField
+            icon={LockKeyhole}
+            invalid={form.password.length > 0 && form.password.length < 6}
+            onChange={(value) => update("password", value)}
+            placeholder="Пароль от 6 символов"
+            type="password"
+            value={form.password}
+          />
+          <OnboardingField
+            icon={LockKeyhole}
+            invalid={form.confirm.length > 0 && form.confirm !== form.password}
+            onChange={(value) => update("confirm", value)}
+            placeholder="Повторите пароль"
+            type="password"
+            value={form.confirm}
+          />
+          <label className="flex gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold leading-6 text-black/62">
+            <input type="checkbox" checked={agree} onChange={(event) => { clearFeedback(); setAgree(event.target.checked); }} className="mt-1 size-4 shrink-0 accent-brand" />
+            <span>Согласен с правилами платформы и обработкой данных для участия в волонтёрских активностях.</span>
+          </label>
+          <button type="button" onClick={() => setChecked(true)} className="h-12 w-full rounded-2xl bg-brand text-sm font-black text-black">Проверить сотрудника</button>
+          {checked ? (
+            <p className="rounded-2xl bg-white px-4 py-3 text-sm font-bold leading-6 text-black/54">
+              Сотрудник будет проверен backend при создании профиля.
+            </p>
+          ) : null}
+          {error ? (
+            <p className="rounded-2xl bg-[#fff1f1] p-4 text-sm font-bold leading-6 text-[#c83c3c]" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {success ? (
+            <p className="rounded-2xl bg-[#e8f8e8] p-4 text-sm font-bold leading-6 text-[#247a31]" aria-live="polite">
+              {success}
+            </p>
+          ) : null}
         </div>
         <div className="rounded-[1.35rem] bg-white p-6 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.06)]">
           <CheckCircle2 className="size-8 text-brand" />
-          <h3 className="mt-5 text-2xl font-black text-black">Анна Соколова</h3>
-          <p className="mt-2 text-black/62">Москва / Цифровые сервисы / Продуктовый дизайнер</p>
+          <h3 className="mt-5 text-2xl font-black text-black">{fullName}</h3>
+          <p className="mt-2 text-black/62">{form.city} / {form.department} / {form.position}</p>
           <div className="mt-5 flex flex-wrap gap-2">
-            {["дети", "спорт", "дизайн", "события"].map((item) => <span key={item} className="rounded-full bg-brand/20 px-3 py-2 text-xs font-black text-black">{item}</span>)}
+            {onboardingInterests.map((item) => <span key={item} className="rounded-full bg-brand/20 px-3 py-2 text-xs font-black text-black">{item}</span>)}
           </div>
-          <Link href="/volunteer" className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-black">Завершить onboarding <ArrowRight className="size-4" /></Link>
+          <button
+            type="submit"
+            disabled={!valid || submitting}
+            aria-disabled={!valid || submitting}
+            className={cn(
+              "mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-black transition",
+              (!valid || submitting) && "cursor-not-allowed opacity-55"
+            )}
+          >
+            {submitting ? "Создаём профиль..." : "Завершить onboarding"}
+            <ArrowRight className="size-4" />
+          </button>
         </div>
-      </div>
+      </form>
     </AuthRegistrationShell>
   );
 }
 
-function AuthRegistrationShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function OnboardingField({
+  icon: Icon,
+  invalid,
+  onChange,
+  placeholder,
+  prefix,
+  type = "text",
+  value
+}: {
+  icon: LucideIcon;
+  invalid?: boolean;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  prefix?: string;
+  type?: "email" | "password" | "text";
+  value: string;
+}) {
+  return (
+    <label className={cn(
+      "flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-bold text-black/62 shadow-[inset_0_0_0_1px_rgba(24,20,7,0)] transition focus-within:shadow-[inset_0_0_0_2px_rgba(255,227,0,0.85)]",
+      invalid && "shadow-[inset_0_0_0_2px_rgba(239,68,68,0.72)]"
+    )}>
+      <Icon className="size-4 shrink-0" />
+      {prefix ? <span className="shrink-0">{prefix}</span> : null}
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type={type}
+        className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-black/32"
+      />
+    </label>
+  );
+}
+
+function AuthRegistrationShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <main className="min-h-screen bg-[#fffdf7] p-5">
       <section className="mx-auto max-w-5xl py-10">

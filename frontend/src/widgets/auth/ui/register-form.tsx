@@ -1,63 +1,36 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { LockKeyhole, Mail, MapPin, Phone, UserRound } from "lucide-react";
-import { ApiError, authService, getApiErrorMessage } from "@/shared/api";
 import { interestOptions, skillOptions } from "@/widgets/auth/model/auth-data";
+import {
+  buildVolunteerRegisterRequest,
+  defaultVolunteerRegistrationForm,
+  isVolunteerRegistrationValid
+} from "@/widgets/auth/model/volunteer-registration";
+import { useVolunteerRegistration } from "@/widgets/auth/model/use-volunteer-registration";
 import { AuthField, OptionChips } from "@/widgets/auth/ui/auth-field";
 import { RegistrationRoleCards } from "@/widgets/auth/ui/registration-role-cards";
 import type { RegistrationRole } from "@/widgets/auth/model/auth-types";
 
-function getRegisterErrorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.status === 403) {
-      return "Email не найден в базе сотрудников. Используйте корпоративную почту, добавленную администратором.";
-    }
-
-    if (error.status === 409 && error.message === "email already exists") {
-      return "Пользователь с таким email уже зарегистрирован.";
-    }
-
-    if (error.status === 409 && error.message === "employee_id already exists") {
-      return "Сотрудник с таким employee ID уже зарегистрирован.";
-    }
-  }
-
-  return getApiErrorMessage(error);
-}
-
 export function RegisterForm() {
-  const router = useRouter();
   const [role, setRole] = useState<RegistrationRole>("volunteer");
-  const [form, setForm] = useState({
-    firstName: "Анна",
-    lastName: "Смирнова",
-    email: "anna.smirnova@stoloto.local",
-    password: "",
-    confirm: "",
-    city: "Москва",
-    phone: "+7 999 123-45-67"
-  });
+  const [form, setForm] = useState(defaultVolunteerRegistrationForm);
   const [interests, setInterests] = useState(["Экология", "Образование"]);
   const [skills, setSkills] = useState(["Презентации", "Дизайн"]);
   const [agree, setAgree] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { clearFeedback, error, registerVolunteer, submitting, success } = useVolunteerRegistration();
   const valid = useMemo(() => {
-    return form.firstName.length > 1 && form.lastName.length > 1 && form.email.includes("@") && form.password.length >= 6 && form.password === form.confirm && form.city.length > 1 && form.phone.length >= 7 && interests.length > 0 && agree;
+    return isVolunteerRegistrationValid({ agree, form, interests });
   }, [form, interests, agree]);
 
   function update(field: keyof typeof form, value: string) {
-    setError(null);
-    setSuccess(null);
+    clearFeedback();
     setForm((current) => ({ ...current, [field]: value }));
   }
 
   function toggle(list: string[], setter: (value: string[]) => void, value: string) {
-    setError(null);
-    setSuccess(null);
+    clearFeedback();
     setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   }
 
@@ -65,28 +38,7 @@ export function RegisterForm() {
     event.preventDefault();
     if (!valid || submitting) return;
 
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const email = form.email.trim().toLowerCase();
-      await authService.registerVolunteer({
-        city: form.city.trim() || null,
-        email,
-        full_name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
-        interests,
-        password: form.password,
-        phone: form.phone.trim() || null,
-        skills
-      });
-      setSuccess("Профиль создан. Открываем кабинет.");
-      router.push("/volunteer/profile");
-    } catch (submitError) {
-      setError(getRegisterErrorMessage(submitError));
-    } finally {
-      setSubmitting(false);
-    }
+    await registerVolunteer(buildVolunteerRegisterRequest({ form, interests, skills }));
   }
 
   return (

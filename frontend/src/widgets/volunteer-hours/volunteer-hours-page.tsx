@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -8,24 +9,88 @@ import {
   ChevronDown,
   Clock3,
   History,
+  ShieldCheck,
   Sparkles
 } from "lucide-react";
 import { Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { getApiErrorMessage } from "@/shared/api/errors";
+import { volunteersService } from "@/shared/api/services/volunteers";
 import { HoursStatCard } from "@/widgets/volunteer-hours/ui/hours-stat-card";
 import {
-  hourCategories,
-  hourDynamics,
-  hourSummary,
-  hoursInfo,
-  hoursSteps
-} from "@/widgets/volunteer-hours/volunteer-hours-data";
+  emptyVolunteerHoursViewData,
+  mapVolunteerHoursToViewData
+} from "@/widgets/volunteer-hours/volunteer-hours-api-mappers";
+
+const hoursInfo = [
+  {
+    icon: ShieldCheck,
+    title: "Часы начисляются только за реальные выполненные задания."
+  },
+  {
+    icon: Sparkles,
+    title: "Организатор может отклонить участие, если задание не было выполнено."
+  }
+];
+
+const hoursSteps = [
+  "Вы выполняете задание или участвуете в мероприятии.",
+  "Организатор подтверждает ваше участие.",
+  "Часы начисляются на ваш счёт в течение 1-3 дней."
+];
 
 export function VolunteerHoursPage() {
+  const [hoursData, setHoursData] = useState(emptyVolunteerHoursViewData);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { categories: hourCategories, dynamics: hourDynamics, summary: hourSummary } = hoursData;
+  const monthDeltaCaption = `${hourSummary.monthDelta >= 0 ? "↑" : "↓"} ${Math.abs(hourSummary.monthDelta)} ч ${hourSummary.monthDelta >= 0 ? "больше" : "меньше"}, чем в прошлом месяце`;
+  const maxDynamicHours = Math.max(40, ...hourDynamics.map((item) => item.hours));
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHours() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const [summary, ledger, dynamics, byCategory] = await Promise.all([
+          volunteersService.getMyVolunteerHoursSummary(),
+          volunteersService.getMyVolunteerHoursLedger({ limit: 20 }),
+          volunteersService.getMyVolunteerHoursDynamics(),
+          volunteersService.getMyVolunteerHoursByCategory()
+        ]);
+
+        if (!active) return;
+
+        void ledger;
+        setHoursData(mapVolunteerHoursToViewData({ byCategory, dynamics, summary }));
+      } catch (requestError) {
+        if (active) {
+          setError(getApiErrorMessage(requestError));
+          setHoursData(emptyVolunteerHoursViewData);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadHours();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="rounded-[1.8rem] bg-white p-5 shadow-[0_24px_72px_rgba(34,28,8,0.055),inset_0_0_0_1px_rgba(24,20,7,0.045)] md:p-7">
       <header className="mb-7">
         <h1 className="text-4xl font-black leading-tight text-black md:text-[2.65rem]">Мои волонтёрские часы</h1>
         <p className="mt-3 text-base font-semibold text-black/62">Каждый час вашей помощи — это важные изменения</p>
+        {loading ? <p className="mt-3 text-sm font-bold text-black/44">Загружаем часы...</p> : null}
+        {error ? <p className="mt-3 rounded-xl bg-[#fff1f1] p-3 text-sm font-bold text-[#c83c3c]">{error}</p> : null}
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_0.9fr_0.9fr_0.95fr]">
@@ -63,7 +128,7 @@ export function VolunteerHoursPage() {
         <HoursStatCard
           title="В этом месяце"
           value={`${hourSummary.month} ч`}
-          caption={`↑ ${hourSummary.monthDelta} ч больше, чем в прошлом месяце`}
+          caption={monthDeltaCaption}
           tone="brand"
         >
           <BarMini />
@@ -83,7 +148,7 @@ export function VolunteerHoursPage() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourDynamics} margin={{ top: 22, right: 18, bottom: 0, left: -18 }}>
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: "rgba(0,0,0,0.48)" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: "rgba(0,0,0,0.42)" }} domain={[0, 40]} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: "rgba(0,0,0,0.42)" }} domain={[0, maxDynamicHours]} />
                 <Tooltip
                   cursor={{ stroke: "rgba(255,227,0,0.55)", strokeWidth: 2 }}
                   contentStyle={{
@@ -98,7 +163,7 @@ export function VolunteerHoursPage() {
                   labelFormatter={(label) => `${label}`}
                 />
                 <Line type="monotone" dataKey="hours" stroke="#FFE300" strokeWidth={3} dot={{ r: 5, fill: "#FFE300", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 7, fill: "#FFE300", stroke: "#111", strokeWidth: 2 }} />
-                <LabelList dataKey="hours" content={(props) => <HourPointLabel {...props} />} />
+                <LabelList dataKey="hours" content={(props) => <HourPointLabel {...props} totalPoints={hourDynamics.length} />} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -254,7 +319,7 @@ function BarMini() {
   );
 }
 
-function HourPointLabel(props: { x?: string | number; y?: string | number; value?: string | number; index?: number }) {
+function HourPointLabel(props: { x?: string | number; y?: string | number; value?: string | number; index?: number; totalPoints: number }) {
   const x = Number(props.x ?? 0);
   const y = Number(props.y ?? 0);
   const value = Number(props.value ?? 0);
@@ -262,7 +327,7 @@ function HourPointLabel(props: { x?: string | number; y?: string | number; value
   if (value == null) {
     return null;
   }
-  const isLast = index === hourDynamics.length - 1;
+  const isLast = index === props.totalPoints - 1;
   return (
     <g>
       {isLast ? (
