@@ -1,15 +1,22 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_roles
 from app.db.session import get_session
 from app.models.domain import User
-from app.models.enums import UserRole
+from app.models.enums import DurationType, HelpCategory, ParticipationFormat, TaskType, UserRole
 from app.schemas.funds import (
     FundDashboardSummary,
     FundDocumentResponse,
+    FundMediaUploadResponse,
+    FundReportHoursByMonthResponse,
+    FundReportParticipantRow,
+    FundReportSummaryResponse,
+    PublicFundListItemResponse,
+    PublicFundProfileResponse,
     FundProfileResponse,
     FundUpdateRequest,
 )
@@ -20,8 +27,24 @@ from app.services.fund_service import (
     get_fund_dashboard_summary,
     get_fund_by_id,
     get_fund_by_representative,
+    get_public_fund_by_id,
+    get_public_fund_stats,
+    list_public_funds,
     update_fund_profile,
+    upload_fund_cover,
 )
+from app.services.fund_report_service import (
+    build_fund_hours_csv,
+    build_fund_hours_xlsx,
+    build_fund_participants_csv,
+    build_fund_participants_xlsx,
+    get_fund_report_hours_by_month,
+    get_fund_report_participants,
+    get_fund_report_summary,
+)
+from app.schemas.tasks import TaskFeedSort, TaskResponse
+from app.services.task_service import list_published_tasks
+
 
 router = APIRouter()
 
@@ -29,6 +52,44 @@ router = APIRouter()
 @router.get("/ping")
 async def ping() -> dict[str, str]:
     return {"module": "funds"}
+
+@router.get("", response_model=list[PublicFundListItemResponse])
+async def list_approved_funds(
+    search: str | None = Query(default=None, min_length=2),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_session),
+) -> list[PublicFundListItemResponse]:
+    funds = await list_public_funds(
+        session,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+    result: list[PublicFundListItemResponse] = []
+
+    for fund in funds:
+        active_tasks, awarded_hours_total, _ = await get_public_fund_stats(session, fund.id)
+
+        result.append(
+            PublicFundListItemResponse(
+                id=fund.id,
+                name=fund.name,
+                description=fund.description,
+                help_categories=fund.help_categories,
+                region=fund.region,
+                website_url=fund.website_url,
+                cover_url=fund.cover_url,
+                socials=fund.socials,
+                vk_url=fund.vk_url,
+                max_url=fund.max_url,
+                active_tasks=active_tasks,
+                awarded_hours_total=awarded_hours_total,
+            )
+        )
+
+    return result
 
 
 @router.get("/me", response_model=FundProfileResponse)
@@ -81,6 +142,26 @@ async def upload_my_fund_document(
     return FundDocumentResponse.model_validate(document)
 
 
+@router.post("/me/cover", response_model=FundMediaUploadResponse)
+async def upload_my_fund_cover(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundMediaUploadResponse:
+    try:
+        file_url = await upload_fund_cover(
+            session,
+            current_user=current_user,
+            file=file,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    except EmptyFundDocumentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file") from exc
+
+    return FundMediaUploadResponse(file_url=file_url)
+
+
 @router.get("/me/dashboard", response_model=FundDashboardSummary)
 async def get_my_fund_dashboard(
     current_user: User = Depends(require_roles(UserRole.FUND)),
@@ -90,6 +171,232 @@ async def get_my_fund_dashboard(
         return await get_fund_dashboard_summary(session, current_user)
     except FundNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    
+
+@router.get("/me/reports/summary", response_model=FundReportSummaryResponse)
+async def get_my_fund_report_summary(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundReportSummaryResponse:
+    try:
+        report = await get_fund_report_summary(session, current_user)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    return FundReportSummaryResponse.model_validate(report)
+
+
+@router.get("/me/reports/participants", response_model=list[FundReportParticipantRow])
+async def get_my_fund_report_participants(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> list[FundReportParticipantRow]:
+    try:
+        rows = await get_fund_report_participants(
+            session,
+            current_user,
+            limit=limit,
+            offset=offset,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    return [FundReportParticipantRow.model_validate(row) for row in rows]
+
+
+@router.get("/me/reports/hours", response_model=list[FundReportHoursByMonthResponse])
+async def get_my_fund_report_hours(
+    months: int = Query(default=12, ge=1, le=36),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> list[FundReportHoursByMonthResponse]:
+    try:
+        rows = await get_fund_report_hours_by_month(
+            session,
+            current_user,
+            months=months,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    return [FundReportHoursByMonthResponse.model_validate(row) for row in rows]
+
+
+@router.get("/me/reports/participants.csv")
+async def export_my_fund_participants_csv(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        rows = await get_fund_report_participants(
+            session,
+            current_user,
+            limit=10000,
+            offset=0,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    content = build_fund_participants_csv(rows)
+
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="fund_participants.csv"'},
+    )
+
+
+@router.get("/me/reports/participants.xlsx")
+async def export_my_fund_participants_xlsx(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        rows = await get_fund_report_participants(
+            session,
+            current_user,
+            limit=10000,
+            offset=0,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    content = build_fund_participants_xlsx(rows)
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="fund_participants.xlsx"'},
+    )
+
+
+@router.get("/me/reports/hours.csv")
+async def export_my_fund_hours_csv(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        rows = await get_fund_report_hours_by_month(
+            session,
+            current_user,
+            months=120,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    content = build_fund_hours_csv(rows)
+
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="fund_hours.csv"'},
+    )
+
+
+@router.get("/me/reports/hours.xlsx")
+async def export_my_fund_hours_xlsx(
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        rows = await get_fund_report_hours_by_month(
+            session,
+            current_user,
+            months=120,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    content = build_fund_hours_xlsx(rows)
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="fund_hours.xlsx"'},
+    )
+
+
+@router.get("/{fund_id}/public", response_model=PublicFundProfileResponse)
+async def get_public_fund_profile(
+    fund_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> PublicFundProfileResponse:
+    try:
+        fund = await get_public_fund_by_id(session, fund_id)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+
+    active_tasks, awarded_hours_total, volunteers_total = await get_public_fund_stats(
+        session,
+        fund.id,
+    )
+
+    public_documents = [
+        document
+        for document in fund.documents
+        if document.is_public
+    ]
+
+    return PublicFundProfileResponse(
+        id=fund.id,
+        name=fund.name,
+        description=fund.description,
+        help_categories=fund.help_categories,
+        region=fund.region,
+        website_url=fund.website_url,
+        cover_url=fund.cover_url,
+        socials=fund.socials,
+        vk_url=fund.vk_url,
+        max_url=fund.max_url,
+        planned_help=fund.planned_help,
+        contact_person=fund.contact_person,
+        contact_email=fund.contact_email,
+        documents=[
+            FundDocumentResponse.model_validate(document)
+            for document in public_documents
+        ],
+        active_tasks=active_tasks,
+        awarded_hours_total=awarded_hours_total,
+        volunteers_total=volunteers_total,
+        created_at=fund.created_at,
+    )
+
+
+@router.get("/{fund_id}/tasks", response_model=list[TaskResponse])
+async def list_public_fund_tasks(
+    fund_id: UUID,
+    city: str | None = Query(default=None),
+    category: HelpCategory | None = None,
+    participation_format: ParticipationFormat | None = None,
+    duration_type: DurationType | None = None,
+    task_type: TaskType | None = None,
+    search: str | None = Query(default=None, min_length=2),
+    required_skill: str | None = Query(default=None),
+    available_only: bool = True,
+    sort: TaskFeedSort = TaskFeedSort.PUBLISHED_AT_DESC,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_session),
+) -> list[TaskResponse]:
+    tasks = await list_published_tasks(
+        session,
+        city=city,
+        category=category,
+        participation_format=participation_format,
+        duration_type=duration_type,
+        task_type=task_type,
+        fund_id=fund_id,
+        search=search,
+        required_skill=required_skill,
+        available_only=available_only,
+        sort=sort,
+        limit=limit,
+        offset=offset,
+    )
+
+    return [TaskResponse.model_validate(task) for task in tasks]
 
 
 @router.get("/{fund_id}", response_model=FundProfileResponse)

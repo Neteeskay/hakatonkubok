@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import UUID as PyUUID, uuid4
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -77,11 +78,14 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str | None] = mapped_column(String(255))
     city: Mapped[str | None] = mapped_column(String(120))
     phone: Mapped[str | None] = mapped_column(String(40))
+    avatar_url: Mapped[str | None] = mapped_column(String(700))
+    about: Mapped[str | None] = mapped_column(Text)
     employee_id: Mapped[str | None] = mapped_column(String(80), unique=True)
     department: Mapped[str | None] = mapped_column(String(160))
     position: Mapped[str | None] = mapped_column(String(160))
     interests: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    pro_bono_skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"), nullable=False)
 
     fund: Mapped["Fund | None"] = relationship(
@@ -159,6 +163,10 @@ class Fund(Base, TimestampMixin):
     ogrn: Mapped[str | None] = mapped_column(String(15))
     region: Mapped[str | None] = mapped_column(String(160))
     website_url: Mapped[str | None] = mapped_column(String(500))
+    cover_url: Mapped[str | None] = mapped_column(String(700))
+    socials: Mapped[dict | None] = mapped_column(JSONB)
+    vk_url: Mapped[str | None] = mapped_column(String(500))
+    max_url: Mapped[str | None] = mapped_column(String(500))
     contact_person: Mapped[str | None] = mapped_column(String(255))
     contact_position: Mapped[str | None] = mapped_column(String(160))
     contact_email: Mapped[str | None] = mapped_column(String(320))
@@ -197,6 +205,12 @@ class FundDocument(Base, TimestampMixin):
     )
     document_type: Mapped[str] = mapped_column(String(120), nullable=False)
     file_url: Mapped[str] = mapped_column(String(700), nullable=False)
+    is_public: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+    )
 
     fund: Mapped[Fund] = relationship(back_populates="documents")
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +20,9 @@ from app.schemas.volunteers import (
     VolunteerHoursDynamicsItemResponse,
     VolunteerHoursLedgerItemResponse,
     VolunteerHoursSummaryResponse,
+    AvatarUploadResponse,
+    PublicVolunteerProfileResponse,
+    VolunteerProfileResponse,
 )
 from app.services.achievement_service import (
     get_volunteer_achievement_overview,
@@ -39,6 +42,15 @@ from app.services.volunteer_hours_service import (
     list_volunteer_hours_by_category,
     list_volunteer_hours_dynamics,
     list_volunteer_hours_ledger,
+)
+
+from app.services.volunteer_profile_service import (
+    EmptyAvatarError,
+    InvalidAvatarTypeError,
+    VolunteerNotFoundError,
+    get_my_volunteer_profile,
+    get_public_volunteer_profile,
+    upload_volunteer_avatar,
 )
 
 
@@ -63,6 +75,57 @@ async def update_my_profile(
     await session.commit()
     await session.refresh(current_user)
     return current_user
+
+
+@router.get("/me/profile", response_model=VolunteerProfileResponse)
+async def get_my_profile(
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> VolunteerProfileResponse:
+    profile = await get_my_volunteer_profile(session, current_user)
+    return VolunteerProfileResponse.model_validate(profile)
+
+
+@router.post("/me/avatar", response_model=AvatarUploadResponse)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.VOLUNTEER)),
+    session: AsyncSession = Depends(get_session),
+) -> AvatarUploadResponse:
+    try:
+        avatar_url = await upload_volunteer_avatar(
+            session,
+            user=current_user,
+            file=file,
+        )
+    except EmptyAvatarError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="empty avatar file",
+        ) from exc
+    except InvalidAvatarTypeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="avatar must be png, jpeg or webp",
+        ) from exc
+
+    return AvatarUploadResponse(avatar_url=avatar_url)
+
+
+@router.get("/{volunteer_id}/public", response_model=PublicVolunteerProfileResponse)
+async def get_public_volunteer(
+    volunteer_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> PublicVolunteerProfileResponse:
+    try:
+        profile = await get_public_volunteer_profile(session, volunteer_id)
+    except VolunteerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="volunteer not found",
+        ) from exc
+
+    return PublicVolunteerProfileResponse.model_validate(profile)
 
 
 @router.get("/me/history", response_model=list[VolunteerHistoryItemResponse])

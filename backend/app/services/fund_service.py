@@ -249,3 +249,107 @@ async def add_fund_document(
     await session.commit()
     await session.refresh(document)
     return document
+
+
+async def upload_fund_cover(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    file: UploadFile,
+) -> str:
+    fund = await get_fund_by_representative(session, current_user)
+
+    content = await file.read()
+    if not content:
+        raise EmptyFundDocumentError
+
+    filename = f"{uuid4()}_{safe_filename(file.filename or 'cover')}"
+    relative_path = Path("uploads") / "funds" / str(fund.id) / "cover" / filename
+    storage_path = Path(settings.uploads_dir) / "funds" / str(fund.id) / "cover" / filename
+
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_bytes(content)
+
+    fund.cover_url = relative_path.as_posix()
+
+    await session.commit()
+    await session.refresh(fund)
+
+    return fund.cover_url
+
+
+async def list_public_funds(
+    session: AsyncSession,
+    *,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Fund]:
+    statement = (
+        select(Fund)
+        .options(*fund_load_options())
+        .where(Fund.status == FundStatus.APPROVED)
+        .order_by(Fund.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+
+    if search:
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(Fund.name.ilike(pattern))
+
+    result = await session.execute(statement)
+    return list(result.scalars().all())
+
+
+async def get_public_fund_by_id(
+    session: AsyncSession,
+    fund_id: UUID,
+) -> Fund:
+    result = await session.execute(
+        select(Fund)
+        .options(*fund_load_options())
+        .where(Fund.id == fund_id, Fund.status == FundStatus.APPROVED)
+    )
+    fund = result.scalar_one_or_none()
+    if fund is None:
+        raise FundNotFoundError
+    return fund
+
+
+async def get_public_fund_stats(
+    session: AsyncSession,
+    fund_id: UUID,
+) -> tuple[int, Decimal, int]:
+    active_tasks = await session.scalar(
+        select(func.count(VolunteerTask.id))
+        .where(VolunteerTask.fund_id == fund_id)
+        .where(VolunteerTask.status == TaskStatus.PUBLISHED)
+    )
+
+    awarded_hours_total = await session.scalar(
+        select(func.coalesce(func.sum(VolunteerHourLedger.hours), 0))
+        .join(VolunteerTask, VolunteerTask.id == VolunteerHourLedger.task_id)
+        .where(VolunteerTask.fund_id == fund_id)
+    )
+
+    volunteers_total = await session.scalar(
+        select(func.count(func.distinct(TaskApplication.volunteer_id)))
+        .join(VolunteerTask, VolunteerTask.id == TaskApplication.task_id)
+        .where(VolunteerTask.fund_id == fund_id)
+        .where(
+            TaskApplication.status.in_(
+                [
+                    ApplicationStatus.ACCEPTED,
+                    ApplicationStatus.COMPLETION_CONFIRMED,
+                    ApplicationStatus.HOURS_AWARDED,
+                ]
+            )
+        )
+    )
+
+    return (
+        int(active_tasks or 0),
+        Decimal(awarded_hours_total or 0),
+        int(volunteers_total or 0),
+    )

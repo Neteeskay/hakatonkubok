@@ -28,6 +28,7 @@ class FundRepresentativeResponse(BaseModel):
 class FundDocumentResponse(BaseModel):
     id: UUID
     fund_id: UUID
+    is_public: bool
     document_type: str
     file_url: str
     created_at: datetime
@@ -45,6 +46,10 @@ class FundProfileResponse(BaseModel):
     ogrn: str | None
     region: str | None
     website_url: str | None
+    cover_url: str | None
+    socials: dict | None
+    vk_url: str | None
+    max_url: str | None
     contact_person: str | None
     contact_position: str | None
     contact_email: str | None
@@ -90,6 +95,9 @@ class FundUpdateRequest(BaseModel):
     ogrn: str | None = Field(default=None, max_length=15)
     region: str | None = Field(default=None, max_length=160)
     website_url: str | None = Field(default=None, max_length=500)
+    socials: dict | None = None
+    vk_url: str | None = Field(default=None, max_length=500)
+    max_url: str | None = Field(default=None, max_length=500)
     contact_person: str | None = Field(default=None, max_length=255)
     contact_position: str | None = Field(default=None, max_length=160)
     contact_email: str | None = Field(default=None, max_length=320)
@@ -127,3 +135,84 @@ class FundModerationRequest(BaseModel):
         if self.moderation_comment is not None:
             self.moderation_comment = self.moderation_comment.strip()
         return self
+
+
+class FundMediaUploadResponse(BaseModel):
+    file_url: str
+
+    model_config = {"from_attributes": True}
+
+
+class PublicFundListItemResponse(BaseModel):
+    id: UUID
+    name: str
+    description: str | None
+    help_categories: list[str] | None
+    region: str | None
+    website_url: str | None
+    cover_url: str | None
+    socials: dict | None
+    vk_url: str | None
+    max_url: str | None
+    active_tasks: int
+    awarded_hours_total: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PublicFundProfileResponse(BaseModel):
+    id: UUID
+    name: str
+    description: str | None
+    help_categories: list[str] | None
+    region: str | None
+    website_url: str | None
+    cover_url: str | None
+    socials: dict | None
+    vk_url: str | None
+    max_url: str | None
+    planned_help: str | None
+    contact_person: str | None
+    contact_email: str | None
+    documents: list[FundDocumentResponse] = Field(default_factory=list)
+    active_tasks: int
+    awarded_hours_total: Decimal
+    volunteers_total: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FundReportSummaryResponse(BaseModel):
+    fund_id: UUID
+    fund_name: str
+    tasks_total: int
+    tasks_published: int
+    tasks_closed: int
+    applications_total: int
+    accepted_applications: int
+    completed_applications: int
+    participants_total: int
+    awarded_hours_total: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class FundReportParticipantRow(BaseModel):
+    volunteer_id: UUID
+    full_name: str | None
+    email: str
+    city: str | None
+    applications_count: int
+    completed_tasks_count: int
+    awarded_hours: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class FundReportHoursByMonthResponse(BaseModel):
+    period: datetime
+    hours: Decimal
+    entries_count: int
+
+    model_config = {"from_attributes": True}

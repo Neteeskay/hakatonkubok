@@ -118,6 +118,8 @@ class VolunteerProfileUpdateRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=40)
     interests: list[str] | None = None
     skills: list[str] | None = None
+    about: str | None = Field(default=None, max_length=3000)
+    pro_bono_skills: list[str] | None = None
 
     @field_validator("full_name", "city", "phone")
     @classmethod
@@ -127,7 +129,7 @@ class VolunteerProfileUpdateRequest(BaseModel):
         stripped = value.strip()
         return stripped or None
 
-    @field_validator("interests", "skills")
+    @field_validator("interests", "skills", "pro_bono_skills")
     @classmethod
     def normalize_list(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
@@ -186,5 +188,64 @@ class VolunteerHoursByCategoryItemResponse(BaseModel):
     category: HelpCategory
     hours: Decimal
     tasks_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class VolunteerProfileStatsResponse(BaseModel):
+    total_hours: Decimal
+    completed_tasks: int
+    applications_total: int
+    active_applications: int
+    achievements_total: int
+    achievements_awarded: int
+    profile_level: int
+    profile_level_title: str
+    next_level_hours: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class VolunteerProfileResponse(BaseModel):
+    id: UUID
+    email: str
+    full_name: str | None = None
+    city: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+    about: str | None = None
+    department: str | None = None
+    position: str | None = None
+    interests: list[str] | None = None
+    skills: list[str] | None = None
+    pro_bono_skills: list[str] | None = None
+    created_at: datetime
+    updated_at: datetime
+    stats: VolunteerProfileStatsResponse
+    achievements: list[VolunteerAchievementResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class PublicVolunteerProfileResponse(BaseModel):
+    id: UUID
+    full_name: str | None = None
+    city: str | None = None
+    avatar_url: str | None = None
+    about: str | None = None
+    department: str | None = None
+    position: str | None = None
+    interests: list[str] | None = None
+    skills: list[str] | None = None
+    pro_bono_skills: list[str] | None = None
+    created_at: datetime
+    stats: VolunteerProfileStatsResponse
+    achievements: list[VolunteerAchievementResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class AvatarUploadResponse(BaseModel):
+    avatar_url: str
 
     model_config = {"from_attributes": True}
