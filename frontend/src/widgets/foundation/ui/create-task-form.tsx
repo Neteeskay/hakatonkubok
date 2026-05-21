@@ -1,13 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-<<<<<<< Updated upstream
-import { ArrowRight, CheckCircle2, Link2, Mail, MessageCircle, Phone, Send, Smartphone, X, type LucideIcon } from "lucide-react";
-import { getApiErrorMessage } from "@/shared/api";
-=======
 import { ArrowRight, CheckCircle2, Eye, Link2, LockKeyhole, Mail, MessageCircle, Phone, Send, Smartphone, X, type LucideIcon } from "lucide-react";
+import { getApiErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib/utils";
->>>>>>> Stashed changes
 import { SkillsInput } from "@/widgets/volunteer-profile/ui/skills-input";
 import type { FoundationContactVisibility, FoundationTaskItem } from "@/widgets/foundation/foundation-data";
 
@@ -29,6 +25,7 @@ export interface FoundationTaskFormValues {
   format: "Онлайн" | "Офлайн";
   hours: string;
   instructions: string;
+  contactVisibility: FoundationContactVisibility;
   location: string;
   periodicity: string;
   phone: string;
@@ -61,21 +58,10 @@ export function CreateTaskForm({
   const [category, setCategory] = useState(initialTask?.category ?? "События");
   const [city, setCity] = useState(initialTask?.city === "Онлайн" ? "Онлайн" : initialTask?.city ?? "Москва");
   const [period, setPeriod] = useState(initialTask?.period?.includes("Регуляр") ? "Регулярное" : "Разовое");
-<<<<<<< Updated upstream
   const [location, setLocation] = useState("");
   const [deadline, setDeadline] = useState(initialTask?.deadline ?? "");
   const [capacity, setCapacity] = useState(initialTask ? String(initialTask.capacity) : "");
   const [hours, setHours] = useState(initialTask ? String(initialTask.hours) : "");
-  const [telegram, setTelegram] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [chatLink, setChatLink] = useState("");
-  const [contactNote, setContactNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-=======
   const [contactVisibility, setContactVisibility] = useState<FoundationContactVisibility>(initialTask?.contactVisibility ?? "after_acceptance");
   const [telegram, setTelegram] = useState(initialTask?.contacts.telegram ?? "");
   const [whatsapp, setWhatsapp] = useState(initialTask?.contacts.whatsapp ?? "");
@@ -83,7 +69,9 @@ export function CreateTaskForm({
   const [phone, setPhone] = useState(initialTask?.contacts.phone ?? "");
   const [chatLink, setChatLink] = useState(initialTask?.contacts.chatLink ?? "");
   const [contactNote, setContactNote] = useState(initialTask?.contacts.instruction ?? "");
->>>>>>> Stashed changes
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const text = `${title} ${description} ${instructions} ${contactNote}`.toLowerCase();
   const fundraisingDetected = useMemo(() => forbiddenWords.some((word) => text.includes(word)), [text]);
@@ -102,6 +90,7 @@ export function CreateTaskForm({
         category,
         chatLink,
         city,
+        contactVisibility,
         contactNote,
         deadline,
         description,
@@ -203,21 +192,7 @@ export function CreateTaskForm({
           </div>
           <button
             disabled={!canSubmit}
-<<<<<<< Updated upstream
             onClick={submitTask}
-=======
-            onClick={() => onSubmit?.({
-              title,
-              description,
-              category,
-              city,
-              format: format as FoundationTaskItem["format"],
-              status: "moderation",
-              moderationComment: undefined,
-              contactVisibility,
-              contacts: { telegram, whatsapp, email, phone, chatLink, instruction: contactNote }
-            })}
->>>>>>> Stashed changes
             className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-sm font-black text-black shadow-[0_14px_32px_rgba(255,227,0,0.24)] transition hover:brightness-95 disabled:bg-[#ece8dc] disabled:text-black/34 disabled:shadow-none"
           >
             {submitting ? "Отправляем..." : submitLabel}

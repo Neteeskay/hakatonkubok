@@ -79,6 +79,17 @@ function taskFormat(task: TaskResponse): FoundationTaskItem["format"] {
   return task.participation_format === "online" ? "Онлайн" : "Офлайн";
 }
 
+function taskContacts(task: TaskResponse): FoundationTaskItem["contacts"] {
+  return {
+    telegram: "",
+    whatsapp: "",
+    email: "",
+    phone: "",
+    chatLink: task.materials_url || task.online_url || "",
+    instruction: task.requirements || ""
+  };
+}
+
 export function mapTaskResponseToFoundationTask(task: TaskResponse, applications: ApplicationResponse[] = []): FoundationTaskItem {
   const taskApplications = applicationsForTask(applications, task.id);
 
@@ -97,7 +108,9 @@ export function mapTaskResponseToFoundationTask(task: TaskResponse, applications
     responses: taskApplications.length,
     hours: Number(task.expected_hours),
     status: taskStatus(task.status),
-    moderationComment: task.moderation_comment ?? undefined
+    moderationComment: task.moderation_comment ?? undefined,
+    contactVisibility: "after_acceptance",
+    contacts: taskContacts(task)
   };
 }
 
@@ -118,9 +131,11 @@ export function mapApplicationResponseToFoundationApplication(application: Appli
     interests: task ? [getCategoryLabel(task.category)] : [],
     hoursHistory: 0,
     completedActivities: 0,
+    relevance: 0,
     status,
     comment: application.fund_comment || application.volunteer_comment || application.completion_comment || applicationCommentByStatus(status),
     nextStep: applicationNextStepByStatus(status),
+    appliedAt: formatDate(application.created_at),
     attendanceDecision: status === "confirmed" || status === "completed" ? "participated" : "pending",
     taskId: application.task_id
   };
@@ -362,6 +377,7 @@ function applicationCommentByStatus(status: FoundationApplicationStatus) {
     clarify: "Фонд запросил уточнение перед финальным решением.",
     completed: "Участие отмечено как завершённое.",
     confirmed: "Участие подтверждено фондом.",
+    not_completed: "Участие закрыто как невыполненное с комментарием.",
     rejected: "Заявка отклонена с комментарием фонда.",
     review: "Заявка ожидает решения фонда."
   };
@@ -374,6 +390,7 @@ function applicationNextStepByStatus(status: FoundationApplicationStatus) {
     clarify: "Дождитесь ответа волонтёра",
     completed: "Проверьте результат участия",
     confirmed: "Участие закрыто",
+    not_completed: "Результат зафиксирован",
     rejected: "Заявка закрыта",
     review: "Примите решение по заявке"
   };

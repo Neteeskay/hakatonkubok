@@ -28,9 +28,6 @@ import {
 } from "@/widgets/foundation/foundation-data";
 import { FoundationStatusBadge } from "@/widgets/foundation/ui/foundation-status-badge";
 
-<<<<<<< Updated upstream
-export function FoundationApplicationCard({ item, onStatusChange }: { item: FoundationApplicationItem; onStatusChange?: (id: string, status: FoundationApplicationStatus) => Promise<void> | void }) {
-=======
 type CommentAction = Extract<FoundationApplicationStatus, "rejected" | "not_completed">;
 
 export function FoundationApplicationCard({
@@ -40,11 +37,10 @@ export function FoundationApplicationCard({
 }: {
   item: FoundationApplicationItem;
   task: FoundationTaskItem;
-  onStatusChange?: (id: string, status: FoundationApplicationStatus, comment?: string) => void;
+  onStatusChange?: (id: string, status: FoundationApplicationStatus, comment?: string) => Promise<void> | void;
 }) {
   const [commentAction, setCommentAction] = useState<CommentAction | null>(null);
   const [comment, setComment] = useState("");
->>>>>>> Stashed changes
   const status = applicationStatusConfig[item.status];
   const styles = foundationToneStyles[status.tone];
   const Icon = status.icon;
