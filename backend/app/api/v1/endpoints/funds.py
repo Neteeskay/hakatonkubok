@@ -10,6 +10,7 @@ from app.models.domain import User
 from app.models.enums import DurationType, HelpCategory, ParticipationFormat, TaskType, UserRole
 from app.schemas.funds import (
     FundDashboardSummary,
+    FundDocumentVisibilityRequest,
     FundDocumentResponse,
     FundMediaUploadResponse,
     FundReportHoursByMonthResponse,
@@ -26,6 +27,9 @@ from app.services.fund_service import (
     add_fund_document,
     get_fund_dashboard_summary,
     get_fund_by_id,
+    FundDocumentNotFoundError,
+    update_fund_document_visibility,
+    upload_fund_logo,
     get_fund_by_representative,
     get_public_fund_by_id,
     get_public_fund_stats,
@@ -76,6 +80,7 @@ async def list_approved_funds(
             PublicFundListItemResponse(
                 id=fund.id,
                 name=fund.name,
+                logo_url=fund.logo_url,
                 description=fund.description,
                 help_categories=fund.help_categories,
                 region=fund.region,
@@ -142,6 +147,28 @@ async def upload_my_fund_document(
     return FundDocumentResponse.model_validate(document)
 
 
+@router.patch("/me/documents/{document_id}/visibility", response_model=FundDocumentResponse)
+async def update_my_fund_document_visibility(
+    document_id: UUID,
+    payload: FundDocumentVisibilityRequest,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundDocumentResponse:
+    try:
+        document = await update_fund_document_visibility(
+            session,
+            current_user=current_user,
+            document_id=document_id,
+            is_public=payload.is_public,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    except FundDocumentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found") from exc
+
+    return FundDocumentResponse.model_validate(document)
+
+
 @router.post("/me/cover", response_model=FundMediaUploadResponse)
 async def upload_my_fund_cover(
     file: UploadFile = File(...),
@@ -150,6 +177,26 @@ async def upload_my_fund_cover(
 ) -> FundMediaUploadResponse:
     try:
         file_url = await upload_fund_cover(
+            session,
+            current_user=current_user,
+            file=file,
+        )
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="fund not found") from exc
+    except EmptyFundDocumentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file") from exc
+
+    return FundMediaUploadResponse(file_url=file_url)
+
+
+@router.post("/me/logo", response_model=FundMediaUploadResponse)
+async def upload_my_fund_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> FundMediaUploadResponse:
+    try:
+        file_url = await upload_fund_logo(
             session,
             current_user=current_user,
             file=file,
@@ -343,6 +390,7 @@ async def get_public_fund_profile(
         id=fund.id,
         name=fund.name,
         description=fund.description,
+        logo_url=fund.logo_url,
         help_categories=fund.help_categories,
         region=fund.region,
         website_url=fund.website_url,

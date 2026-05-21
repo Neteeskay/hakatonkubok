@@ -45,6 +45,9 @@ class TaskResponse(BaseModel):
     ends_at: datetime | None
     deadline_at: datetime | None
     participant_limit: int | None
+    filled_spots: int = 0
+    available_spots: int | None = None
+    applications_count: int = 0
     requirements: str | None
     required_skills: list[str] | None
     expected_hours: Decimal

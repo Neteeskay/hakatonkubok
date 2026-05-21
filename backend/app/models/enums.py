@@ -26,6 +26,7 @@ class TaskStatus(StrEnum):
 
 class ApplicationStatus(StrEnum):
     APPLIED = "applied"
+    CLARIFY = "clarify"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     CANCELED = "canceled"

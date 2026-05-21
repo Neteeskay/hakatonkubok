@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.domain import Fund, User, VolunteerTask
+from app.models.domain import Fund, Notification, User, VolunteerTask
 from app.models.enums import (
     DurationType,
     FundStatus,
@@ -53,8 +53,11 @@ class InvalidTaskDataError(TaskError):
     pass
 
 
-def task_load_options() -> tuple[object]:
-    return (selectinload(VolunteerTask.fund),)
+def task_load_options() -> tuple[object, object]:
+    return (
+        selectinload(VolunteerTask.fund),
+        selectinload(VolunteerTask.applications),
+    )
 
 
 def ensure_fund_approved(fund: Fund) -> None:
@@ -353,6 +356,37 @@ async def moderate_task(
         task.published_at = None
 
     task.closed_at = None
+
+    notification_titles = {
+        TaskStatus.PUBLISHED: "Задание опубликовано",
+        TaskStatus.NEEDS_CHANGES: "Задание требует доработки",
+        TaskStatus.REJECTED: "Задание отклонено",
+    }
+
+    notification_bodies = {
+        TaskStatus.PUBLISHED: (
+            f"Ваше задание «{task.title}» прошло модерацию и опубликовано."
+        ),
+        TaskStatus.NEEDS_CHANGES: (
+            f"Ваше задание «{task.title}» требует доработки.\n\n"
+            f"Комментарий администратора:\n"
+            f"{task.moderation_comment or 'Комментарий не указан'}"
+        ),
+        TaskStatus.REJECTED: (
+            f"Ваше задание «{task.title}» отклонено.\n\n"
+            f"Комментарий администратора:\n"
+            f"{task.moderation_comment or 'Комментарий не указан'}"
+        ),
+    }
+
+    if target_status in notification_titles:
+        session.add(
+            Notification(
+                user_id=task.fund.representative_user_id,
+                title=notification_titles[target_status],
+                body=notification_bodies[target_status],
+            )
+        )
 
     await session.commit()
     return await get_task_by_id(session, task.id)

@@ -164,6 +164,7 @@ class Fund(Base, TimestampMixin):
     region: Mapped[str | None] = mapped_column(String(160))
     website_url: Mapped[str | None] = mapped_column(String(500))
     cover_url: Mapped[str | None] = mapped_column(String(700))
+    logo_url: Mapped[str | None] = mapped_column(String(700))
     socials: Mapped[dict | None] = mapped_column(JSONB)
     vk_url: Mapped[str | None] = mapped_column(String(500))
     max_url: Mapped[str | None] = mapped_column(String(500))
@@ -317,6 +318,33 @@ class VolunteerTask(Base, TimestampMixin):
         passive_deletes=True,
     )
 
+    @property
+    def filled_spots(self) -> int:
+        return sum(
+            1
+            for application in self.applications
+            if application.status
+            in {
+                ApplicationStatus.ACCEPTED,
+                ApplicationStatus.COMPLETION_CONFIRMED,
+                ApplicationStatus.HOURS_AWARDED,
+            }
+        )
+
+    @property
+    def available_spots(self) -> int | None:
+        if self.participant_limit is None:
+            return None
+        return max(self.participant_limit - self.filled_spots, 0)
+
+    @property
+    def applications_count(self) -> int:
+        return sum(
+            1
+            for application in self.applications
+            if application.status != ApplicationStatus.CANCELED
+        )
+
 
 class TaskApplication(Base, TimestampMixin):
     __tablename__ = "task_application"
@@ -332,7 +360,7 @@ class TaskApplication(Base, TimestampMixin):
             name="task_application_canceled_at_required",
         ),
         CheckConstraint(
-            "status NOT IN ('accepted', 'rejected', 'completion_confirmed', 'hours_awarded') "
+            "status NOT IN ('clarify', 'accepted', 'rejected', 'completion_confirmed', 'hours_awarded') "
             "OR decided_at IS NOT NULL",
             name="task_application_decided_at_required",
         ),

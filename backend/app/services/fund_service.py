@@ -37,6 +37,10 @@ class EmptyFundDocumentError(FundError):
     pass
 
 
+class FundDocumentNotFoundError(FundError):
+    pass
+
+
 class InvalidFundStatusTransitionError(FundError):
     pass
 
@@ -276,6 +280,60 @@ async def upload_fund_cover(
     await session.refresh(fund)
 
     return fund.cover_url
+
+
+async def upload_fund_logo(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    file: UploadFile,
+) -> str:
+    fund = await get_fund_by_representative(session, current_user)
+
+    content = await file.read()
+    if not content:
+        raise EmptyFundDocumentError
+
+    filename = f"{uuid4()}_{safe_filename(file.filename or 'logo')}"
+    relative_path = Path("uploads") / "funds" / str(fund.id) / "logo" / filename
+    storage_path = Path(settings.uploads_dir) / "funds" / str(fund.id) / "logo" / filename
+
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_bytes(content)
+
+    fund.logo_url = relative_path.as_posix()
+
+    await session.commit()
+    await session.refresh(fund)
+
+    return fund.logo_url
+
+
+async def update_fund_document_visibility(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    document_id: UUID,
+    is_public: bool,
+) -> FundDocument:
+    fund = await get_fund_by_representative(session, current_user)
+
+    document = await session.scalar(
+        select(FundDocument).where(
+            FundDocument.id == document_id,
+            FundDocument.fund_id == fund.id,
+        )
+    )
+
+    if document is None:
+        raise FundDocumentNotFoundError
+
+    document.is_public = is_public
+
+    await session.commit()
+    await session.refresh(document)
+
+    return document
 
 
 async def list_public_funds(

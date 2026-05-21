@@ -25,6 +25,12 @@ TASK_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
 
 APPLICATION_TRANSITIONS: dict[ApplicationStatus, set[ApplicationStatus]] = {
     ApplicationStatus.APPLIED: {
+        ApplicationStatus.CLARIFY,
+        ApplicationStatus.ACCEPTED,
+        ApplicationStatus.REJECTED,
+        ApplicationStatus.CANCELED,
+    },
+    ApplicationStatus.CLARIFY: {
         ApplicationStatus.ACCEPTED,
         ApplicationStatus.REJECTED,
         ApplicationStatus.CANCELED,

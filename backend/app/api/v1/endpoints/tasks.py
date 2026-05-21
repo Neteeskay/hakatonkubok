@@ -25,6 +25,7 @@ from app.services.fund_service import FundNotFoundError
 from app.services.task_service import (
     FundNotApprovedError,
     InvalidTaskDataError,
+    get_published_task_for_volunteer,
     InvalidTaskStatusTransitionError,
     TaskEditNotAllowedError,
     TaskNotFoundError,
@@ -204,6 +205,22 @@ async def close_my_task(
             status_code=status.HTTP_409_CONFLICT,
             detail="invalid task status transition",
         ) from exc
+    return TaskResponse.model_validate(task)
+
+
+@router.get("/{task_id}/public", response_model=TaskResponse)
+async def get_public_task_card(
+    task_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> TaskResponse:
+    try:
+        task = await get_published_task_for_volunteer(session, task_id)
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
+        ) from exc
+
     return TaskResponse.model_validate(task)
 
 

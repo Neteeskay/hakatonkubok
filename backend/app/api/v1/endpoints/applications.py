@@ -24,6 +24,7 @@ from app.services.application_service import (
     ParticipantLimitReachedError,
     TaskNotClosedError,
     TaskNotFoundError,
+    clarify_application,
     TaskNotOpenForApplicationsError,
     TaskNotPublishedError,
     accept_application,
@@ -263,6 +264,33 @@ async def reject_fund_application(
             status_code=status.HTTP_409_CONFLICT,
             detail="task is not open for reviewing applications",
         ) from exc
+
+    return ApplicationResponse.model_validate(application)
+
+@router.post("/{application_id}/clarify", response_model=ApplicationResponse)
+async def clarify_task_application(
+    application_id: UUID,
+    payload: ApplicationRejectRequest,
+    current_user: User = Depends(require_roles(UserRole.FUND)),
+    session: AsyncSession = Depends(get_session),
+) -> ApplicationResponse:
+    try:
+        application = await clarify_application(
+            session,
+            current_user=current_user,
+            application_id=application_id,
+            fund_comment=payload.fund_comment,
+        )
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application not found") from exc
+    except ApplicationAccessDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access denied") from exc
+    except FundCommentRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="fund_comment is required") from exc
+    except InvalidApplicationStatusTransitionError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="invalid application status transition") from exc
+    except TaskNotOpenForApplicationsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="task is not open for applications") from exc
 
     return ApplicationResponse.model_validate(application)
 

@@ -49,6 +49,7 @@ class FundProfileResponse(BaseModel):
     cover_url: str | None
     socials: dict | None
     vk_url: str | None
+    logo_url: str | None
     max_url: str | None
     contact_person: str | None
     contact_position: str | None
@@ -148,6 +149,7 @@ class PublicFundListItemResponse(BaseModel):
     name: str
     description: str | None
     help_categories: list[str] | None
+    logo_url: str | None
     region: str | None
     website_url: str | None
     cover_url: str | None
@@ -168,6 +170,7 @@ class PublicFundProfileResponse(BaseModel):
     region: str | None
     website_url: str | None
     cover_url: str | None
+    logo_url: str | None
     socials: dict | None
     vk_url: str | None
     max_url: str | None
@@ -216,3 +219,7 @@ class FundReportHoursByMonthResponse(BaseModel):
     entries_count: int
 
     model_config = {"from_attributes": True}
+
+
+class FundDocumentVisibilityRequest(BaseModel):
+    is_public: bool

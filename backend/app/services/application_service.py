@@ -245,6 +245,39 @@ async def reject_application(
     return await _get_application_by_id(session, application.id)
 
 
+async def clarify_application(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    application_id: UUID,
+    fund_comment: str,
+) -> TaskApplication:
+    if not fund_comment or not fund_comment.strip():
+        raise FundCommentRequiredError
+
+    application = await get_fund_application(
+        session,
+        current_user=current_user,
+        application_id=application_id,
+    )
+
+    _ensure_task_accepting_applications(application.task)
+
+    if not can_transition(
+        application.status,
+        ApplicationStatus.CLARIFY,
+        APPLICATION_TRANSITIONS,
+    ):
+        raise InvalidApplicationStatusTransitionError
+
+    application.status = ApplicationStatus.CLARIFY
+    application.fund_comment = fund_comment.strip()
+    application.decided_at = datetime.now(UTC)
+
+    await session.commit()
+    return await _get_application_by_id(session, application.id)
+
+
 async def confirm_all_accepted_completions_for_task(
     session: AsyncSession,
     *,
