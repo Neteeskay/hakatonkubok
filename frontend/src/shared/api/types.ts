@@ -9,7 +9,22 @@ export type ApplicationStatus = "applied" | "accepted" | "rejected" | "canceled"
 export type ParticipationFormat = "online" | "offline";
 export type DurationType = "one_time" | "regular" | "long_term";
 export type TaskType = "regular" | "pro_bono";
-export type HelpCategory = "children" | "elderly" | "disability" | "ecology";
+export type HelpCategory =
+  | "children"
+  | "communications"
+  | "content"
+  | "design"
+  | "disability"
+  | "ecology"
+  | "education"
+  | "elderly"
+  | "events"
+  | "it"
+  | "legal"
+  | "logistics"
+  | "pro_bono"
+  | "sport"
+  | "targeted_help";
 export type TaskFeedSort = "published_at_desc" | "deadline_at_asc" | "expected_hours_desc" | "expected_hours_asc";
 
 export interface AuthTokenFields {
@@ -403,6 +418,34 @@ export interface VolunteerHoursByCategoryItemResponse {
   tasks_count: number;
 }
 
+export interface VolunteerProfileStatsResponse {
+  active_applications: number;
+  achievements_awarded: number;
+  achievements_total: number;
+  applications_total: number;
+  completed_tasks: number;
+  next_level_hours: DecimalString | null;
+  profile_level: number;
+  profile_level_title: string;
+  total_hours: DecimalString;
+}
+
+export interface PublicVolunteerProfileResponse {
+  about: string | null;
+  achievements: VolunteerAchievementResponse[];
+  avatar_url: string | null;
+  city: string | null;
+  created_at: DateTimeString;
+  department: string | null;
+  full_name: string | null;
+  id: Uuid;
+  interests: string[] | null;
+  position: string | null;
+  pro_bono_skills: string[] | null;
+  skills: string[] | null;
+  stats: VolunteerProfileStatsResponse;
+}
+
 export interface VolunteerHistoryTaskResponse {
   category: HelpCategory;
   fund_name: string | null;
@@ -458,4 +501,202 @@ export interface PlatformAnalyticsReport {
   tasks_published: number;
   tasks_total: number;
   volunteers_total: number;
+}
+
+export interface AdminDashboardSummary {
+  applications_total: number;
+  awarded_hours_total: DecimalString;
+  completions_waiting_hours: number;
+  funds_pending_review: number;
+  funds_total: number;
+  tasks_pending_review: number;
+  tasks_published: number;
+  tasks_total: number;
+}
+
+export interface AdminNotificationReadCount {
+  updated_count: number;
+}
+
+export interface AdminFundListItemResponse {
+  approved_at: DateTimeString | null;
+  contact_email: string | null;
+  contact_person: string | null;
+  created_at: DateTimeString | null;
+  id: Uuid;
+  inn: string | null;
+  moderation_comment: string | null;
+  name: string;
+  ogrn: string | null;
+  region: string | null;
+  status: FundStatus;
+  updated_at: DateTimeString | null;
+}
+
+export interface AdminFundDocumentResponse {
+  created_at: DateTimeString;
+  document_type: string;
+  file_url: string;
+  id: Uuid;
+}
+
+export interface AdminFundDetailResponse extends AdminFundListItemResponse {
+  contact_phone: string | null;
+  contact_position: string | null;
+  description: string | null;
+  documents: AdminFundDocumentResponse[];
+  help_categories: string[] | null;
+  planned_help: string | null;
+  representative: {
+    city: string | null;
+    department: string | null;
+    email: string;
+    full_name: string | null;
+    id: Uuid;
+    position: string | null;
+    role: UserRole;
+  };
+  website_url: string | null;
+}
+
+export interface AdminFundModerationRequest {
+  comment?: string | null;
+  target_status: Extract<FundStatus, "approved" | "needs_changes" | "rejected">;
+}
+
+export interface AdminTaskDirectoryItemResponse {
+  applications_accepted: number;
+  applications_applied: number;
+  applications_canceled: number;
+  applications_completion_confirmed: number;
+  applications_hours_awarded: number;
+  applications_rejected: number;
+  applications_total: number;
+  available_spots: number | null;
+  category: HelpCategory;
+  city: string | null;
+  created_at: DateTimeString;
+  deadline_at: DateTimeString | null;
+  description: string;
+  duration_type: DurationType;
+  ends_at: DateTimeString | null;
+  expected_hours: DecimalString;
+  filled_spots: number;
+  fund_id: Uuid;
+  fund_name: string;
+  id: Uuid;
+  participant_limit: number | null;
+  participation_format: ParticipationFormat;
+  starts_at: DateTimeString | null;
+  status: TaskStatus;
+  task_type: TaskType;
+  title: string;
+  updated_at: DateTimeString;
+}
+
+export interface AdminTaskDetailResponse {
+  category: HelpCategory;
+  city: string | null;
+  closed_at: DateTimeString | null;
+  created_at: DateTimeString;
+  deadline_at: DateTimeString | null;
+  description: string;
+  duration_type: DurationType;
+  ends_at: DateTimeString | null;
+  expected_hours: DecimalString;
+  fund: AdminFundListItemResponse;
+  fund_id: Uuid;
+  id: Uuid;
+  location: string | null;
+  materials_url: string | null;
+  moderation_comment: string | null;
+  online_url: string | null;
+  participant_limit: number | null;
+  participation_format: ParticipationFormat;
+  published_at: DateTimeString | null;
+  required_skills: string[] | null;
+  requirements: string | null;
+  starts_at: DateTimeString | null;
+  status: TaskStatus;
+  task_type: TaskType;
+  title: string;
+  updated_at: DateTimeString;
+}
+
+export interface AdminTaskModerationRequest {
+  comment?: string | null;
+  target_status: Extract<TaskStatus, "published" | "needs_changes" | "rejected">;
+}
+
+export interface AdminCompletionItemResponse {
+  completion_comment: string | null;
+  completion_confirmed_at: DateTimeString | null;
+  created_at: DateTimeString;
+  decided_at: DateTimeString | null;
+  fund_comment: string | null;
+  id: Uuid;
+  status: ApplicationStatus;
+  task: {
+    category: HelpCategory;
+    city: string | null;
+    created_at: DateTimeString;
+    deadline_at: DateTimeString | null;
+    duration_type: DurationType;
+    ends_at: DateTimeString | null;
+    expected_hours: DecimalString;
+    fund_id: Uuid;
+    id: Uuid;
+    participant_limit: number | null;
+    participation_format: ParticipationFormat;
+    starts_at: DateTimeString | null;
+    status: TaskStatus;
+    task_type: TaskType;
+    title: string;
+    updated_at: DateTimeString;
+  };
+  task_id: Uuid;
+  updated_at: DateTimeString;
+  volunteer: {
+    city: string | null;
+    department: string | null;
+    email: string;
+    full_name: string | null;
+    id: Uuid;
+    position: string | null;
+    role: UserRole;
+  };
+  volunteer_comment: string | null;
+  volunteer_id: Uuid;
+}
+
+export interface AdminAwardHoursRequest {
+  admin_comment?: string | null;
+  hours: DecimalString | number;
+}
+
+export interface AdminHourLedgerResponse {
+  admin_comment: string | null;
+  application_id: Uuid;
+  awarded_at: DateTimeString;
+  awarded_by: Uuid;
+  hours: DecimalString;
+  id: Uuid;
+  task_id: Uuid;
+  volunteer_id: Uuid;
+}
+
+export interface AdminVolunteerDirectoryItemResponse {
+  active_tasks: number;
+  applications_total: number;
+  city: string | null;
+  completed_tasks: number;
+  created_at: DateTimeString | null;
+  department: string | null;
+  email: string;
+  full_name: string | null;
+  hours: DecimalString;
+  id: Uuid;
+  interests: string[] | null;
+  position: string | null;
+  skills: string[] | null;
 }

@@ -1,17 +1,61 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowRight, Bell, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { adminFoundations, adminHourCases, adminKpis, adminNotifications, adminTasks } from "@/widgets/admin/admin-data";
 import { AdminKpiCard } from "@/widgets/admin/ui/admin-kpi-card";
 import { AdminPageShell } from "@/widgets/admin/ui/admin-page-shell";
 import { AdminStatusBadge } from "@/widgets/admin/ui/admin-status-badge";
-import { foundationStatusConfig, taskStatusConfig } from "@/widgets/admin/admin-data";
+import { foundationStatusConfig, taskStatusConfig, type AdminFoundation, type AdminHourCase, type AdminNotification, type AdminTask } from "@/widgets/admin/admin-data";
+import { adminService, reportsService } from "@/shared/api";
+import {
+  buildAdminKpisFromApi,
+  mapAdminCompletionItem,
+  mapAdminFundListItem,
+  mapAdminNotification,
+  mapAdminTaskDirectoryItem
+} from "@/widgets/admin/admin-api-mappers";
 
 export function AdminDashboardPage() {
-  const pendingFoundations = adminFoundations.filter((item) => item.status === "pending" || item.status === "revision");
-  const pendingTasks = adminTasks.filter((item) => item.status === "moderation" || item.status === "returned");
-  const hourCases = adminHourCases.filter((item) => item.status === "ready" || item.status === "needsCheck");
+  const [kpis, setKpis] = useState(adminKpis);
+  const [pendingFoundations, setPendingFoundations] = useState<AdminFoundation[]>(adminFoundations.filter((item) => item.status === "pending" || item.status === "revision"));
+  const [pendingTasks, setPendingTasks] = useState<AdminTask[]>(adminTasks.filter((item) => item.status === "moderation" || item.status === "returned"));
+  const [hourCases, setHourCases] = useState<AdminHourCase[]>(adminHourCases.filter((item) => item.status === "ready" || item.status === "needsCheck"));
+  const [notifications, setNotifications] = useState<AdminNotification[]>(adminNotifications);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDashboard() {
+      try {
+        const [summary, analytics, funds, tasks, completions, notificationItems] = await Promise.all([
+          adminService.getAdminDashboard(),
+          reportsService.getPlatformAnalyticsReport(),
+          adminService.getPendingAdminFunds(5),
+          adminService.getAdminTaskDirectory({ status: "pending_review", limit: 5, offset: 0 }),
+          adminService.getAdminCompletionsWaitingHours(5),
+          adminService.getAdminNotifications({ limit: 4, offset: 0 })
+        ]);
+
+        if (!active) return;
+
+        setKpis(buildAdminKpisFromApi(summary, analytics));
+        setPendingFoundations(funds.map(mapAdminFundListItem));
+        setPendingTasks(tasks.map(mapAdminTaskDirectoryItem));
+        setHourCases(completions.map((item) => mapAdminCompletionItem(item)));
+        setNotifications(notificationItems.map(mapAdminNotification));
+      } catch {
+        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadDashboard();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <AdminPageShell
@@ -21,7 +65,7 @@ export function AdminDashboardPage() {
       action={<QuickActions />}
     >
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {adminKpis.map((item) => <AdminKpiCard key={item.label} {...item} />)}
+        {kpis.map((item) => <AdminKpiCard key={item.label} {...item} />)}
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_390px]">
@@ -49,7 +93,7 @@ export function AdminDashboardPage() {
         <aside className="rounded-[1.7rem] bg-white p-5 shadow-[0_22px_70px_rgba(34,28,8,0.055),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
           <SectionTitle title="Уведомления" text="Новые события по модерации и часам." href="/admin/notifications" />
           <div className="mt-5 space-y-3">
-            {adminNotifications.slice(0, 4).map((item) => (
+            {notifications.slice(0, 4).map((item) => (
               <Link key={item.id} href={item.target} className="group block rounded-[1.2rem] bg-[#fffdf7] p-4 transition hover:-translate-y-0.5 hover:bg-brand/12">
                 <div className="flex items-center gap-2">
                   {item.unread ? <span className="size-2 rounded-full bg-brand" /> : null}

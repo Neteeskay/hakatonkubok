@@ -9,6 +9,7 @@ from app.models.domain import TaskApplication, User, VolunteerTask
 from app.models.enums import ApplicationStatus, TaskStatus
 from app.services.achievement_service import sync_volunteer_achievements
 from app.services.fund_service import get_fund_by_representative
+from app.services.notification_service import add_admin_notifications
 from app.services.status_transitions import APPLICATION_TRANSITIONS, can_transition
 
 
@@ -306,6 +307,16 @@ async def confirm_all_accepted_completions_for_task(
         application.completion_confirmed_at = confirmed_at
         application.completion_comment = completion_comment
 
+    if applications:
+        await add_admin_notifications(
+            session,
+            title="Фонд подтвердил выполнение",
+            body=(
+                f"Фонд «{task.fund.name}» подтвердил выполнение задания «{task.title}» "
+                f"для {len(applications)} участника(ов). Требуется начисление часов."
+            ),
+        )
+
     await session.commit()
     for volunteer_id in {application.volunteer_id for application in applications}:
         await sync_volunteer_achievements(session, volunteer_id)
@@ -339,6 +350,14 @@ async def confirm_application_completion(
     application.status = ApplicationStatus.COMPLETION_CONFIRMED
     application.completion_confirmed_at = datetime.now(UTC)
     application.completion_comment = completion_comment
+    await add_admin_notifications(
+        session,
+        title="Фонд подтвердил выполнение",
+        body=(
+            f"Фонд «{application.task.fund.name}» подтвердил выполнение задания "
+            f"«{application.task.title}». Требуется начисление часов."
+        ),
+    )
     await session.commit()
     await sync_volunteer_achievements(session, application.volunteer_id)
     return await _get_application_by_id(session, application.id)

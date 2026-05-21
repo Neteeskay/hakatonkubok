@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Award, Bell, CheckCircle2, Clock3, Download, FileBarChart, MapPin, Search, Star, XCircle } from "lucide-react";
+import { adminService, volunteersService } from "@/shared/api";
+import { mapAdminCompletionItem, mapAdminNotification, mapAdminVolunteerDirectoryItem } from "@/widgets/admin/admin-api-mappers";
 import {
   adminHourCases,
   adminNotifications,
@@ -11,6 +13,7 @@ import {
   analyticsBars,
   applicationStatusConfig,
   type AdminHourCase,
+  type AdminNotification,
   type AdminVolunteer
 } from "@/widgets/admin/admin-data";
 import { AdminKpiCard } from "@/widgets/admin/ui/admin-kpi-card";
@@ -22,18 +25,51 @@ import { achievementDefinitions } from "@/widgets/volunteer-achievements/achieve
 export function AdminHoursPage() {
   const [cases, setCases] = useState<AdminHourCase[]>(adminHourCases);
 
-  function approve(id: string, hours: number) {
-    setCases((items) => items.map((item) => item.id === id ? { ...item, status: "approved", approvedHours: hours } : item));
-  }
+  useEffect(() => {
+    let active = true;
 
-  function reject(id: string) {
-    setCases((items) => items.map((item) => item.id === id ? { ...item, status: "rejected" } : item));
+    async function loadWaitingHours() {
+      try {
+        const items = await adminService.getAdminCompletionsWaitingHours(50);
+        const mapped = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const task = await adminService.getAdminTask(item.task_id);
+              return mapAdminCompletionItem(item, task.fund.name);
+            } catch {
+              return mapAdminCompletionItem(item);
+            }
+          })
+        );
+
+        if (active) {
+          setCases(mapped);
+        }
+      } catch {
+        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadWaitingHours();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function approve(id: string, hours: number) {
+    try {
+      await adminService.awardAdminHours(id, { hours });
+      setCases((items) => items.filter((item) => item.id !== id));
+    } catch {
+      // Do not fake awarded hours locally: backend must confirm the operation.
+    }
   }
 
   return (
     <AdminPageShell eyebrow="Начисление часов" title="Контроль завершённых участий" description="Фонд подтверждает факт участия, администратор проверяет и только после этого начисляет часы.">
       <section className="grid gap-4">
-        {cases.map((item) => <HourCaseCard key={item.id} item={item} onApprove={approve} onReject={reject} />)}
+        {cases.map((item) => <HourCaseCard key={item.id} item={item} onApprove={approve} />)}
       </section>
     </AdminPageShell>
   );
@@ -41,8 +77,43 @@ export function AdminHoursPage() {
 
 export function AdminVolunteersPage() {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<AdminVolunteer | null>(null);
-  const visible = useMemo(() => adminVolunteers.filter((item) => `${item.name} ${item.city} ${item.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [query]);
+  const [items, setItems] = useState<AdminVolunteer[]>(adminVolunteers);
+  const visible = useMemo(() => items.filter((item) => `${item.name} ${item.city} ${item.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadVolunteers() {
+      try {
+        const volunteers = await adminService.getAdminVolunteers({
+          limit: 50,
+          offset: 0,
+          search: query.trim().length >= 2 ? query.trim() : undefined
+        });
+        const mapped = await Promise.all(
+          volunteers.map(async (volunteer) => {
+            try {
+              return mapAdminVolunteerDirectoryItem(volunteer, await volunteersService.getPublicVolunteerProfile(volunteer.id));
+            } catch {
+              return mapAdminVolunteerDirectoryItem(volunteer);
+            }
+          })
+        );
+
+        if (active) {
+          setItems(mapped);
+        }
+      } catch {
+        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadVolunteers();
+
+    return () => {
+      active = false;
+    };
+  }, [query]);
 
   return (
     <AdminPageShell eyebrow="Волонтёры" title="Профили участников" description="Поиск по сотрудникам, навыкам, городам, часам и истории участия.">
@@ -65,18 +136,13 @@ export function AdminVolunteersPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               {volunteer.skills.map((skill) => <span key={skill} className="rounded-full bg-[#f4f3ee] px-3 py-1.5 text-xs font-black text-black/54">{skill}</span>)}
             </div>
-            <button onClick={() => setSelected(volunteer)} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-black text-black">
+            <Link href={`/profile/${volunteer.id}`} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-black text-black">
               Открыть профиль
               <ArrowRight className="size-4" />
-            </button>
+            </Link>
           </article>
         ))}
       </section>
-      {selected ? (
-        <AdminDetailOverlay eyebrow="Профиль волонтёра" title={selected.name} description="Публичный профиль участника: навыки, вклад, бейджи и история участия." onClose={() => setSelected(null)}>
-          <VolunteerProfilePreview volunteer={selected} />
-        </AdminDetailOverlay>
-      ) : null}
     </AdminPageShell>
   );
 }
@@ -147,18 +213,44 @@ export function AdminReportsPage() {
 }
 
 export function AdminNotificationsPage() {
-  const unreadCount = adminNotifications.filter((item) => item.unread).length;
+  const [notifications, setNotifications] = useState<AdminNotification[]>(adminNotifications);
+  const unreadCount = notifications.filter((item) => item.unread).length;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadNotifications() {
+      try {
+        const items = await adminService.getAdminNotifications({ limit: 50, offset: 0 });
+        if (!active) return;
+        setNotifications(items.map(mapAdminNotification));
+      } catch {
+        // Keep existing UI data if the API is unavailable or the admin is not authenticated.
+      }
+    }
+
+    void loadNotifications();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function markRead(id: string) {
+    setNotifications((items) => items.map((item) => item.id === id ? { ...item, unread: false } : item));
+    void adminService.markAdminNotificationRead(id);
+  }
 
   return (
     <AdminPageShell eyebrow="Уведомления" title="События администратора" description="Новые фонды, задания на модерации, завершённые участия и исправления от фондов.">
       <section className="rounded-[1.7rem] bg-white p-5 shadow-[0_22px_70px_rgba(34,28,8,0.055),inset_0_0_0_1px_rgba(24,20,7,0.055)]">
         <div className="flex flex-wrap items-center gap-2">
-          <AdminStatusBadge tone="brand">Все {adminNotifications.length}</AdminStatusBadge>
+          <AdminStatusBadge tone="brand">Все {notifications.length}</AdminStatusBadge>
           <AdminStatusBadge tone="review">Непрочитанные {unreadCount}</AdminStatusBadge>
         </div>
         <div className="mt-5 space-y-3">
-          {adminNotifications.map((item) => (
-            <Link key={item.id} href={item.target} className="grid gap-4 rounded-[1.35rem] bg-[#fffdf7] p-4 transition hover:-translate-y-0.5 hover:bg-brand/12 md:grid-cols-[56px_1fr_auto] md:items-center">
+          {notifications.map((item) => (
+            <Link key={item.id} href={item.target} onClick={() => markRead(item.id)} className="grid gap-4 rounded-[1.35rem] bg-[#fffdf7] p-4 transition hover:-translate-y-0.5 hover:bg-brand/12 md:grid-cols-[56px_1fr_auto] md:items-center">
               <span className="relative grid size-12 place-items-center rounded-2xl bg-white">
                 <Bell className="size-5" />
                 {item.unread ? <span className="absolute right-2 top-2 size-2 rounded-full bg-brand" /> : null}
@@ -176,7 +268,7 @@ export function AdminNotificationsPage() {
   );
 }
 
-function HourCaseCard({ item, onApprove, onReject }: { item: AdminHourCase; onApprove: (id: string, hours: number) => void; onReject: (id: string) => void }) {
+function HourCaseCard({ item, onApprove }: { item: AdminHourCase; onApprove: (id: string, hours: number) => void }) {
   const [hours, setHours] = useState(item.approvedHours);
   const status = item.status === "approved" ? applicationStatusConfig.hoursAdded : item.status === "rejected" ? applicationStatusConfig.rejected : applicationStatusConfig.waitingHours;
 
@@ -199,9 +291,8 @@ function HourCaseCard({ item, onApprove, onReject }: { item: AdminHourCase; onAp
             <input type="number" min={0} value={hours} onChange={(event) => setHours(Number(event.target.value))} className="h-11 w-24 rounded-xl bg-white px-3 text-sm font-black outline-none shadow-[inset_0_0_0_1px_rgba(24,20,7,0.08)]" />
             <span className="text-sm font-black text-black/52">часов</span>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button onClick={() => onApprove(item.id, hours)} className="h-10 rounded-xl bg-brand text-xs font-black text-black">Начислить</button>
-            <button onClick={() => onReject(item.id)} className="h-10 rounded-xl bg-[#fff1f1] text-xs font-black text-[#c83c3c]">Отклонить</button>
+          <div className="mt-4">
+            <button onClick={() => onApprove(item.id, hours)} className="h-10 w-full rounded-xl bg-brand text-xs font-black text-black">Начислить</button>
           </div>
         </AdminSoftSurface>
       </div>

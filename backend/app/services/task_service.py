@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.domain import Fund, Notification, User, VolunteerTask
+from app.models.domain import Fund, User, VolunteerTask
 from app.models.enums import (
     DurationType,
     FundStatus,
@@ -22,6 +22,7 @@ from app.schemas.tasks import (
     validate_task_location,
 )
 from app.services.fund_service import get_fund_by_representative
+from app.services.notification_service import add_admin_notifications, add_user_notification
 from app.services.status_transitions import TASK_TRANSITIONS, can_transition
 
 
@@ -289,6 +290,11 @@ async def submit_task_for_review(
     task.moderation_comment = None
     task.published_at = None
     task.closed_at = None
+    await add_admin_notifications(
+        session,
+        title="Новое задание на проверке",
+        body=f"Фонд «{fund.name}» отправил задание «{task.title}» на модерацию.",
+    )
 
     await session.commit()
     return await get_task_by_id(session, task.id)
@@ -357,35 +363,37 @@ async def moderate_task(
 
     task.closed_at = None
 
-    notification_titles = {
-        TaskStatus.PUBLISHED: "Задание опубликовано",
-        TaskStatus.NEEDS_CHANGES: "Задание требует доработки",
-        TaskStatus.REJECTED: "Задание отклонено",
-    }
-
-    notification_bodies = {
-        TaskStatus.PUBLISHED: (
-            f"Ваше задание «{task.title}» прошло модерацию и опубликовано."
-        ),
-        TaskStatus.NEEDS_CHANGES: (
-            f"Ваше задание «{task.title}» требует доработки.\n\n"
-            f"Комментарий администратора:\n"
-            f"{task.moderation_comment or 'Комментарий не указан'}"
-        ),
-        TaskStatus.REJECTED: (
-            f"Ваше задание «{task.title}» отклонено.\n\n"
-            f"Комментарий администратора:\n"
-            f"{task.moderation_comment or 'Комментарий не указан'}"
-        ),
-    }
-
-    if target_status in notification_titles:
-        session.add(
-            Notification(
-                user_id=task.fund.representative_user_id,
-                title=notification_titles[target_status],
-                body=notification_bodies[target_status],
-            )
+    if target_status == TaskStatus.PUBLISHED:
+        await add_user_notification(
+            session,
+            user_id=task.fund.representative_user_id,
+            title="Задание опубликовано",
+            body=f"Ваше задание «{task.title}» прошло модерацию и опубликовано.",
+        )
+    if target_status == TaskStatus.NEEDS_CHANGES:
+        await add_user_notification(
+            session,
+            user_id=task.fund.representative_user_id,
+            title="Задание возвращено на доработку",
+            body=(
+                f"Задание «{task.title}» возвращено администратором на доработку.\n\n"
+                f"Комментарий: {task.moderation_comment or 'Комментарий не указан'}"
+            ),
+        )
+        await add_admin_notifications(
+            session,
+            title="Задание возвращено на доработку",
+            body=f"Задание «{task.title}» фонда «{task.fund.name}» возвращено на доработку.",
+        )
+    elif target_status == TaskStatus.REJECTED:
+        await add_user_notification(
+            session,
+            user_id=task.fund.representative_user_id,
+            title="Задание отклонено",
+            body=(
+                f"Задание «{task.title}» отклонено администратором.\n\n"
+                f"Комментарий: {task.moderation_comment or 'Комментарий не указан'}"
+            ),
         )
 
     await session.commit()

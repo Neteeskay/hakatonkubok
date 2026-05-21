@@ -5,6 +5,7 @@ from app.core.security import create_access_token, create_refresh_token, hash_pa
 from app.models.domain import Fund, StolotoEmployee, User
 from app.models.enums import FundStatus, UserRole
 from app.schemas.auth import FundRegisterRequest, VolunteerRegisterRequest
+from app.services.notification_service import add_admin_notifications
 
 
 class AuthError(Exception):
@@ -127,6 +128,11 @@ async def register_fund(session: AsyncSession, payload: FundRegisterRequest) -> 
         status=FundStatus.PENDING_REVIEW,
     )
     session.add(fund)
+    await add_admin_notifications(
+        session,
+        title="Новый фонд на модерации",
+        body=f"Фонд «{fund.name}» зарегистрировался и ожидает проверки профиля и документов.",
+    )
     await session.commit()
     await session.refresh(user)
     await session.refresh(fund)

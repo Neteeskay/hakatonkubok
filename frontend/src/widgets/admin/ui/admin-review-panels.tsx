@@ -33,6 +33,7 @@ import {
   type AdminTask,
   type AdminTaskStatus
 } from "@/widgets/admin/admin-data";
+import { apiConfig } from "@/shared/api/config";
 import { AdminStatusBadge } from "@/widgets/admin/ui/admin-status-badge";
 
 type DecisionPanelProps = {
@@ -119,7 +120,7 @@ export function FoundationReviewPanel({
             Фонд приложил документы к заявке. Нажмите на карточку документа, чтобы открыть файл для просмотра.
           </p>
           <div className="grid gap-3 md:grid-cols-2">
-            {foundation.documents.map((document) => <DocumentCard key={document.fileName} title={document.title} fileName={document.fileName} status={document.status} />)}
+            {foundation.documents.map((document) => <DocumentCard key={document.fileName} title={document.title} fileName={document.fileName} fileUrl={document.fileUrl} status={document.status} />)}
           </div>
         </InfoSection>
       </section>
@@ -397,7 +398,22 @@ const documentMeta = [
   }
 ];
 
-function DocumentCard({ title, fileName, status }: { title: string; fileName: string; status: AdminFoundation["documents"][number]["status"] }) {
+function resolveDocumentUrl(fileUrl: string | undefined, fileName: string) {
+  const value = fileUrl || `/documents/${encodeURIComponent(fileName)}`;
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    const apiOrigin = new URL(apiConfig.baseUrl).origin;
+    return `${apiOrigin}${value}`;
+  }
+
+  const apiOrigin = new URL(apiConfig.baseUrl).origin;
+  return `${apiOrigin}/${value}`;
+}
+
+function DocumentCard({ title, fileName, fileUrl, status }: { title: string; fileName: string; fileUrl?: string; status: AdminFoundation["documents"][number]["status"] }) {
   const normalized = `${title} ${fileName}`.toLowerCase();
   const meta = documentMeta.find((item) => item.match.some((part) => normalized.includes(part))) ?? {
     title,
@@ -412,7 +428,7 @@ function DocumentCard({ title, fileName, status }: { title: string; fileName: st
 
   return (
     <a
-      href={`/documents/${encodeURIComponent(fileName)}`}
+      href={resolveDocumentUrl(fileUrl, fileName)}
       target="_blank"
       rel="noreferrer"
       className="group relative block overflow-hidden rounded-[1.25rem] bg-[#fffdf7] p-4 shadow-[inset_0_0_0_1px_rgba(24,20,7,0.055),0_16px_40px_rgba(34,28,8,0.045)] transition duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[inset_0_0_0_1px_rgba(255,227,0,0.42),0_22px_58px_rgba(34,28,8,0.075)]"

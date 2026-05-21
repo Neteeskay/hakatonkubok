@@ -131,7 +131,7 @@ export function mapApplicationResponseToFoundationApplication(application: Appli
     interests: task ? [getCategoryLabel(task.category)] : [],
     hoursHistory: 0,
     completedActivities: 0,
-    relevance: 0,
+    relevance: 78,
     status,
     comment: application.fund_comment || application.volunteer_comment || application.completion_comment || applicationCommentByStatus(status),
     nextStep: applicationNextStepByStatus(status),
